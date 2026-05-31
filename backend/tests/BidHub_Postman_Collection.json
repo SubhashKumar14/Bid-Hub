@@ -1,0 +1,1019 @@
+{
+	"info": {
+		"_postman_id": "8b9e6f21-7c98-4b71-a472-3c812d45a7bd",
+		"name": "Bid-Hub API Test Collection",
+		"description": "Comprehensive MERN api collection for Bid-Hub freelance bidding marketplace. Used to validate register, login, project briefs CRUD, student bidding, milestones workflow, simulated escrow, and rating review updates.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Register Student",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Rohan Sharma\",\n  \"email\": \"rohan@rvce.edu\",\n  \"password\": \"password123\",\n  \"role\": \"student\",\n  \"college\": \"RV College of Engineering\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/register",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"register"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Register Client",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Siddharth Malhotra\",\n  \"email\": \"siddharth@rvceinc.com\",\n  \"password\": \"password123\",\n  \"role\": \"client\",\n  \"college\": \"RVCE Inc.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/register",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"register"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login Student",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.token) {",
+									"    pm.collectionVariables.set(\"student_token\", jsonData.token);",
+									"    pm.collectionVariables.set(\"student_id\", jsonData._id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"rohan@rvce.edu\",\n  \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login Client",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.token) {",
+									"    pm.collectionVariables.set(\"client_token\", jsonData.token);",
+									"    pm.collectionVariables.set(\"client_id\", jsonData._id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"siddharth@rvceinc.com\",\n  \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Me (Student Profile)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{student_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/me",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"me"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Projects",
+			"item": [
+				{
+					"name": "Create Project (Client)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData._id) {",
+									"    pm.collectionVariables.set(\"active_project_id\", jsonData._id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Awwwards-style editorial clothing label redesign\",\n  \"description\": \"Build a grid-based premium layout for slow clothing stores with cream color palettes.\",\n  \"category\": \"Product Design\",\n  \"budget\": \"₹25,000\",\n  \"deadline\": \"20 days\",\n  \"skillsRequired\": [\"UX/UI\", \"React\", \"Tailwind CSS\"],\n  \"milestones\": [\n    { \"title\": \"Mockup and assets layout\", \"amount\": \"₹10,000\", \"dueDate\": \"1 week\" },\n    { \"title\": \"React components integration and handover\", \"amount\": \"₹15,000\", \"dueDate\": \"2 weeks\" }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/projects",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"projects"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Projects Wall",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/projects?category=Product Design",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"projects"
+							],
+							"query": [
+								{
+									"key": "category",
+									"value": "Product Design"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Project Details & Milestones",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.milestones && jsonData.milestones.length > 0) {",
+									"    pm.collectionVariables.set(\"milestone_1_id\", jsonData.milestones[0]._id);",
+									"    pm.collectionVariables.set(\"milestone_2_id\", jsonData.milestones[1]._id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/projects/{{active_project_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"projects",
+								"{{active_project_id}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Bids",
+			"item": [
+				{
+					"name": "Create Bid (Student)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData._id) {",
+									"    pm.collectionVariables.set(\"active_bid_id\", jsonData._id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{student_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"amount\": \"₹24,000\",\n  \"timeline\": \"14 days\",\n  \"proposal\": \"Ready to start implementing custom animations using framer-motion. Please check my previous portfolio ratings.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/projects/{{active_project_id}}/bids",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"projects",
+								"{{active_project_id}}",
+								"bids"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Project Bids (Client)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/projects/{{active_project_id}}/bids",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"projects",
+								"{{active_project_id}}",
+								"bids"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Accept Bid & Lock Escrow (Client)",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/bids/{{active_bid_id}}/accept",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"bids",
+								"{{active_bid_id}}",
+								"accept"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Milestones & Escrow",
+			"item": [
+				{
+					"name": "Submit Milestone Work (Student)",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{student_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/milestones/{{milestone_1_id}}/submit",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"milestones",
+								"{{milestone_1_id}}",
+								"submit"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Release Milestone Escrow (Client)",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/milestones/{{milestone_1_id}}/release",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"milestones",
+								"{{milestone_1_id}}",
+								"release"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Submit Final Milestone (Student)",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{student_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/milestones/{{milestone_2_id}}/submit",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"milestones",
+								"{{milestone_2_id}}",
+								"submit"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Release Final Escrow & Complete Project (Client)",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/milestones/{{milestone_2_id}}/release",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"milestones",
+								"{{milestone_2_id}}",
+								"release"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Reviews & Payments",
+			"item": [
+				{
+					"name": "Submit Client Review (Escrow Gate)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"projectId\": \"{{active_project_id}}\",\n  \"revieweeId\": \"{{student_id}}\",\n  \"rating\": 5,\n  \"comment\": \"Exceptional layout styling and timely responses. Highly recommended Student builder!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/reviews",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"reviews"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get User Reviews",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/reviews/users/{{student_id}}/reviews",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"reviews",
+								"users",
+								"{{student_id}}",
+								"reviews"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Payment Ledger",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{student_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/payments",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"payments"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Negative & Validation Tests",
+			"item": [
+				{
+					"name": "Login Wrong Password (Negative)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 401\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"pm.test(\"Error message is correct\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.eql(\"Invalid email or password\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"rohan@rvce.edu\",\n  \"password\": \"wrong_password_abc\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Me Expired/Invalid JWT (Negative)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 401\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"pm.test(\"Returns token failed message\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.include(\"Not authorized\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer invalid_expired_jwt_token_payload"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/me",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"me"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Student Create Project (Forbidden)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 403\", function () {",
+									"    pm.response.to.have.status(403);",
+									"});",
+									"pm.test(\"Role check error is returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.eql(\"Access denied, requires client role\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{student_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Sneaky student project\",\n  \"description\": \"This should fail validation.\",\n  \"category\": \"Product Design\",\n  \"budget\": \"₹10,000\",\n  \"deadline\": \"5 days\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/projects",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"projects"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Client Submit Bid (Forbidden)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 403\", function () {",
+									"    pm.response.to.have.status(403);",
+									"});",
+									"pm.test(\"Role check error is returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.eql(\"Access denied, requires student role\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"amount\": \"₹10,000\",\n  \"timeline\": \"3 days\",\n  \"proposal\": \"Clients cannot place bids on briefs.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/projects/{{active_project_id}}/bids",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"projects",
+								"{{active_project_id}}",
+								"bids"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Student Release Escrow (Forbidden)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 403\", function () {",
+									"    pm.response.to.have.status(403);",
+									"});",
+									"pm.test(\"Not authorized error is returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.eql(\"Not authorized to release funds for this project\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{student_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/milestones/{{milestone_1_id}}/release",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"milestones",
+								"{{milestone_1_id}}",
+								"release"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Review Project Before Completion (Negative)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"pm.test(\"Completion error message is returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.eql(\"Reviews can only be submitted for completed projects\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"projectId\": \"{{active_project_id}}\",\n  \"revieweeId\": \"{{student_id}}\",\n  \"rating\": 5,\n  \"comment\": \"This should fail since the noticeboard project state is still ASSIGNED, not completed.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/reviews",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"reviews"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Submit Duplicate Review (Negative)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"pm.test(\"Duplicate review error is returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.eql(\"You have already reviewed this project\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"projectId\": \"{{active_project_id}}\",\n  \"revieweeId\": \"{{student_id}}\",\n  \"rating\": 4,\n  \"comment\": \"Second review attempt should fail.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/reviews",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"reviews"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "GitHub Import Exceeding 20 Files (Negative)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"pm.test(\"File limits error is returned\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.message).to.include(\"Import rejected: Too many files\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"repoUrl\": \"https://github.com/facebook/react\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/import/github",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"import",
+								"github"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:5000",
+			"type": "string"
+		},
+		{
+			"key": "student_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "client_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "active_project_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "active_bid_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "milestone_1_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "milestone_2_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "student_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "client_id",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
