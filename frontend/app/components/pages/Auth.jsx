@@ -89,7 +89,8 @@ export function Auth({ onDone, setToken }) {
       {/* Left — editorial */}
       <aside className="hidden lg:flex flex-col justify-between p-12 bg-[var(--brand-espresso)] text-[#f1e8cf] relative overflow-hidden grain">
         <div className="absolute -top-32 -left-32 size-80 rounded-full bg-[var(--brand-gold)]/15 blur-3xl" />
-        <div>
+        <div className="flex items-center gap-3">
+          <img src="/bidhublogo.png" alt="Bid·Hub Logo" className="size-10 object-contain rounded-md" />
           <span className="font-serif text-2xl">Bid<span className="text-[var(--brand-gold)]">·</span>Hub</span>
         </div>
         <div className="max-w-md">

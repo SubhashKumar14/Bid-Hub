@@ -204,9 +204,12 @@ export function Landing({ setPage }) {
 
       <footer className="border-t border-border">
         <div className="mx-auto max-w-7xl px-5 lg:px-8 py-10 flex flex-col md:flex-row gap-6 items-start md:items-center justify-between">
-          <div>
-            <p className="font-serif text-xl">Bid<span className="text-[var(--brand-gold)]">·</span>Hub</p>
-            <p className="text-xs text-muted-foreground mt-1">A handmade marketplace for student work. Made in Bengaluru.</p>
+          <div className="flex items-center gap-3">
+            <img src="/bidhublogo.png" alt="Bid·Hub Logo" className="size-10 object-contain rounded-md" />
+            <div>
+              <p className="font-serif text-xl leading-none">Bid<span className="text-[var(--brand-gold)]">·</span>Hub</p>
+              <p className="text-xs text-muted-foreground mt-1.5">A handmade marketplace for student work. Made in Bengaluru.</p>
+            </div>
           </div>
           <div className="flex gap-6 text-xs text-muted-foreground">
             <a>About</a><a>Trust & safety</a><a>Pricing</a><a>For colleges</a><a>Contact</a>

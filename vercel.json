@@ -6,7 +6,7 @@
       "destination": "https://bidhub-backend.onrender.com/api/:path*"
     },
     {
-      "source": "/((?!assets/|favicon.ico|index.html).*)",
+      "source": "/((?!assets/|.*\\..*).*)",
       "destination": "/index.html"
     }
   ]
