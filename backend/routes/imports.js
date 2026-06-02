@@ -1,10 +1,20 @@
 import express from "express";
 import AdmZip from "adm-zip";
 import axios from "axios";
+import rateLimit from "express-rate-limit";
 import { upload } from "../config/cloudinary.js";
 import { protect } from "../middleware/auth.js";
 
 const router = express.Router();
+
+// Rate limit: 5 import calls per 15 minutes per IP (each GitHub import hits external API)
+const importLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { message: "Too many import requests. Please wait 15 minutes before trying again." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Helper to check if file path should be ignored
 const isIgnored = (filePath) => {
@@ -34,7 +44,7 @@ const isImageFile = (filename) => {
 // @desc    Import local zip file
 // @route   POST /api/import/local
 // @access  Private
-router.post("/local", protect, upload.single("file"), async (req, res) => {
+router.post("/local", importLimiter, protect, upload.single("file"), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ message: "Please upload a ZIP file" });
   }
@@ -101,7 +111,7 @@ router.post("/local", protect, upload.single("file"), async (req, res) => {
 // @desc    Import GitHub repository manifest
 // @route   POST /api/import/github
 // @access  Private
-router.post("/github", protect, async (req, res) => {
+router.post("/github", importLimiter, protect, async (req, res) => {
   const { repoUrl } = req.body;
 
   if (!repoUrl) {

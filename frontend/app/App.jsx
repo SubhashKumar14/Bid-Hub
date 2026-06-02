@@ -112,7 +112,7 @@ export default function App() {
           />
         )}
         {page === "profile" && <Profile token={token} currentUser={currentUser} />}
-        {page === "auth" && <Auth onDone={() => setPage("landing")} setToken={setToken} />}
+        {page === "auth" && <Auth onDone={(userRole) => setPage(userRole || "landing")} setToken={setToken} />}
       </main>
 
       <EscrowDrawer open={escrowOpen} onClose={() => setEscrowOpen(false)} token={token} currentUser={currentUser} />

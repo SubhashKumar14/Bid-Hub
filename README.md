@@ -280,64 +280,101 @@ To prevent feedback gaming or falsified listings, `POST /api/reviews` executes f
 4. The database is checked to ensure no duplicate review exists from that reviewer for that project.
 
 ### 🛡️ Upload & Import Protections
-* **Public GitHub URL Trees**: The repository imports scanner does not run shell scripts or perform `git clone`. Instead, it reads file tree listings from GitHub’s public API trees.
+* **Public GitHub URL Trees**: The repository imports scanner does not run shell scripts or perform `git clone`. Instead, it reads file tree listings from GitHub's public API trees.
 * **Strict Size and Count Guardrails**: Scans reject codebases with more than **20 files** or overall dimensions exceeding **50MB**, preventing MongoDB storage depletion.
-* **Exclusion Filters**: Systemmatically ignores system and cache files (`node_modules`, `.git`, `dist`, `build`, etc.).
+* **Exclusion Filters**: Systematically ignores system and cache files (`node_modules`, `.git`, `dist`, `build`, etc.).
+* **MIME Type Validation**: Multer file filter rejects non-image/PDF/ZIP uploads on the upload endpoint.
+
+### 🔐 Additional Security Measures
+* **Rate Limiting**: Login and register endpoints are rate limited to **10 requests per 15 minutes** per IP using `express-rate-limit`. Prevents brute-force credential attacks.
+* **JWT Startup Guard**: Server refuses to start if `JWT_SECRET` is missing or still set to the placeholder value — prevents silent misconfiguration.
+* **Body Size Limits**: Requests exceeding 10MB are rejected at the middleware layer.
+* **ReDoS Prevention**: All MongoDB regex queries use `escapeRegex()` to sanitize user-supplied search strings.
+* **No Stack Traces in Production**: Error middleware suppresses `stack` field when `NODE_ENV=production`.
 
 ---
 
 ## 9. Environment Configuration
 
-Create a `.env` configuration file in the project directory root:
+> ⚠️ **Never commit your `.env` file.** Copy the template below, fill in real values, and keep it local.
+
+Create `backend/.env` by copying `backend/.env.example`:
+
+```bash
+cp backend/.env.example backend/.env
+# Then edit backend/.env with your real values
+```
 
 ```env
-# Express Core Settings
+# Server
 NODE_ENV=development
 PORT=5000
 
-# Database Settings
-MONGODB_URI=mongodb://localhost:27017/bidhub
+# MongoDB Atlas
+MONGODB_URI=mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/bidhub
 
-# Token Cryptography
-JWT_SECRET=your_long_cryptographically_secure_development_jwt_secret_key
+# JWT — generate with: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+JWT_SECRET=your_long_cryptographically_secure_jwt_secret_64_chars_minimum
+JWT_EXPIRE=30d
 
-# Cloudinary Upload Settings (Fallback configuration uses disk storage if unset)
-CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
-CLOUDINARY_API_KEY=your_cloudinary_api_key
-CLOUDINARY_API_SECRET=your_cloudinary_api_secret
+# Cloudinary (optional — falls back to local disk storage if unset)
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+CLOUDINARY_FOLDER=bidhub
+
+# CORS — set to your deployed Vercel URL in production
+CLIENT_URL=http://localhost:5173
+
+# Import Limits
+MAX_PROJECT_FILES=20
+MAX_PROJECT_SIZE_MB=50
 ```
 
 ---
 
 ## 10. Installation & Setup
 
-Ensure you have **Node.js** (version 18 or above) and **MongoDB** installed and running on your system.
+Ensure you have **Node.js 18+** installed.
 
 ### Step 1: Clone Repository
 ```bash
-git clone https://github.com/your-username/BidHub.git
-cd BidHub
+git clone https://github.com/SubhashKumar14/Bid-Hub.git
+cd Bid-Hub
 ```
 
-### Step 2: Install Project Dependencies
-The project uses shared configurations at the root level.
+### Step 2: Install Root Dependencies (Frontend)
 ```bash
-npm install
+npm install --legacy-peer-deps
 ```
 
-### Step 3: Seed Database
-Populate the database with validation profiles (Student: `rohan@rvce.edu`, Client: `siddharth@rvceinc.com`, password: `password123`) and project states:
+### Step 3: Install Backend Dependencies
+```bash
+cd backend
+npm install --legacy-peer-deps
+cd ..
+```
+
+### Step 4: Configure Environment
+```bash
+cp backend/.env.example backend/.env
+# Edit backend/.env with your MongoDB URI, JWT secret, and Cloudinary keys
+```
+
+### Step 5: Seed Database
+Populate the database with demo data (Student: `rohan@rvce.edu`, Client: `siddharth@rvceinc.com`, password: `password123`):
 ```bash
 node backend/seed.js
 ```
 
-### Step 4: Run Application in Development
-Launch the Express API and the Vite development client in parallel:
+### Step 6: Run in Development
+Launch the Express API and the Vite dev server in parallel:
 ```bash
 npm run dev:all
 ```
-* Client interface loads at `http://localhost:5173`.
-* Express API runs at `http://localhost:5000` with Vite proxy handling `/api/*` forwarding.
+* **Frontend** loads at `http://localhost:5173`
+* **Backend API** runs at `http://localhost:5000`
+* Vite dev server proxies `/api/*` to the backend automatically
 
 ---
 
@@ -399,28 +436,85 @@ API validation checks are maintained in a runnable Postman test collection.
 
 ## 13. Production Deployment Guide
 
-Follow these steps to deploy the application structure to production.
+### Step 1: Database (MongoDB Atlas)
+1. Register a free cluster at [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
+2. Create a database user and whitelist IP `0.0.0.0/0` (allow all) for cloud deployments
+3. Copy your connection string: `mongodb+srv://<user>:<pass>@cluster0.xxxxx.mongodb.net/bidhub`
 
-### Database (MongoDB Atlas)
-1. Register a cluster on [MongoDB Atlas](https://www.mongodb.com/cloud/atlas).
-2. Whitelist your production server IP address in the network connection firewall rules.
-3. Copy your connection URI and configure the MONGODB_URI production environment variable.
+### Step 2: Media Storage (Cloudinary)
+1. Create a free account at [Cloudinary](https://cloudinary.com)
+2. Copy your **Cloud Name**, **API Key**, and **API Secret** from the dashboard
 
-### Media (Cloudinary)
-1. Create a media account on [Cloudinary](https://cloudinary.com).
-2. Fetch your cloud name, API key, and API secret keys.
-3. Configure the environment variables to verify Cloudinary media upload routes.
+### Step 3: Backend → Render.com
 
-### Backend (Render or Railway)
-1. Connect your repository to **Render** or **Railway**.
-2. Select a Web Service deployment. Build command: `npm install`. Startup command: `npm run server`.
-3. Set your production environment variables in their dashboard config dashboard.
+The repo includes a ready [`render.yaml`](render.yaml) for one-click deployment.
 
-### Frontend (Vercel)
-1. Deploy your repository to **Vercel**.
-2. Vercel automatically reads `vite.config.js` config parameters.
-3. Configure proxy overrides or rewrite API calls to direct traffic to your backend URL.
-4. Build command: `npm run build`. Output directory: `dist/`.
+**Option A — Automatic (Blueprint)**
+1. Go to [render.com/blueprints](https://render.com/blueprints) → New Blueprint Instance
+2. Connect your GitHub repo — Render reads `render.yaml` automatically
+
+**Option B — Manual Web Service**
+1. Go to Render dashboard → New Web Service
+2. Connect your `SubhashKumar14/Bid-Hub` repo
+3. Set the following:
+   - **Root Directory:** `backend`
+   - **Build Command:** `npm install --legacy-peer-deps`
+   - **Start Command:** `npm start`
+4. Add these **Environment Variables** in the Render dashboard:
+
+| Variable | Value |
+|---|---|
+| `NODE_ENV` | `production` |
+| `PORT` | `5000` |
+| `MONGODB_URI` | Your Atlas connection string |
+| `JWT_SECRET` | Long random string (64+ chars) |
+| `JWT_EXPIRE` | `30d` |
+| `CLIENT_URL` | Your Vercel frontend URL (set after Step 4) |
+| `CLOUDINARY_CLOUD_NAME` | Your Cloudinary cloud name |
+| `CLOUDINARY_API_KEY` | Your Cloudinary API key |
+| `CLOUDINARY_API_SECRET` | Your Cloudinary API secret |
+| `CLOUDINARY_FOLDER` | `bidhub` |
+
+5. Copy your Render service URL: `https://bidhub-backend.onrender.com`
+
+### Step 4: Frontend → Vercel
+
+1. Go to [vercel.com](https://vercel.com) → New Project → Import from GitHub
+2. Select `SubhashKumar14/Bid-Hub`
+3. Set:
+   - **Framework Preset:** Vite
+   - **Root Directory:** `./` (keep as root — `vercel.json` and `vite.config.js` are at the root)
+   - **Build Command:** `npm run build`
+   - **Output Directory:** `dist`
+   - **Install Command:** `npm install --legacy-peer-deps`
+4. **No environment variables needed** for the frontend — API calls are proxied via `vercel.json`
+5. After deploy, copy your Vercel URL: `https://your-app.vercel.app`
+
+### Step 5: Update CORS Origin on Render
+1. Return to Render → your backend service → Environment
+2. Update `CLIENT_URL` to your Vercel URL: `https://your-app.vercel.app`
+3. Trigger a manual redeploy
+
+### Step 6: Update vercel.json Backend URL
+
+If your Render backend URL differs from the placeholder, update [`vercel.json`](vercel.json):
+```json
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://YOUR-RENDER-SERVICE.onrender.com/api/:path*"
+    }
+  ]
+}
+```
+Commit and push — Vercel auto-redeploys.
+
+### Step 7: Verify Deployment
+1. Open your Vercel URL in the browser
+2. Register a student account and a client account
+3. Post a project → bid → accept → submit milestone → release → review
+4. Confirm the escrow drawer shows correct ledger entries
 
 ---
 

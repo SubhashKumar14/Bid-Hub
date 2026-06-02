@@ -39,7 +39,7 @@ export function Auth({ onDone, setToken }) {
       localStorage.setItem("token", data.token);
       setToken(data.token);
       toast.success("Welcome back to Bid·Hub!");
-      onDone();
+      onDone(data.role); // redirect to correct dashboard
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -76,7 +76,7 @@ export function Auth({ onDone, setToken }) {
       localStorage.setItem("token", data.token);
       setToken(data.token);
       toast.success("Account created successfully!");
-      onDone();
+      onDone(data.role); // redirect to correct dashboard
     } catch (err) {
       toast.error(err.message);
     } finally {

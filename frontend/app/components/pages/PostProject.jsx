@@ -21,7 +21,7 @@ export function PostProject({ token, onDone }) {
   const [level, setLevel] = useState("intermediate");
   const [budget, setBudget] = useState("");
   const [duration, setDuration] = useState("");
-  const [startDate, setStartDate] = useState("");
+  const [deadline, setDeadline] = useState("");
   
   // Milestones state
   const [milestones, setMilestones] = useState([
@@ -361,12 +361,12 @@ export function PostProject({ token, onDone }) {
               />
             </div>
             <div>
-              <label className="text-sm text-muted-foreground">Starts on</label>
+              <label className="text-sm text-muted-foreground">Deadline</label>
               <Input
                 type="date"
                 className="mt-1.5"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                value={deadline}
+                onChange={(e) => setDeadline(e.target.value)}
               />
             </div>
           </div>
