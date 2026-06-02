@@ -4,6 +4,7 @@ import { Project } from "../models/Project.js";
 import { Bid } from "../models/Bid.js";
 import { User } from "../models/User.js";
 import { Activity } from "../models/Activity.js";
+import { Notification } from "../models/Notification.js";
 import { protect } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -93,6 +94,14 @@ router.post("/", protect, async (req, res) => {
       actorId: req.user._id,
       type: "REVIEW_SUBMITTED",
       message: `${req.user.name} submitted a ${numRating}-star review for project "${project.title}"`,
+      targetId: project._id,
+    });
+
+    // Notify the person being reviewed
+    await Notification.create({
+      recipientId: revieweeId,
+      type: "REVIEW_RECEIVED",
+      message: `${req.user.name} left you a ${numRating}-star review for project "${project.title}".`,
       targetId: project._id,
     });
 

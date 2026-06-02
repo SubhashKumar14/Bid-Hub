@@ -4,6 +4,7 @@ import { Project } from "../models/Project.js";
 import { Milestone } from "../models/Milestone.js";
 import { PaymentLedger } from "../models/PaymentLedger.js";
 import { Activity } from "../models/Activity.js";
+import { Notification } from "../models/Notification.js";
 import { protect, requireRole } from "../middleware/auth.js";
 
 const router = express.Router({ mergeParams: true });
@@ -64,6 +65,14 @@ router.post("/projects/:id/bids", protect, requireRole("student"), async (req, r
       targetId: project._id,
     });
 
+    // Notify client that they received a new bid
+    await Notification.create({
+      recipientId: project.clientId,
+      type: "BID_RECEIVED",
+      message: `${req.user.name} placed a bid of ₹${amount} on your project "${project.title}"`,
+      targetId: project._id,
+    });
+
     res.status(201).json(bid);
   } catch (error) {
     console.error("Submit bid error:", error);
@@ -118,7 +127,7 @@ const genTxnRef = () =>
 // @access  Private (Client only)
 router.patch("/bids/:id/accept", protect, requireRole("client"), async (req, res) => {
   try {
-    const bid = await Bid.findById(req.params.id);
+    const bid = await Bid.findById(req.params.id).populate("studentId", "name");
     if (!bid) {
       return res.status(404).json({ message: "Bid not found." });
     }
@@ -142,6 +151,11 @@ router.patch("/bids/:id/accept", protect, requireRole("client"), async (req, res
     await bid.save();
 
     // Reject all other bids for this project
+    const rejectedBids = await Bid.find({
+      projectId: project._id,
+      _id: { $ne: bid._id },
+    }).select("studentId");
+
     await Bid.updateMany(
       { projectId: project._id, _id: { $ne: bid._id } },
       { status: "REJECTED" }
@@ -162,7 +176,7 @@ router.patch("/bids/:id/accept", protect, requireRole("client"), async (req, res
         projectId: project._id,
         milestoneId: milestone._id,
         clientId: project.clientId,
-        studentId: bid.studentId,
+        studentId: bid.studentId._id || bid.studentId,
         amount: numAmount,
         status: "LOCKED",
         transactionRef: genTxnRef(),
@@ -176,6 +190,24 @@ router.patch("/bids/:id/accept", protect, requireRole("client"), async (req, res
       message: `${req.user.name} accepted a bid for "${project.title}"`,
       targetId: project._id,
     });
+
+    // Notify the accepted student
+    await Notification.create({
+      recipientId: bid.studentId._id || bid.studentId,
+      type: "BID_ACCEPTED",
+      message: `Your bid was accepted! You've been assigned to "${project.title}". Milestones are now locked in escrow.`,
+      targetId: project._id,
+    });
+
+    // Notify rejected students
+    for (const rejectedBid of rejectedBids) {
+      await Notification.create({
+        recipientId: rejectedBid.studentId,
+        type: "BID_REJECTED",
+        message: `Your bid on "${project.title}" was not selected this time. Keep bidding!`,
+        targetId: project._id,
+      });
+    }
 
     res.json({ message: "Bid accepted. Milestone payments are now locked in escrow.", bid, project });
   } catch (error) {
@@ -205,6 +237,14 @@ router.patch("/bids/:id/reject", protect, requireRole("client"), async (req, res
 
     bid.status = "REJECTED";
     await bid.save();
+
+    // Notify rejected student
+    await Notification.create({
+      recipientId: bid.studentId,
+      type: "BID_REJECTED",
+      message: `Your bid on "${project.title}" was not selected. Keep going!`,
+      targetId: project._id,
+    });
 
     res.json({ message: "Bid rejected.", bid });
   } catch (error) {

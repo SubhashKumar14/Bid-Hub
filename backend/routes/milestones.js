@@ -5,6 +5,7 @@ import { Bid } from "../models/Bid.js";
 import { PaymentLedger } from "../models/PaymentLedger.js";
 import { User } from "../models/User.js";
 import { Activity } from "../models/Activity.js";
+import { Notification } from "../models/Notification.js";
 import { protect, requireRole } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -52,6 +53,14 @@ router.patch("/:id/submit", protect, requireRole("student"), async (req, res) =>
       actorId: req.user._id,
       type: "MILESTONE_SUBMITTED",
       message: `${req.user.name} submitted milestone work: "${milestone.title}"`,
+      targetId: project._id,
+    });
+
+    // Notify client that milestone work is ready for review
+    await Notification.create({
+      recipientId: project.clientId,
+      type: "MILESTONE_SUBMITTED",
+      message: `${req.user.name} submitted work for milestone "${milestone.title}" — ready for your review.`,
       targetId: project._id,
     });
 
@@ -128,7 +137,22 @@ router.patch("/:id/release", protect, requireRole("client"), async (req, res) =>
           student.completedProjects = (student.completedProjects || 0) + 1;
           await student.save();
         }
+
+        // Notify both student and client of project completion
+        await Notification.create({
+          recipientId: acceptedBid.studentId,
+          type: "PROJECT_COMPLETED",
+          message: `Congratulations! Project "${project.title}" has been completed. All escrow funds have been released.`,
+          targetId: project._id,
+        });
       }
+
+      await Notification.create({
+        recipientId: project.clientId,
+        type: "PROJECT_COMPLETED",
+        message: `Project "${project.title}" is complete. You can now leave a review for the student.`,
+        targetId: project._id,
+      });
 
       // Log Project Completed Activity
       await Activity.create({
@@ -137,6 +161,17 @@ router.patch("/:id/release", protect, requireRole("client"), async (req, res) =>
         message: `Project "${project.title}" has been successfully completed!`,
         targetId: project._id,
       });
+    } else {
+      // Notify student that a milestone was released (funds available)
+      const acceptedBid = await Bid.findById(project.acceptedBidId);
+      if (acceptedBid) {
+        await Notification.create({
+          recipientId: acceptedBid.studentId,
+          type: "MILESTONE_RELEASED",
+          message: `Escrow funds released for milestone "${milestone.title}" on project "${project.title}".`,
+          targetId: project._id,
+        });
+      }
     }
 
     res.json({ message: "Milestone funds released successfully.", milestone, project });

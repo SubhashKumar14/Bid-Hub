@@ -30,4 +30,11 @@ const projectSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Index for project wall listing (open projects sorted by newest)
+projectSchema.index({ status: 1, createdAt: -1 });
+// Index for fetching a client's own projects
+projectSchema.index({ clientId: 1, status: 1 });
+// Text index for search by title and description
+projectSchema.index({ title: "text", description: "text" });
+
 export const Project = mongoose.model("Project", projectSchema);

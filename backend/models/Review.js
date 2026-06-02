@@ -11,4 +11,11 @@ const reviewSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Index for fetching all reviews of a user (profile page)
+reviewSchema.index({ revieweeId: 1, createdAt: -1 });
+// Index for fetching reviews on a project
+reviewSchema.index({ projectId: 1 });
+// Unique: one review per reviewer per project (prevents duplicates at DB level)
+reviewSchema.index({ projectId: 1, reviewerId: 1 }, { unique: true });
+
 export const Review = mongoose.model("Review", reviewSchema);

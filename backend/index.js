@@ -62,6 +62,7 @@ import paymentsRouter from "./routes/payments.js";
 import reviewsRouter from "./routes/reviews.js";
 import uploadsRouter from "./routes/uploads.js";
 import importsRouter from "./routes/imports.js";
+import notificationsRouter from "./routes/notifications.js";
 
 // Mount Routers
 app.use("/api/auth", authRouter);
@@ -73,6 +74,7 @@ app.use("/api/payments", paymentsRouter);
 app.use("/api/reviews", reviewsRouter);
 app.use("/api/uploads", uploadsRouter);
 app.use("/api/import", importsRouter);
+app.use("/api/notifications", notificationsRouter);
 
 // Global Activity Feed endpoint
 app.get("/api/activities", async (req, res) => {
@@ -87,7 +89,18 @@ app.get("/api/activities", async (req, res) => {
   }
 });
 
-// Root health check endpoint
+// Health check endpoint — used by Render, uptime monitors, and load balancers
+app.get("/api/health", (req, res) => {
+  res.json({
+    status: "ok",
+    uptime: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || "development",
+    version: "1.0.0",
+  });
+});
+
+// Root endpoint
 app.get("/", (req, res) => {
   res.json({ message: "Bid-Hub API is running.", status: "ok" });
 });

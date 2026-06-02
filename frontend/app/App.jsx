@@ -88,6 +88,7 @@ export default function App() {
         onOpenEscrow={() => requireAuth("escrow", () => setEscrowOpen(true))}
         currentUser={currentUser}
         onLogout={handleLogout}
+        token={token}
       />
 
       <main>
