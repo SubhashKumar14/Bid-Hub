@@ -87,9 +87,8 @@
     "tailwindcss": "4.1.12",
     "vite": "6.3.5"
   },
-  "pnpm": {
-    "overrides": {
-      "vite": "6.3.5"
-    }
+  "overrides": {
+    "vite": "6.3.5",
+    "cloudinary": "^2.2.0"
   }
 }
