@@ -947,6 +947,430 @@
 					"response": []
 				}
 			]
+		},
+		{
+			"name": "Negative Auth Tests",
+			"item": [
+				{
+					"name": "Login — Wrong Password (expect 401)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status is 401\", function () { pm.response.to.have.status(401); });",
+									"pm.test(\"Returns Invalid email or password\", function () {",
+									"    var json = pm.response.json();",
+									"    pm.expect(json.message).to.include(\"Invalid\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"rohan@rvce.edu\",\n  \"password\": \"wrongpassword\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "GET /api/auth/me — Expired / Invalid JWT (expect 401)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status is 401\", function () { pm.response.to.have.status(401); });",
+									"pm.test(\"Returns Not authorized message\", function () {",
+									"    var json = pm.response.json();",
+									"    pm.expect(json.message).to.match(/Not authorized|Invalid token/i);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer expired.token.here" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/auth/me",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "me"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Authorization Tests",
+			"item": [
+				{
+					"name": "Student Tries to Create Project (expect 403)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status is 403\", function () { pm.response.to.have.status(403); });",
+									"pm.test(\"Access denied message\", function () {",
+									"    var json = pm.response.json();",
+									"    pm.expect(json.message).to.match(/Access denied|client/i);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{student_token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Unauthorized Project\",\n  \"description\": \"This should fail\",\n  \"category\": \"Backend\",\n  \"budget\": \"10000\",\n  \"deadline\": \"2025-12-31\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/projects",
+							"host": ["{{base_url}}"],
+							"path": ["api", "projects"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Client Tries to Place Bid (expect 403)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status is 403\", function () { pm.response.to.have.status(403); });",
+									"pm.test(\"Access denied message\", function () {",
+									"    var json = pm.response.json();",
+									"    pm.expect(json.message).to.match(/Access denied|student/i);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{client_token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"amount\": 15000,\n  \"timeline\": \"2 weeks\",\n  \"proposal\": \"I can do this project\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/projects/{{active_project_id}}/bids",
+							"host": ["{{base_url}}"],
+							"path": ["api", "projects", "{{active_project_id}}", "bids"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Student Tries to Release Milestone (expect 403)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status is 403\", function () { pm.response.to.have.status(403); });",
+									"pm.test(\"Access denied for non-client\", function () {",
+									"    var json = pm.response.json();",
+									"    pm.expect(json.message).to.match(/Access denied|client/i);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{student_token}}" }
+						],
+						"url": {
+							"raw": "{{base_url}}/api/milestones/{{milestone_1_id}}/release",
+							"host": ["{{base_url}}"],
+							"path": ["api", "milestones", "{{milestone_1_id}}", "release"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "No Token — Protected Route (expect 401)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status is 401\", function () { pm.response.to.have.status(401); });",
+									"pm.test(\"Not authorized message\", function () {",
+									"    var json = pm.response.json();",
+									"    pm.expect(json.message).to.match(/Not authorized/i);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Test Project\",\n  \"description\": \"No auth\",\n  \"category\": \"Backend\",\n  \"budget\": \"5000\",\n  \"deadline\": \"2025-12-31\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/projects",
+							"host": ["{{base_url}}"],
+							"path": ["api", "projects"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Review Protection Tests",
+			"item": [
+				{
+					"name": "Duplicate Review (expect 400)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });",
+									"pm.test(\"Already reviewed message\", function () {",
+									"    var json = pm.response.json();",
+									"    pm.expect(json.message).to.match(/already submitted|already reviewed/i);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{client_token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"projectId\": \"{{active_project_id}}\",\n  \"revieweeId\": \"{{student_id}}\",\n  \"rating\": 5,\n  \"comment\": \"Duplicate review attempt\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/reviews",
+							"host": ["{{base_url}}"],
+							"path": ["api", "reviews"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Review Before Project Completion (expect 400)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });",
+									"pm.test(\"Must be completed message\", function () {",
+									"    var json = pm.response.json();",
+									"    pm.expect(json.message).to.match(/completed|COMPLETED/i);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{client_token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"projectId\": \"{{active_project_id}}\",\n  \"revieweeId\": \"{{student_id}}\",\n  \"rating\": 4,\n  \"comment\": \"Premature review attempt\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/reviews",
+							"host": ["{{base_url}}"],
+							"path": ["api", "reviews"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Self Review (expect 400)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });",
+									"pm.test(\"Cannot review yourself message\", function () {",
+									"    var json = pm.response.json();",
+									"    pm.expect(json.message).to.match(/yourself/i);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{client_token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"projectId\": \"{{active_project_id}}\",\n  \"revieweeId\": \"{{client_id}}\",\n  \"rating\": 5,\n  \"comment\": \"Reviewing myself\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/reviews",
+							"host": ["{{base_url}}"],
+							"path": ["api", "reviews"]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Import Validation Tests",
+			"item": [
+				{
+					"name": "GitHub Import — Large Repo (>20 files, expect 400)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });",
+									"pm.test(\"File limit exceeded message\", function () {",
+									"    var json = pm.response.json();",
+									"    pm.expect(json.message).to.match(/Too many files|file limit|Maximum file/i);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{student_token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"repoUrl\": \"https://github.com/facebook/react\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/import/github",
+							"host": ["{{base_url}}"],
+							"path": ["api", "import", "github"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "GitHub Import — Invalid URL Format (expect 400)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });",
+									"pm.test(\"Invalid URL message\", function () {",
+									"    var json = pm.response.json();",
+									"    pm.expect(json.message).to.match(/Invalid GitHub|URL format/i);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{student_token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"repoUrl\": \"https://notgithub.com/owner/repo\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/import/github",
+							"host": ["{{base_url}}"],
+							"path": ["api", "import", "github"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "GitHub Import — Missing repoUrl (expect 400)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });",
+									"pm.test(\"URL required message\", function () {",
+									"    var json = pm.response.json();",
+									"    pm.expect(json.message).to.match(/required|URL/i);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "Authorization", "value": "Bearer {{student_token}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/import/github",
+							"host": ["{{base_url}}"],
+							"path": ["api", "import", "github"]
+						}
+					},
+					"response": []
+				}
+			]
 		}
 	],
 	"event": [

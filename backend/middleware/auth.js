@@ -6,20 +6,21 @@ export const protect = async (req, res, next) => {
   if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
     try {
       token = req.headers.authorization.split(" ")[1];
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || "bidhubsecretkey");
+      // JWT_SECRET is validated on startup — no fallback here
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
       req.user = await User.findById(decoded.id).select("-passwordHash");
       if (!req.user) {
-        return res.status(401).json({ message: "Not authorized, user not found" });
+        return res.status(401).json({ message: "Not authorized. User not found." });
       }
       next();
     } catch (error) {
-      console.error(error);
-      return res.status(401).json({ message: "Not authorized, token failed" });
+      if (error.name === "TokenExpiredError") {
+        return res.status(401).json({ message: "Not authorized. Session expired. Please log in again." });
+      }
+      return res.status(401).json({ message: "Not authorized. Invalid token." });
     }
-  }
-
-  if (!token) {
-    return res.status(401).json({ message: "Not authorized, no token" });
+  } else {
+    return res.status(401).json({ message: "Not authorized. Please log in." });
   }
 };
 
@@ -28,7 +29,7 @@ export const requireRole = (role) => {
     if (req.user && req.user.role === role) {
       next();
     } else {
-      res.status(403).json({ message: `Access denied, requires ${role} role` });
+      res.status(403).json({ message: `Access denied. This action requires the '${role}' role.` });
     }
   };
 };

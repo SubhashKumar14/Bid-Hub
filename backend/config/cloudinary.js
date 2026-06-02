@@ -21,15 +21,15 @@ if (isCloudinaryConfigured) {
   storage = new CloudinaryStorage({
     cloudinary: cloudinary,
     params: {
-      folder: "bidhub",
-      allowed_formats: ["jpg", "png", "jpeg", "pdf", "zip", "gif"],
+      folder: process.env.CLOUDINARY_FOLDER || "bidhub",
+      allowed_formats: ["jpg", "png", "jpeg", "gif", "webp", "pdf", "zip"],
       resource_type: "auto",
     },
   });
   console.log("Cloudinary Upload Storage configured.");
 } else {
-  // Local fallback storage
-  const uploadDir = path.resolve("server/uploads");
+  // Local disk fallback — use backend/uploads (resolved from CWD which is backend/)
+  const uploadDir = path.resolve("uploads");
   if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
   }
@@ -43,13 +43,31 @@ if (isCloudinaryConfigured) {
       cb(null, file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname));
     },
   });
-  console.log("Local Filesystem Fallback Upload Storage configured.");
+  console.log("Local Filesystem Fallback Upload Storage configured (./uploads).");
 }
 
 export const upload = multer({
   storage: storage,
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = [
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+      "application/pdf",
+      "application/zip",
+      "application/x-zip-compressed",
+      "application/octet-stream",
+    ];
+    // For zip imports, allow any application type
+    if (allowedMimes.includes(file.mimetype) || file.mimetype.startsWith("image/")) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Unsupported file type: ${file.mimetype}. Allowed: images, PDF, ZIP.`));
+    }
   },
 });
 

@@ -6,6 +6,9 @@ import { protect, requireRole } from "../middleware/auth.js";
 
 const router = express.Router();
 
+// Helper: escape special regex characters to prevent ReDoS
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 // @desc    Get all projects with search & filter
 // @route   GET /api/projects
 // @access  Public
@@ -23,14 +26,15 @@ router.get("/", async (req, res) => {
   }
 
   if (search) {
+    const safeSearch = escapeRegex(search.trim().slice(0, 100)); // cap at 100 chars
     query.$or = [
-      { title: { $regex: search, $options: "i" } },
-      { description: { $regex: search, $options: "i" } },
+      { title: { $regex: safeSearch, $options: "i" } },
+      { description: { $regex: safeSearch, $options: "i" } },
     ];
   }
 
   if (skills) {
-    const skillsArray = skills.split(",");
+    const skillsArray = skills.split(",").map((s) => s.trim()).filter(Boolean);
     query.skillsRequired = { $in: skillsArray };
   }
 
@@ -40,7 +44,8 @@ router.get("/", async (req, res) => {
       .sort({ createdAt: -1 });
     res.json(projects);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Get projects error:", error);
+    res.status(500).json({ message: "Failed to load projects. Please try again." });
   }
 });
 
@@ -54,7 +59,7 @@ router.get("/:id", async (req, res) => {
       "name avatarUrl rating completedProjects college"
     );
     if (!project) {
-      return res.status(404).json({ message: "Project not found" });
+      return res.status(404).json({ message: "Project not found." });
     }
 
     // Find milestones for this project
@@ -62,7 +67,8 @@ router.get("/:id", async (req, res) => {
 
     res.json({ project, milestones });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Get project error:", error);
+    res.status(500).json({ message: "Failed to load project details. Please try again." });
   }
 });
 
@@ -72,10 +78,14 @@ router.get("/:id", async (req, res) => {
 router.post("/", protect, requireRole("client"), async (req, res) => {
   const { title, description, category, budget, deadline, skillsRequired, milestones, files, fileManifest, importSource } = req.body;
 
+  if (!title || !description || !category || !budget || !deadline) {
+    return res.status(400).json({ message: "Please fill in all required fields: title, description, category, budget, deadline." });
+  }
+
   try {
     const project = await Project.create({
-      title,
-      description,
+      title: title.trim(),
+      description: description.trim(),
       category,
       budget,
       deadline,
@@ -109,7 +119,8 @@ router.post("/", protect, requireRole("client"), async (req, res) => {
 
     res.status(201).json(project);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Create project error:", error);
+    res.status(500).json({ message: "Failed to create project. Please try again." });
   }
 });
 
@@ -120,25 +131,26 @@ router.patch("/:id", protect, requireRole("client"), async (req, res) => {
   try {
     const project = await Project.findById(req.params.id);
     if (!project) {
-      return res.status(404).json({ message: "Project not found" });
+      return res.status(404).json({ message: "Project not found." });
     }
 
     if (project.clientId.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: "Not authorized to update this project" });
+      return res.status(403).json({ message: "You are not authorized to update this project." });
     }
 
     const { status, title, description, budget, deadline } = req.body;
 
     if (status) project.status = status;
-    if (title) project.title = title;
-    if (description) project.description = description;
+    if (title) project.title = title.trim();
+    if (description) project.description = description.trim();
     if (budget) project.budget = budget;
     if (deadline) project.deadline = deadline;
 
     const updatedProject = await project.save();
     res.json(updatedProject);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Update project error:", error);
+    res.status(500).json({ message: "Failed to update project. Please try again." });
   }
 });
 
@@ -149,24 +161,25 @@ router.delete("/:id", protect, requireRole("client"), async (req, res) => {
   try {
     const project = await Project.findById(req.params.id);
     if (!project) {
-      return res.status(404).json({ message: "Project not found" });
+      return res.status(404).json({ message: "Project not found." });
     }
 
     if (project.clientId.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: "Not authorized to delete this project" });
+      return res.status(403).json({ message: "You are not authorized to delete this project." });
     }
 
     if (project.status !== "OPEN") {
-      return res.status(400).json({ message: "Cannot delete an active project" });
+      return res.status(400).json({ message: "Only open projects can be deleted. This project is already active or completed." });
     }
 
     await project.deleteOne();
     // Delete associated milestones
     await Milestone.deleteMany({ projectId: project._id });
 
-    res.json({ message: "Project removed successfully" });
+    res.json({ message: "Project removed successfully." });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Delete project error:", error);
+    res.status(500).json({ message: "Failed to delete project. Please try again." });
   }
 });
 

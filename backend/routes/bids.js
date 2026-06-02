@@ -15,26 +15,39 @@ router.post("/projects/:id/bids", protect, requireRole("student"), async (req, r
   const { amount, timeline, proposal } = req.body;
   const projectId = req.params.id;
 
+  if (!amount || !timeline || !proposal) {
+    return res.status(400).json({ message: "Please fill in all fields: bid amount, timeline, and proposal." });
+  }
+
+  if (Number(amount) <= 0) {
+    return res.status(400).json({ message: "Bid amount must be a positive number." });
+  }
+
   try {
     const project = await Project.findById(projectId);
     if (!project) {
-      return res.status(404).json({ message: "Project not found" });
+      return res.status(404).json({ message: "Project not found." });
     }
 
     if (project.status !== "OPEN") {
-      return res.status(400).json({ message: "Bids are closed for this project" });
+      return res.status(400).json({ message: "This project is no longer accepting bids." });
+    }
+
+    // Prevent a client from bidding on their own project
+    if (project.clientId.toString() === req.user._id.toString()) {
+      return res.status(403).json({ message: "You cannot bid on your own project." });
     }
 
     // Check if student already bid
     const existingBid = await Bid.findOne({ projectId, studentId: req.user._id });
     if (existingBid) {
-      return res.status(400).json({ message: "You have already placed a bid on this project" });
+      return res.status(400).json({ message: "You have already placed a bid on this project." });
     }
 
     const bid = await Bid.create({
       projectId,
       studentId: req.user._id,
-      amount,
+      amount: Number(amount),
       timeline,
       proposal,
     });
@@ -47,13 +60,14 @@ router.post("/projects/:id/bids", protect, requireRole("student"), async (req, r
     await Activity.create({
       actorId: req.user._id,
       type: "BID_PLACED",
-      message: `${req.user.name} submitted a bid of ${amount} for "${project.title}"`,
+      message: `${req.user.name} submitted a bid of ₹${amount} for "${project.title}"`,
       targetId: project._id,
     });
 
     res.status(201).json(bid);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Submit bid error:", error);
+    res.status(500).json({ message: "Failed to submit bid. Please try again." });
   }
 });
 
@@ -66,12 +80,12 @@ router.get("/projects/:id/bids", protect, async (req, res) => {
   try {
     const project = await Project.findById(projectId);
     if (!project) {
-      return res.status(404).json({ message: "Project not found" });
+      return res.status(404).json({ message: "Project not found." });
     }
 
     // Allow project owner or the students who placed a bid
     const isOwner = project.clientId.toString() === req.user._id.toString();
-    
+
     let bids;
     if (isOwner) {
       bids = await Bid.find({ projectId }).populate(
@@ -88,12 +102,16 @@ router.get("/projects/:id/bids", protect, async (req, res) => {
 
     res.json(bids);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Get bids error:", error);
+    res.status(500).json({ message: "Failed to fetch bids. Please try again." });
   }
 });
 
 // Helper to generate transaction reference
-const genTxnRef = () => "TXN-" + Math.random().toString(36).substring(2, 7).toUpperCase() + Math.random().toString(36).substring(2, 7).toUpperCase();
+const genTxnRef = () =>
+  "TXN-" +
+  Math.random().toString(36).substring(2, 7).toUpperCase() +
+  Math.random().toString(36).substring(2, 7).toUpperCase();
 
 // @desc    Accept a bid
 // @route   PATCH /api/bids/:id/accept
@@ -102,21 +120,21 @@ router.patch("/bids/:id/accept", protect, requireRole("client"), async (req, res
   try {
     const bid = await Bid.findById(req.params.id);
     if (!bid) {
-      return res.status(404).json({ message: "Bid not found" });
+      return res.status(404).json({ message: "Bid not found." });
     }
 
     const project = await Project.findById(bid.projectId);
     if (!project) {
-      return res.status(404).json({ message: "Project not found" });
+      return res.status(404).json({ message: "Project not found." });
     }
 
     // Verify ownership
     if (project.clientId.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: "Not authorized to accept this bid" });
+      return res.status(403).json({ message: "You are not authorized to accept bids for this project." });
     }
 
     if (project.status !== "OPEN") {
-      return res.status(400).json({ message: "Project is already assigned or closed" });
+      return res.status(400).json({ message: "A bid has already been accepted for this project." });
     }
 
     // Accept this bid
@@ -138,7 +156,7 @@ router.patch("/bids/:id/accept", protect, requireRole("client"), async (req, res
     const milestones = await Milestone.find({ projectId: project._id });
     for (const milestone of milestones) {
       // Parse numeric amount from string like "₹12,000" or raw "12000"
-      const numAmount = parseFloat(milestone.amount.replace(/[^0-9.]/g, "")) || 0;
+      const numAmount = parseFloat(String(milestone.amount).replace(/[^0-9.]/g, "")) || 0;
 
       await PaymentLedger.create({
         projectId: project._id,
@@ -155,13 +173,14 @@ router.patch("/bids/:id/accept", protect, requireRole("client"), async (req, res
     await Activity.create({
       actorId: req.user._id,
       type: "BID_ACCEPTED",
-      message: `${req.user.name} accepted bid from student for "${project.title}"`,
+      message: `${req.user.name} accepted a bid for "${project.title}"`,
       targetId: project._id,
     });
 
-    res.json({ message: "Bid accepted and milestones locked in escrow", bid, project });
+    res.json({ message: "Bid accepted. Milestone payments are now locked in escrow.", bid, project });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Accept bid error:", error);
+    res.status(500).json({ message: "Failed to accept bid. Please try again." });
   }
 });
 
@@ -172,20 +191,25 @@ router.patch("/bids/:id/reject", protect, requireRole("client"), async (req, res
   try {
     const bid = await Bid.findById(req.params.id);
     if (!bid) {
-      return res.status(404).json({ message: "Bid not found" });
+      return res.status(404).json({ message: "Bid not found." });
     }
 
     const project = await Project.findById(bid.projectId);
+    if (!project) {
+      return res.status(404).json({ message: "Project not found." });
+    }
+
     if (project.clientId.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: "Not authorized to reject this bid" });
+      return res.status(403).json({ message: "You are not authorized to reject bids for this project." });
     }
 
     bid.status = "REJECTED";
     await bid.save();
 
-    res.json({ message: "Bid rejected", bid });
+    res.json({ message: "Bid rejected.", bid });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Reject bid error:", error);
+    res.status(500).json({ message: "Failed to reject bid. Please try again." });
   }
 });
 
