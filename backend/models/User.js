@@ -17,8 +17,6 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Index for fast login lookup and uniqueness
-userSchema.index({ email: 1 }, { unique: true });
 // Index for role-based filtering (e.g. leaderboard of students)
 userSchema.index({ role: 1, rating: -1 });
 

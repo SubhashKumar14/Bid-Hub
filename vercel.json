@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://bidhub-backend.onrender.com/api/:path*"
+      "destination": "https://bid-hub-yp0m.onrender.com/api/:path*"
     },
     {
       "source": "/((?!assets/|.*\\..*).*)",
