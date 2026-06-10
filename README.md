@@ -11,7 +11,6 @@
 [![Vite](https://img.shields.io/badge/Vite-6.x-646CFF?style=flat-square&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![Cloudinary](https://img.shields.io/badge/Cloudinary-Media_Storage-3448C5?style=flat-square&logo=cloudinary&logoColor=white)](https://cloudinary.com/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-F5A623?style=flat-square)](https://opensource.org/licenses/MIT)
 [![Build](https://img.shields.io/badge/Build-Passing-brightgreen?style=flat-square)](#)
 [![Deployment](https://img.shields.io/badge/Deploy-Vercel%20%2B%20Render-black?style=flat-square)](https://vercel.com)
 
@@ -40,7 +39,7 @@
 13. [Production Deployment Guide](#13-production-deployment-guide)
 14. [Roadmap & Future Extensions](#14-roadmap--future-extensions)
 15. [Contributing Guidelines](#15-contributing-guidelines)
-16. [License](#16-license)
+
 
 ---
 
@@ -1009,37 +1008,10 @@ These are intentionally deferred to keep the capstone scope manageable:
 
 **Code style:** JavaScript only · No TypeScript · No external state managers · Keep backend modular · Keep frontend component-focused
 
----
-
-## 16. License
-
-This project is licensed under the **MIT License**.
-
-```
-MIT License
-
-Copyright (c) 2025 Bid-Hub Team · RVCE Bengaluru
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-```
 
 ---
 
 <div align="center">
-
-Built with precision for RVCE · Bengaluru, India
 
 **[⬆ Back to Top](#bidhub)**
 
