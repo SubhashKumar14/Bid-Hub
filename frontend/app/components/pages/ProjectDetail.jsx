@@ -22,6 +22,13 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
   const [submittingBid, setSubmittingBid] = useState(false);
   const [hasAlreadyBid, setHasAlreadyBid] = useState(false);
 
+  // Review states
+  const [hasAlreadyReviewed, setHasAlreadyReviewed] = useState(false);
+  const [existingReviewData, setExistingReviewData] = useState(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
+
   const fetchProjectData = async () => {
     if (!projectId) return;
     setLoading(true);
@@ -34,11 +41,12 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
       setMilestones(projectData.milestones || []);
 
       // 2. Fetch bids if user is logged in
+      let bidsData = [];
       if (token) {
         const bidsRes = await fetch(`/api/projects/${projectId}/bids`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        const bidsData = await bidsRes.json();
+        bidsData = await bidsRes.json();
         if (bidsRes.ok) {
           setBids(bidsData);
           // Check if current user already placed a bid
@@ -48,6 +56,32 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
             setBidAmount(myBid.amount);
             setBidTimeline(myBid.timeline);
             setBidProposal(myBid.proposal);
+          }
+        }
+      }
+
+      // 3. Fetch reviews if project is completed
+      if (token && projectData.project.status === "COMPLETED" && currentUser) {
+        const isClient = projectData.project.clientId?._id === currentUser._id || projectData.project.clientId === currentUser._id;
+        const acceptedBid = bidsData.find(b => b.status === "ACCEPTED");
+        const hiredStudentId = acceptedBid?.studentId?._id || acceptedBid?.studentId;
+        const revieweeId = isClient ? hiredStudentId : projectData.project.clientId?._id || projectData.project.clientId;
+
+        if (revieweeId) {
+          const reviewsRes = await fetch(`/api/reviews/users/${revieweeId}/reviews`);
+          if (reviewsRes.ok) {
+            const reviewsData = await reviewsRes.json();
+            const myReview = reviewsData.find(r => 
+              (r.projectId?._id === projectData.project._id || r.projectId === projectData.project._id) &&
+              (r.reviewerId?._id === currentUser._id || r.reviewerId === currentUser._id)
+            );
+            if (myReview) {
+              setHasAlreadyReviewed(true);
+              setExistingReviewData(myReview);
+            } else {
+              setHasAlreadyReviewed(false);
+              setExistingReviewData(null);
+            }
           }
         }
       }
@@ -113,6 +147,53 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
       fetchProjectData();
     } catch (err) {
       toast.error(err.message);
+    }
+  };
+
+  const handleSubmitReview = async () => {
+    if (!token) {
+      toast.error("Please log in to leave a review");
+      return;
+    }
+
+    if (!reviewComment.trim()) {
+      toast.error("Please enter a review comment");
+      return;
+    }
+
+    const isClient = currentUser && (project.clientId?._id === currentUser._id || project.clientId === currentUser._id);
+    const acceptedBid = bids.find(b => b.status === "ACCEPTED");
+    const hiredStudentId = acceptedBid?.studentId?._id || acceptedBid?.studentId;
+    const revieweeId = isClient ? hiredStudentId : project.clientId?._id || project.clientId;
+
+    if (!revieweeId) {
+      toast.error("Reviewee not found");
+      return;
+    }
+
+    setSubmittingReview(true);
+    try {
+      const res = await fetch("/api/reviews", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          projectId: project._id,
+          revieweeId,
+          rating: reviewRating,
+          comment: reviewComment,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to submit review");
+      toast.success("Feedback submitted successfully!");
+      fetchProjectData();
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setSubmittingReview(false);
     }
   };
 
@@ -229,6 +310,101 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
               )}
             </div>
           </section>
+
+          {/* Project Review Section */}
+          {project.status === "COMPLETED" && currentUser && (
+            (() => {
+              const isClient = project.clientId?._id === currentUser._id || project.clientId === currentUser._id;
+              const acceptedBid = bids.find(b => b.status === "ACCEPTED");
+              const hiredStudentId = acceptedBid?.studentId?._id || acceptedBid?.studentId;
+              const isStudent = hiredStudentId === currentUser._id;
+
+              if (!isClient && !isStudent) return null;
+
+              return (
+                <section className="space-y-4">
+                  <h2 className="eyebrow">Project Feedback & Rating</h2>
+                  <div className="paper hairline rounded-2xl p-6 lg:p-8 space-y-4">
+                    {hasAlreadyReviewed ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-semibold text-green-600 dark:text-green-400 inline-flex items-center gap-1.5">
+                            ✓ You submitted feedback
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {existingReviewData?.createdAt && new Date(existingReviewData.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <div className="flex gap-1">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              className={`size-5 ${
+                                star <= existingReviewData?.rating
+                                  ? "fill-[var(--brand-gold)] text-[var(--brand-gold)]"
+                                  : "text-muted-foreground/40"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <p className="font-serif italic text-sm text-muted-foreground mt-2">
+                          "{existingReviewData?.comment}"
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                          {isClient
+                            ? `This contract is complete. Leave a review for ${acceptedBid?.studentId?.name || "the student"} to build their campus reputation.`
+                            : `This contract is complete. Leave a review for ${project.clientId?.name || "the client"} to help other students.`}
+                        </p>
+
+                        <div className="space-y-2">
+                          <label className="text-xs text-muted-foreground">Select Rating</label>
+                          <div className="flex gap-1.5">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <button
+                                key={star}
+                                type="button"
+                                onClick={() => setReviewRating(star)}
+                                className="text-[var(--brand-gold)] hover:scale-110 transition-transform"
+                              >
+                                <Star
+                                  className={`size-6 ${
+                                    star <= reviewRating
+                                      ? "fill-[var(--brand-gold)] text-[var(--brand-gold)]"
+                                      : "text-muted-foreground/50"
+                                  }`}
+                                />
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-xs text-muted-foreground">Comment / Feedback</label>
+                          <Textarea
+                            rows={3}
+                            placeholder="Write your honest experience working on this project..."
+                            value={reviewComment}
+                            onChange={(e) => setReviewComment(e.target.value)}
+                          />
+                        </div>
+
+                        <Button
+                          onClick={handleSubmitReview}
+                          disabled={submittingReview}
+                          className="rounded-full bg-[var(--brand-gold)] text-[var(--brand-deep)] hover:bg-[var(--brand-gold)]/90 text-xs px-5 h-9"
+                        >
+                          {submittingReview ? "Submitting..." : "Submit Review"}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </section>
+              );
+            })()
+          )}
 
           {/* Bids List - Only visible to Owner of the project */}
           {isOwner && (
