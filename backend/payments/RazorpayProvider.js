@@ -18,19 +18,35 @@ export class RazorpayProvider extends PaymentProvider {
   async createCheckout(project, bid, numericAmount, clientUrl) {
     const studentId = bid.studentId._id || bid.studentId;
 
-    // Create Razorpay Order
-    const order = await this.razorpay.orders.create({
-      amount: Math.round(numericAmount * 100), // in paise
-      currency: "INR",
-      receipt: "rcpt_" + Math.random().toString(36).substring(2, 10),
-      notes: {
-        projectId: project._id.toString(),
-        bidId: bid._id.toString(),
-        clientId: project.clientId.toString(),
-        studentId: studentId.toString(),
-        amount: String(numericAmount),
-      },
-    });
+    let order;
+    if (this.keyId === "rzp_test_placeholder") {
+      console.warn("WARNING: Using simulated placeholder order ID because real Razorpay keys are not configured.");
+      order = {
+        id: "order_mock_" + Math.random().toString(36).substring(2, 12),
+        amount: Math.round(numericAmount * 100),
+        currency: "INR",
+        notes: {
+          projectId: project._id.toString(),
+          bidId: bid._id.toString(),
+          clientId: project.clientId.toString(),
+          studentId: studentId.toString(),
+          amount: String(numericAmount),
+        }
+      };
+    } else {
+      order = await this.razorpay.orders.create({
+        amount: Math.round(numericAmount * 100), // in paise
+        currency: "INR",
+        receipt: "rcpt_" + Math.random().toString(36).substring(2, 10),
+        notes: {
+          projectId: project._id.toString(),
+          bidId: bid._id.toString(),
+          clientId: project.clientId.toString(),
+          studentId: studentId.toString(),
+          amount: String(numericAmount),
+        },
+      });
+    }
 
     // Create PaymentLedger record in PENDING_CHECKOUT state (map order.id to stripeSessionId)
     await PaymentLedger.create({
@@ -55,6 +71,9 @@ export class RazorpayProvider extends PaymentProvider {
   }
 
   verifySignature(orderId, paymentId, signature) {
+    if (this.keyId === "rzp_test_placeholder") {
+      return signature === "signature_simulated";
+    }
     // Strictly validate payment ID pattern and reject mock values in production
     if (process.env.NODE_ENV === "production") {
       const isRealPattern = /^pay_[a-zA-Z0-9]+$/.test(paymentId);

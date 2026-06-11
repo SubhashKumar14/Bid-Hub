@@ -2,7 +2,6 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { Switch } from "../ui/switch";
 import { Paperclip, Sparkles, Lightbulb, Github, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";

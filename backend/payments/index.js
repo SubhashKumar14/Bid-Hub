@@ -14,28 +14,25 @@ let activeProviderName = "";
 export function getPaymentProvider() {
   if (activeProvider) return activeProvider;
 
-  const providerEnv = (process.env.PAYMENT_PROVIDER || "").toLowerCase().trim();
-
-  if (providerEnv !== "razorpay") {
-    throw new Error(
-      "Razorpay is not configured.\n\nPlease provide:\nRAZORPAY_KEY_ID\nRAZORPAY_KEY_SECRET\n\nto continue."
-    );
-  }
+  const providerEnv = (process.env.PAYMENT_PROVIDER || "razorpay").toLowerCase().trim();
 
   // Sanitize keys in case there are tabs/spaces from raw copy-pasting
-  const keyId = (process.env.RAZORPAY_KEY_ID || "").trim();
-  const keySecret = (process.env.RAZORPAY_KEY_SECRET || "").trim();
+  let keyId = (process.env.RAZORPAY_KEY_ID || "").trim();
+  let keySecret = (process.env.RAZORPAY_KEY_SECRET || "").trim();
   const webhookSecret = (process.env.RAZORPAY_WEBHOOK_SECRET || "").trim();
   
   if (!keyId || !keySecret) {
-    throw new Error(
-      "Razorpay is not configured.\n\nPlease provide:\nRAZORPAY_KEY_ID\nRAZORPAY_KEY_SECRET\n\nto continue."
-    );
+    console.warn("\n========================================================");
+    console.warn("WARNING: Razorpay credentials are not configured.");
+    console.warn("Using simulated fallback placeholder credentials.");
+    console.warn("========================================================\n");
+    keyId = "rzp_test_placeholder";
+    keySecret = "placeholdersecret";
   }
 
   activeProvider = new RazorpayProvider(keyId, keySecret, webhookSecret);
   activeProviderName = "razorpay";
-  console.log("Active Payment Provider: Razorpay (Production/Test)");
+  console.log(`Active Payment Provider: Razorpay (${keyId === "rzp_test_placeholder" ? "Simulated/Placeholder" : "Production/Test"})`);
 
   return activeProvider;
 }

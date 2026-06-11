@@ -9,7 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
-const BASE_URL = "http://localhost:5000";
+const BASE_URL = "http://localhost:5003";
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -19,7 +19,7 @@ async function runTests() {
   // 1. Spawning backend server process
   console.log("Starting backend server process...");
   const serverProcess = spawn("node", ["backend/index.js"], {
-    env: { ...process.env, PORT: "5000", NODE_ENV: "test" },
+    env: { ...process.env, PORT: "5003", NODE_ENV: "test" },
     shell: true,
   });
 
@@ -114,8 +114,7 @@ async function runTests() {
     );
     console.log("✔ Checkout session 1 initiated!");
     const checkoutUrl1 = checkoutRes1.data.url;
-    const urlParams1 = new URL(checkoutUrl1).searchParams;
-    const sessionId1 = urlParams1.get("session_id") || checkoutRes1.data.sessionId || checkoutRes1.data.orderId;
+    const sessionId1 = checkoutRes1.data.orderId || checkoutRes1.data.sessionId || (checkoutUrl1 ? new URL(checkoutUrl1).searchParams.get("session_id") : null);
     console.log(`Session ID 1: ${sessionId1}`);
 
     // Verify Project status transitioned to PENDING_FUNDING
@@ -133,8 +132,7 @@ async function runTests() {
     );
     console.log("✔ Checkout session 2 initiated (Duplicate Checkout Scenario)!");
     const checkoutUrl2 = checkoutRes2.data.url;
-    const urlParams2 = new URL(checkoutUrl2).searchParams;
-    const sessionId2 = urlParams2.get("session_id") || checkoutRes2.data.sessionId || checkoutRes2.data.orderId;
+    const sessionId2 = checkoutRes2.data.orderId || checkoutRes2.data.sessionId || (checkoutUrl2 ? new URL(checkoutUrl2).searchParams.get("session_id") : null);
     console.log(`Session ID 2: ${sessionId2}`);
 
     console.log("\n--- Step 5: Cancelled Payment Test ---");
@@ -161,8 +159,7 @@ async function runTests() {
       { headers: { Authorization: `Bearer ${clientToken}` } }
     );
     const checkoutUrl3 = checkoutRes3.data.url;
-    const urlParams3 = new URL(checkoutUrl3).searchParams;
-    const sessionId3 = urlParams3.get("session_id") || checkoutRes3.data.sessionId || checkoutRes3.data.orderId;
+    const sessionId3 = checkoutRes3.data.orderId || checkoutRes3.data.sessionId || (checkoutUrl3 ? new URL(checkoutUrl3).searchParams.get("session_id") : null);
     console.log(`Checkout session 3 initiated. Session ID: ${sessionId3}`);
 
     // Verify project returned to PENDING_FUNDING
@@ -204,7 +201,12 @@ async function runTests() {
     console.log("\n--- Step 8: Milestone Submission (PENDING_REVIEW state) ---");
     await axios.patch(
       `${BASE_URL}/api/milestones/${milestoneId}/submit`,
-      {},
+      {
+        githubUrl: "https://github.com/student/payment-flow-verification",
+        demoUrl: "https://payment-flow-verification.vercel.app",
+        videoUrl: "https://loom.com/share/payment-flow-verification",
+        description: "Submission for payment flow verification",
+      },
       { headers: { Authorization: `Bearer ${studentToken}` } }
     );
     console.log("✔ Milestone submitted for review!");

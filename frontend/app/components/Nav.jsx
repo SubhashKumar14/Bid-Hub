@@ -29,7 +29,7 @@ const notifMeta = {
   MESSAGE_RECEIVED: { label: "New Message", color: "bg-amber-500" },
 };
 
-function NotificationBell({ token }) {
+function NotificationBell({ token, setPage }) {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
@@ -135,7 +135,14 @@ function NotificationBell({ token }) {
               return (
                 <button
                   key={n._id}
-                  onClick={() => { if (!n.read) handleMarkRead(n._id); }}
+                  onClick={() => {
+                    if (!n.read) handleMarkRead(n._id);
+                    if (n.targetId) {
+                      localStorage.setItem("currentProjectId", n.targetId);
+                      setPage("detail");
+                      setOpen(false);
+                    }
+                  }}
                   className={cn(
                     "w-full text-left px-4 py-3 flex gap-3 hover:bg-secondary/50 transition-colors border-b border-border/50 last:border-0",
                     !n.read && "bg-secondary/20"
@@ -221,7 +228,7 @@ export function Nav({ page, setPage, role, setRole, theme, toggleTheme, onOpenEs
           </Button>
 
           {/* Live notification bell */}
-          <NotificationBell token={token} />
+          <NotificationBell token={token} setPage={setPage} />
 
           <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Theme">
             {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}

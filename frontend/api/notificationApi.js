@@ -9,15 +9,6 @@ export async function getNotifications(token) {
   return data; // { notifications: [], unreadCount: 0 }
 }
 
-export async function getUnreadCount(token) {
-  const res = await fetch(`${BASE}/unread-count`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || "Failed to fetch count");
-  return data.unreadCount;
-}
-
 export async function markNotificationRead(notificationId, token) {
   const res = await fetch(`${BASE}/${notificationId}/read`, {
     method: "PATCH",
@@ -35,15 +26,5 @@ export async function markAllNotificationsRead(token) {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || "Failed to mark all as read");
-  return data;
-}
-
-export async function deleteNotification(notificationId, token) {
-  const res = await fetch(`${BASE}/${notificationId}`, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || "Failed to delete notification");
   return data;
 }

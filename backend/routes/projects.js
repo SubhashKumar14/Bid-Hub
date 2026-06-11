@@ -1,6 +1,7 @@
 import express from "express";
 import { Project } from "../models/Project.js";
 import { Milestone } from "../models/Milestone.js";
+import { Bid } from "../models/Bid.js";
 import { Activity } from "../models/Activity.js";
 import { protect, requireRole } from "../middleware/auth.js";
 
@@ -55,6 +56,152 @@ router.get("/", async (req, res) => {
   } catch (error) {
     console.error("Get projects error:", error);
     res.status(500).json({ message: "Failed to load projects. Please try again." });
+  }
+});
+
+// @desc    Get student dashboard projects and bids
+// @route   GET /api/projects/student/dashboard
+// @access  Private (Student only)
+router.get("/student/dashboard", protect, requireRole("student"), async (req, res) => {
+  try {
+    // 1. Find all bids by this student
+    const studentBids = await Bid.find({ studentId: req.user._id })
+      .populate("projectId", "title category budget status deadline clientId")
+      .sort({ createdAt: -1 });
+
+    // 2. Filter projects where student is accepted
+    const acceptedProjectIds = studentBids
+      .filter(b => b.status === "ACCEPTED" && b.projectId)
+      .map(b => b.projectId._id || b.projectId);
+
+    // 3. Fetch these projects populated with milestones and client details
+    const activeProjects = await Project.find({ _id: { $in: acceptedProjectIds } })
+      .populate("clientId", "name avatarUrl rating completedProjects college");
+
+    // Fetch milestones for all active projects
+    const milestones = await Milestone.find({ projectId: { $in: acceptedProjectIds } });
+
+    // Map milestones to their respective projects
+    const projectsWithMilestones = activeProjects.map(proj => {
+      const projMilestones = milestones.filter(m => m.projectId.toString() === proj._id.toString());
+      return {
+        project: proj,
+        milestones: projMilestones
+      };
+    });
+
+    res.json({
+      bids: studentBids.map(b => ({
+        id: b._id,
+        projectId: b.projectId?._id || b.projectId,
+        title: b.projectId?.title || "Deleted Project",
+        amount: b.amount,
+        status: b.status.toLowerCase(),
+      })),
+      contracts: projectsWithMilestones.map(item => {
+        const p = item.project;
+        const ms = item.milestones;
+        const releasedCount = ms.filter(m => m.status === "RELEASED").length;
+        const progress = ms.length > 0 ? Math.round((releasedCount / ms.length) * 100) : 0;
+        const inReview = ms.some(m => m.status === "SUBMITTED");
+
+        return {
+          id: p._id,
+          title: `${p.clientId?.name || "Client"} · ${p.title}`,
+          statusText: inReview ? "Hi-fi / milestone in review" : "Sprint active",
+          amount: p.budget,
+          progress,
+          status: inReview ? "in-review" : "active",
+          projectStatus: p.status,
+          milestones: ms
+        };
+      })
+    });
+  } catch (error) {
+    console.error("Student dashboard projects error:", error);
+    res.status(500).json({ message: "Failed to load dashboard data." });
+  }
+});
+
+// @desc    Get client dashboard projects, bids and milestones
+// @route   GET /api/projects/client/dashboard
+// @access  Private (Client only)
+router.get("/client/dashboard", protect, requireRole("client"), async (req, res) => {
+  try {
+    // 1. Fetch all projects posted by this client
+    const myProjects = await Project.find({ clientId: req.user._id })
+      .populate("clientId", "name avatarUrl rating completedProjects college")
+      .sort({ createdAt: -1 });
+
+    const projectIds = myProjects.map(p => p._id);
+
+    // 2. Fetch all milestones for these projects
+    const milestones = await Milestone.find({ projectId: { $in: projectIds } });
+
+    // 3. Fetch all bids for these projects if status is OPEN
+    const openProjectIds = myProjects.filter(p => p.status === "OPEN").map(p => p._id);
+    const bids = await Bid.find({ projectId: { $in: openProjectIds } })
+      .populate("studentId", "name avatarUrl rating completedProjects college skills");
+
+    // Format milestones to approve and active projects
+    const milestonesToApprove = [];
+    const activeProjects = [];
+    let bidsReceivedCount = 0;
+    let activeGigsCount = 0;
+
+    myProjects.forEach(p => {
+      bidsReceivedCount += p.bidsCount || 0;
+      const ms = milestones.filter(m => m.projectId.toString() === p._id.toString());
+
+      if (p.status !== "OPEN" && p.status !== "CANCELLED") {
+        activeGigsCount++;
+        const releasedCount = ms.filter(m => m.status === "RELEASED").length;
+        const progress = ms.length > 0 ? Math.round((releasedCount / ms.length) * 100) : 0;
+
+        activeProjects.push({
+          id: p._id,
+          title: p.title,
+          statusText: p.status === "ASSIGNED" ? "Hired / Kickoff" : p.status === "IN_PROGRESS" ? "Development" : "Completed",
+          budget: p.budget,
+          progress,
+          status: p.status,
+        });
+
+        ms.forEach(m => {
+          if (m.status === "SUBMITTED") {
+            milestonesToApprove.push({
+              id: m._id,
+              title: `${p.title} · ${m.title}`,
+              amount: m.amount,
+            });
+          }
+        });
+      }
+    });
+
+    // Format pending bids
+    const pendingBids = bids
+      .filter(b => b.status === "PENDING")
+      .map(b => ({
+        id: b._id,
+        projectId: b.projectId,
+        studentName: b.studentId?.name || "Student",
+        projectTitle: myProjects.find(p => p._id.toString() === b.projectId.toString())?.title || "Project",
+        amount: b.amount,
+        timeline: b.timeline,
+      }));
+
+    res.json({
+      postedCount: myProjects.length,
+      bidsReceivedCount,
+      activeGigsCount,
+      pendingBids,
+      milestonesToApprove,
+      activeProjects,
+    });
+  } catch (error) {
+    console.error("Client dashboard projects error:", error);
+    res.status(500).json({ message: "Failed to load dashboard data." });
   }
 });
 
@@ -170,6 +317,14 @@ router.patch("/:id", protect, requireRole("client"), async (req, res) => {
 
       project.status = status;
     }
+    if (title || description || budget || deadline) {
+      if (project.status !== "OPEN") {
+        return res.status(400).json({
+          message: "Only projects in 'OPEN' status can have their title, description, budget, or deadline edited.",
+        });
+      }
+    }
+
     if (title) project.title = title.trim();
     if (description) project.description = description.trim();
     if (budget) project.budget = parseAmount(budget);

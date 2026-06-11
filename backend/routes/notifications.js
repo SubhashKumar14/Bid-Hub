@@ -62,41 +62,6 @@ router.patch("/read-all", protect, async (req, res) => {
   }
 });
 
-// @desc    Get unread notification count (for badge)
-// @route   GET /api/notifications/unread-count
-// @access  Private
-router.get("/unread-count", protect, async (req, res) => {
-  try {
-    const count = await Notification.countDocuments({
-      recipientId: req.user._id,
-      read: false,
-    });
-    res.json({ unreadCount: count });
-  } catch (error) {
-    console.error("Unread count error:", error);
-    res.status(500).json({ message: "Failed to fetch notification count." });
-  }
-});
 
-// @desc    Delete a notification
-// @route   DELETE /api/notifications/:id
-// @access  Private
-router.delete("/:id", protect, async (req, res) => {
-  try {
-    const notification = await Notification.findOneAndDelete({
-      _id: req.params.id,
-      recipientId: req.user._id,
-    });
-
-    if (!notification) {
-      return res.status(404).json({ message: "Notification not found." });
-    }
-
-    res.json({ message: "Notification deleted." });
-  } catch (error) {
-    console.error("Delete notification error:", error);
-    res.status(500).json({ message: "Failed to delete notification." });
-  }
-});
 
 export default router;

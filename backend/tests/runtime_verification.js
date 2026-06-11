@@ -301,7 +301,7 @@ async function runVerification() {
       { headers: { Authorization: `Bearer ${studentToken}` } }
     );
     const notifications = notifRes.data.notifications;
-    const changeNotif = notifications.find(n => n.type === "BID_REJECTED");
+    const changeNotif = notifications.find(n => n.type === "MILESTONE_CHANGES_REQUESTED");
     console.log(`✔ Notification generated for Student: "${changeNotif?.message}"`);
     if (!changeNotif) {
       throw new Error("Change request notification not found!");

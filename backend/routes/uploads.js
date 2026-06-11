@@ -11,15 +11,6 @@ const getFileUrl = (file) => {
   return `/uploads/${file.filename}`; // Local filesystem fallback URL
 };
 
-// @desc    Upload single image
-// @route   POST /api/uploads/image
-// @access  Private
-router.post("/image", protect, upload.single("image"), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ message: "No image file provided" });
-  }
-  res.json({ url: getFileUrl(req.file) });
-});
 
 // @desc    Upload multiple files
 // @route   POST /api/uploads/files

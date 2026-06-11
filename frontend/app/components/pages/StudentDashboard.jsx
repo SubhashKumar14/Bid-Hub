@@ -68,82 +68,21 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
       const views = profileData.user?.profileViews || 0;
       setReviews(profileData.reviews || []);
 
-      // 3. Fetch Contracts & Bids
-      // We can fetch projects from backend and filter locally
-      const projectsRes = await fetch("/api/projects");
-      const projects = await projectsRes.json();
+      // 3. Fetch Contracts & Bids using optimized dashboard endpoint
+      const dashRes = await fetch("/api/projects/student/dashboard", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const dashData = await dashRes.json();
+      if (!dashRes.ok) throw new Error(dashData.message || "Failed to load dashboard data");
 
-      const activeGigs = [];
-      let activeContractsCount = 0;
+      setContracts(dashData.contracts || []);
+      setBids(dashData.bids || []);
 
-      // Find contracts where student is assigned
-      for (const p of projects) {
-        if (p.acceptedBidId && p.status !== "OPEN") {
-          // Fetch bids for this project to check if we are the student
-          const bidsRes = await fetch(`/api/projects/${p._id}/bids`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          const bidsData = await bidsRes.json();
-          const myBid = bidsData.find(b => b.studentId?._id === currentUser._id || b.studentId === currentUser._id);
-          
-          if (myBid && myBid.status === "ACCEPTED") {
-            // Find milestones to check completion
-            const detailsRes = await fetch(`/api/projects/${p._id}`);
-            const detailsData = await detailsRes.json();
-            const milestones = detailsData.milestones || [];
-            
-            const releasedCount = milestones.filter(m => m.status === "RELEASED").length;
-            const progress = milestones.length > 0 ? Math.round((releasedCount / milestones.length) * 100) : 0;
-            const inReview = milestones.some(m => m.status === "SUBMITTED");
-
-            activeGigs.push({
-              id: p._id,
-              title: `${p.clientId?.name || "Client"} · ${p.title}`,
-              statusText: inReview ? "Hi-fi / milestone in review" : "Sprint active",
-              amount: p.budget,
-              progress,
-              status: inReview ? "in-review" : "active",
-              projectStatus: p.status, // Store actual backend status
-              milestones, // Store milestones list for submission trigger
-            });
-            activeContractsCount++;
-          }
-        }
-      }
-      setContracts(activeGigs);
-
-      // Find bids placed by student (across all project statuses)
-      let openBidsCount = 0;
-      const studentBids = [];
-      for (const p of projects) {
-        // Fetch bids for this project to check if student has placed one
-        try {
-          const bidsRes = await fetch(`/api/projects/${p._id}/bids`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (!bidsRes.ok) continue; // Skip if unauthorized (not our project)
-          const bidsData = await bidsRes.json();
-          if (!Array.isArray(bidsData)) continue;
-          const myBid = bidsData.find(b => b.studentId?._id === currentUser._id || b.studentId === currentUser._id);
-          if (myBid) {
-            studentBids.push({
-              id: myBid._id,
-              projectId: p._id,
-              title: p.title,
-              amount: myBid.amount,
-              status: myBid.status.toLowerCase(),
-            });
-            if (myBid.status === "PENDING") openBidsCount++;
-          }
-        } catch {
-          // Skip individual project errors silently
-        }
-      }
-      setBids(studentBids);
+      const openBidsCount = (dashData.bids || []).filter(b => b.status === "pending").length;
 
       setStats({
         earnings: releasedAmount,
-        activeContractsCount,
+        activeContractsCount: (dashData.contracts || []).length,
         openBidsCount,
         profileViews: views,
       });

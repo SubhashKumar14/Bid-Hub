@@ -1,4 +1,5 @@
 import express from "express";
+import jwt from "jsonwebtoken";
 import { User } from "../models/User.js";
 import { Review } from "../models/Review.js";
 import { protect } from "../middleware/auth.js";
@@ -16,9 +17,24 @@ router.get("/:id", async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Increment profile views
-    user.profileViews = (user.profileViews || 0) + 1;
-    await user.save();
+    let isSelf = false;
+    if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
+      try {
+        const token = req.headers.authorization.split(" ")[1];
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (decoded && decoded.id === req.params.id) {
+          isSelf = true;
+        }
+      } catch (err) {
+        // ignore malformed or expired token for views increment
+      }
+    }
+
+    // Increment profile views only if not self-visiting
+    if (!isSelf) {
+      user.profileViews = (user.profileViews || 0) + 1;
+      await user.save();
+    }
 
     // Fetch user reviews (where user is the reviewee)
     const reviews = await Review.find({ revieweeId: req.params.id })

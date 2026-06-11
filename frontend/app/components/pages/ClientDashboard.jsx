@@ -69,83 +69,21 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
       const lockedEscrow = paymentsData.stats?.lockedAmount || 0;
       const releasedEscrow = paymentsData.stats?.releasedAmount || 0;
 
-      // 2. Fetch Projects and calculate stats
-      const projectsRes = await fetch("/api/projects");
-      const projects = await projectsRes.json();
+      // 2. Fetch Projects and calculate stats using optimized dashboard endpoint
+      const dashRes = await fetch("/api/projects/client/dashboard", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const dashData = await dashRes.json();
+      if (!dashRes.ok) throw new Error(dashData.message || "Failed to load dashboard data");
 
-      // Filter projects posted by current client
-      const myProjects = projects.filter((p) => p.clientId?._id === currentUser._id || p.clientId === currentUser._id);
-      const postedCount = myProjects.length;
-
-      let bidsReceivedCount = 0;
-      let activeGigsCount = 0;
-      const activeGigsList = [];
-      const bidsReviewList = [];
-      const pendingApprovalMilestones = [];
-
-      for (const p of myProjects) {
-        bidsReceivedCount += p.bidsCount || 0;
-        if (p.status !== "OPEN" && p.status !== "CANCELLED") {
-          activeGigsCount++;
-
-          // Fetch milestones to calculate progress
-          const detailsRes = await fetch(`/api/projects/${p._id}`);
-          const detailsData = await detailsRes.json();
-          const milestones = detailsData.milestones || [];
-          
-          const releasedCount = milestones.filter(m => m.status === "RELEASED").length;
-          const progress = milestones.length > 0 ? Math.round((releasedCount / milestones.length) * 100) : 0;
-
-          activeGigsList.push({
-            id: p._id,
-            title: p.title,
-            statusText: p.status === "ASSIGNED" ? "Hired / Kickoff" : p.status === "IN_PROGRESS" ? "Development" : "Completed",
-            budget: p.budget,
-            progress,
-            status: p.status, // Store actual backend status
-          });
-
-          // Extract SUBMITTED milestones
-          milestones.forEach((m) => {
-            if (m.status === "SUBMITTED") {
-              pendingApprovalMilestones.push({
-                id: m._id,
-                title: `${p.title} · ${m.title}`,
-                amount: m.amount,
-              });
-            }
-          });
-        }
-
-        // Fetch bids to review for OPEN projects
-        if (p.status === "OPEN") {
-          const bidsRes = await fetch(`/api/projects/${p._id}/bids`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          const bidsData = await bidsRes.json();
-          bidsData.forEach((b) => {
-            if (b.status === "PENDING") {
-              bidsReviewList.push({
-                id: b._id,
-                projectId: p._id,
-                studentName: b.studentId?.name || "Student",
-                projectTitle: p.title,
-                amount: b.amount,
-                timeline: b.timeline,
-              });
-            }
-          });
-        }
-      }
-
-      setPendingBids(bidsReviewList.slice(0, 5));
-      setMilestonesToApprove(pendingApprovalMilestones);
-      setActiveProjects(activeGigsList);
+      setPendingBids(dashData.pendingBids || []);
+      setMilestonesToApprove(dashData.milestonesToApprove || []);
+      setActiveProjects(dashData.activeProjects || []);
 
       setStats({
-        postedCount,
-        bidsReceivedCount,
-        activeGigsCount,
+        postedCount: dashData.postedCount || 0,
+        bidsReceivedCount: dashData.bidsReceivedCount || 0,
+        activeGigsCount: dashData.activeGigsCount || 0,
         lockedEscrow,
         releasedEscrow,
       });
@@ -202,6 +140,36 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
       if (!res.ok) throw new Error(data.message || "Failed to initiate escrow checkout");
 
       if (data.provider === "razorpay") {
+        if (data.keyId === "rzp_test_placeholder") {
+          toast.info("Simulating Razorpay Test Mode checkout (using placeholder credentials)...");
+          setTimeout(async () => {
+            try {
+              const verifyRes = await fetch("/api/payments/verify", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                  razorpay_order_id: data.orderId,
+                  razorpay_payment_id: "pay_simulated_" + Math.random().toString(36).substring(2, 10),
+                  razorpay_signature: "signature_simulated",
+                }),
+              });
+              const verifyData = await verifyRes.json();
+              if (verifyRes.ok) {
+                setSuccessOpen(true);
+                fetchDashboardData();
+              } else {
+                throw new Error(verifyData.message || "Verification failed");
+              }
+            } catch (vErr) {
+              toast.error("Payment verification failed: " + vErr.message);
+            }
+          }, 1500);
+          return;
+        }
+
         toast.info("Opening Razorpay payment portal...");
         await loadRazorpay();
         const options = {

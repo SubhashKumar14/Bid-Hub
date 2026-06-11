@@ -23,17 +23,6 @@ const parseAmount = (amountVal) => {
   return parseFloat(String(amountVal).replace(/[^0-9.]/g, "")) || 0;
 };
 
-// @desc    Get active payment provider configuration details (for UI badge)
-// @route   GET /api/payments/config
-// @access  Public
-router.get("/config", (req, res) => {
-  const providerName = getActiveProviderName();
-  let providerLabel = "Mock";
-  if (providerName === "razorpay") providerLabel = "Razorpay Test";
-
-  res.json({ provider: providerName, providerLabel });
-});
-
 // @desc    Initiate payment checkout session or order (Escrow Deposit)
 // @route   POST /api/payments/checkout-session
 // @access  Private (Client only)

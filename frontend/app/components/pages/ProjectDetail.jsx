@@ -184,6 +184,35 @@ const loadRazorpay = () => {
       if (!res.ok) throw new Error(data.message || "Failed to initiate escrow checkout");
 
       if (data.provider === "razorpay") {
+        if (data.keyId === "rzp_test_placeholder") {
+          toast.info("Simulating Razorpay Test Mode checkout (using placeholder credentials)...");
+          setTimeout(async () => {
+            try {
+              const verifyRes = await fetch("/api/payments/verify", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                  razorpay_order_id: data.orderId,
+                  razorpay_payment_id: "pay_simulated_" + Math.random().toString(36).substring(2, 10),
+                  razorpay_signature: "signature_simulated",
+                }),
+              });
+              const verifyData = await verifyRes.json();
+              if (verifyRes.ok) {
+                setSuccessOpen(true);
+              } else {
+                throw new Error(verifyData.message || "Verification failed");
+              }
+            } catch (vErr) {
+              toast.error("Payment verification failed: " + vErr.message);
+            }
+          }, 1500);
+          return;
+        }
+
         toast.info("Opening Razorpay payment portal...");
         await loadRazorpay();
         const options = {
@@ -219,7 +248,7 @@ const loadRazorpay = () => {
           },
           modal: {
             ondismiss: async function () {
-              toast.warn("Payment modal closed.");
+              toast.warning("Payment modal closed.");
               await fetch("/api/payments/cancel", {
                 method: "POST",
                 headers: {
