@@ -2,11 +2,16 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
+import { fileURLToPath } from "url";
+import helmet from "helmet";
+import mongoSanitize from "express-mongo-sanitize";
+import rateLimit from "express-rate-limit";
 import { connectDB } from "./config/db.js";
 import { Activity } from "./models/Activity.js";
 
 // Load environment variables
-dotenv.config();
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(currentDir, ".env") });
 
 // === Env validation: fail fast if critical vars missing ===
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET === "replace_with_a_long_random_secret_key") {
@@ -22,13 +27,75 @@ connectDB();
 
 const app = express();
 
+// Global Security Headers
+app.use(helmet());
+
+// Rate Limit Write/Modifying actions (POST, PATCH, PUT, DELETE)
+const writeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: process.env.NODE_ENV === "test" ? 1000 : 120, // 120 writes per 15 mins
+  message: { message: "Too many write requests. Please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Rate Limit Upload requests
+const uploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: process.env.NODE_ENV === "test" ? 1000 : 50, // 50 uploads per 15 mins
+  message: { message: "Too many upload requests. Please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Messaging write rates
+const messageWriteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: process.env.NODE_ENV === "test" ? 1000 : 300, // 300 messages per 15 mins
+  message: { message: "Too many messages sent. Please slow down." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Exclude GET requests from global strict limiting to prevent polling 429 lockouts
+const apiLimiter = (req, res, next) => {
+  if (req.method === "GET") {
+    return next();
+  }
+  // Exclude login and register which have their own authLimiter in routes/auth.js
+  if (req.path.startsWith("/api/auth/login") || req.path.startsWith("/api/auth/register")) {
+    return next();
+  }
+  // Exclude import routes which have importLimiter in routes/imports.js
+  if (req.path.startsWith("/api/import")) {
+    return next();
+  }
+  if (req.path.startsWith("/api/uploads")) {
+    return uploadLimiter(req, res, next);
+  }
+  if (req.path.startsWith("/api/messages") && req.method === "POST") {
+    return messageWriteLimiter(req, res, next);
+  }
+  return writeLimiter(req, res, next);
+};
+
+app.use(apiLimiter);
+
 // === CORS: restrict to CLIENT_URL in production ===
 const allowedOrigins = [
   process.env.CLIENT_URL || "http://localhost:5173",
+  "http://localhost:5173",
+  "http://localhost:5174",
 ];
 // Also allow Vercel preview URLs
 if (process.env.VERCEL_URL) {
   allowedOrigins.push(`https://${process.env.VERCEL_URL}`);
+}
+
+if (process.env.SOCKET_CORS_ORIGIN) {
+  process.env.SOCKET_CORS_ORIGIN.split(",").forEach((origin) => {
+    allowedOrigins.push(origin.trim());
+  });
 }
 
 app.use(
@@ -45,8 +112,12 @@ app.use(
   })
 );
 
+// Razorpay webhook requires raw body for signature verification
+app.use("/api/payments/webhook", express.raw({ type: "application/json" }));
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(mongoSanitize());
 
 // Serve static upload folder (local fallback)
 const __dirname = path.resolve();
@@ -63,6 +134,7 @@ import reviewsRouter from "./routes/reviews.js";
 import uploadsRouter from "./routes/uploads.js";
 import importsRouter from "./routes/imports.js";
 import notificationsRouter from "./routes/notifications.js";
+import messagesRouter from "./routes/messages.js";
 
 // Mount Routers
 app.use("/api/auth", authRouter);
@@ -75,6 +147,7 @@ app.use("/api/reviews", reviewsRouter);
 app.use("/api/uploads", uploadsRouter);
 app.use("/api/import", importsRouter);
 app.use("/api/notifications", notificationsRouter);
+app.use("/api/messages", messagesRouter);
 
 // Global Activity Feed endpoint
 app.get("/api/activities", async (req, res) => {

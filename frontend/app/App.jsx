@@ -18,6 +18,14 @@ export default function App() {
   const [escrowOpen, setEscrowOpen] = useState(false);
   const [token, setToken] = useState(localStorage.getItem("token") || "");
   const [currentUser, setCurrentUser] = useState(null);
+  const [providerLabel, setProviderLabel] = useState("");
+
+  useEffect(() => {
+    fetch("/api/payments/config")
+      .then((res) => res.json())
+      .then((data) => setProviderLabel(data.providerLabel))
+      .catch((err) => console.error("Failed to load payment config", err));
+  }, []);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
@@ -33,23 +41,92 @@ export default function App() {
       })
         .then((res) => {
           if (res.ok) return res.json();
-          throw new Error("Invalid token");
+          const err = new Error("Auth check failed");
+          err.status = res.status;
+          throw err;
         })
         .then((user) => {
           setCurrentUser(user);
           // Sync role switcher to user's registered role initially
           setRole(user.role);
+          // Auto-redirect if page doesn't match role
+          const path = window.location.pathname;
+          if (path === "/student" && user.role !== "student") setPage("client");
+          if (path === "/client" && user.role !== "client") setPage("student");
+          if (path === "/post" && user.role !== "client") setPage("student");
         })
         .catch((err) => {
-          console.error(err);
-          localStorage.removeItem("token");
-          setToken("");
-          setCurrentUser(null);
+          console.error("Auth check failed error:", err);
+          // Only clear token/logout if status is 401 or 403
+          if (err.status === 401 || err.status === 403) {
+            localStorage.removeItem("token");
+            setToken("");
+            setCurrentUser(null);
+            setPage("landing");
+          }
         });
     } else {
       setCurrentUser(null);
     }
   }, [token]);
+
+  // Synchronize browser history and pathing
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      const isPrivate = ["/student", "/client", "/profile", "/post"].includes(path) || path.startsWith("/project/");
+      
+      const activeToken = token || localStorage.getItem("token");
+      if (isPrivate && !activeToken) {
+        setPage("auth");
+        return;
+      }
+
+      if (path === "/" || path === "/landing") {
+        setPage("landing");
+      } else if (path === "/browse") {
+        setPage("browse");
+      } else if (path === "/student") {
+        setPage("student");
+      } else if (path === "/client") {
+        setPage("client");
+      } else if (path === "/profile") {
+        setPage("profile");
+      } else if (path === "/post") {
+        setPage("post");
+      } else if (path === "/auth") {
+        setPage("auth");
+      } else if (path.startsWith("/project/")) {
+        const id = path.split("/").pop();
+        if (id) {
+          localStorage.setItem("currentProjectId", id);
+          setPage("detail");
+        }
+      }
+    };
+
+    handlePopState();
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [token]);
+
+  useEffect(() => {
+    let targetPath = "/";
+    if (page === "browse") targetPath = "/browse";
+    else if (page === "student") targetPath = "/student";
+    else if (page === "client") targetPath = "/client";
+    else if (page === "profile") targetPath = "/profile";
+    else if (page === "post") targetPath = "/post";
+    else if (page === "auth") targetPath = "/auth";
+    else if (page === "detail") {
+      const pid = localStorage.getItem("currentProjectId");
+      targetPath = pid ? `/project/${pid}` : "/browse";
+    }
+
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState({}, "", targetPath + window.location.search);
+    }
+  }, [page]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -60,13 +137,29 @@ export default function App() {
 
   const navigateDashboard = (r) => setPage(r);
 
-  // Helper to ensure authenticated access
+  // Helper to ensure authenticated access and role separation
   const requireAuth = (targetPage, action) => {
     if (!token) {
       setPage("auth");
-    } else {
-      action();
+      return;
     }
+
+    if (currentUser) {
+      if (targetPage === "student" && currentUser.role !== "student") {
+        setPage("client");
+        return;
+      }
+      if (targetPage === "client" && currentUser.role !== "client") {
+        setPage("student");
+        return;
+      }
+      if (targetPage === "post" && currentUser.role !== "client") {
+        setPage("student");
+        return;
+      }
+    }
+
+    action();
   };
 
   return (
@@ -89,6 +182,7 @@ export default function App() {
         currentUser={currentUser}
         onLogout={handleLogout}
         token={token}
+        providerLabel={providerLabel}
       />
 
       <main>

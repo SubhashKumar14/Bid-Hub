@@ -120,91 +120,107 @@ export function Auth({ onDone, setToken }) {
               <TabsTrigger value="register">Create account</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="login" className="space-y-3 mt-5">
-              <div>
-                <label className="text-xs text-muted-foreground">Email</label>
-                <Input
-                  className="mt-1"
-                  placeholder="you@college.edu"
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Password</label>
-                <Input
-                  className="mt-1"
-                  type="password"
-                  placeholder="••••••••"
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                />
-              </div>
-              <Button
-                onClick={handleLogin}
-                disabled={loading}
-                className="w-full rounded-full bg-[var(--brand-gold)] text-[var(--brand-deep)] hover:bg-[var(--brand-gold)]/90"
+            <TabsContent value="login" className="mt-5">
+              <form
+                className="space-y-3"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleLogin();
+                }}
               >
-                {loading ? "Signing in..." : "Sign in"}
-              </Button>
+                <div>
+                  <label className="text-xs text-muted-foreground">Email</label>
+                  <Input
+                    className="mt-1"
+                    placeholder="you@college.edu"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Password</label>
+                  <Input
+                    className="mt-1"
+                    type="password"
+                    placeholder="••••••••"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full rounded-full bg-[var(--brand-gold)] text-[var(--brand-deep)] hover:bg-[var(--brand-gold)]/90"
+                >
+                  {loading ? "Signing in..." : "Sign in"}
+                </Button>
+              </form>
             </TabsContent>
 
-            <TabsContent value="register" className="space-y-3 mt-5">
-              <div className="grid grid-cols-2 gap-2">
-                {["student", "client"].map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => setRole(r)}
-                    type="button"
-                    className={`hairline rounded-xl p-3 text-left transition-colors ${
-                      role === r
-                        ? "bg-[var(--brand-espresso)] text-[var(--brand-gold)]"
-                        : "bg-card hover:bg-secondary"
-                    }`}
-                  >
-                    <p className="font-serif capitalize">{r}</p>
-                    <p className="text-[11px] opacity-70 mt-0.5">
-                      {r === "student" ? "I'm here to earn" : "I'm here to hire"}
-                    </p>
-                  </button>
-                ))}
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Input
-                  placeholder="First name"
-                  value={registerFirstName}
-                  onChange={(e) => setRegisterFirstName(e.target.value)}
-                />
-                <Input
-                  placeholder="Last name"
-                  value={registerLastName}
-                  onChange={(e) => setRegisterLastName(e.target.value)}
-                />
-              </div>
-              <Input
-                placeholder="College / company email"
-                value={registerEmail}
-                onChange={(e) => setRegisterEmail(e.target.value)}
-              />
-              <Input
-                placeholder="College / university name"
-                value={registerCollege}
-                onChange={(e) => setRegisterCollege(e.target.value)}
-              />
-              <Input
-                type="password"
-                placeholder="Create password"
-                value={registerPassword}
-                onChange={(e) => setRegisterPassword(e.target.value)}
-              />
-              <Button
-                onClick={handleRegister}
-                disabled={loading}
-                className="w-full rounded-full bg-[var(--brand-gold)] text-[var(--brand-deep)] hover:bg-[var(--brand-gold)]/90"
+            <TabsContent value="register" className="mt-5">
+              <form
+                className="space-y-3"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleRegister();
+                }}
               >
-                {loading ? "Creating account..." : "Create account"}
-              </Button>
-              <p className="text-[11px] text-muted-foreground text-center">By continuing you agree to our terms and our promise to never spam.</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {["student", "client"].map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => setRole(r)}
+                      type="button"
+                      className={`hairline rounded-xl p-3 text-left transition-colors ${
+                        role === r
+                          ? "bg-[var(--brand-espresso)] text-[var(--brand-gold)]"
+                          : "bg-card hover:bg-secondary"
+                      }`}
+                    >
+                      <p className="font-serif capitalize">{r}</p>
+                      <p className="text-[11px] opacity-70 mt-0.5">
+                        {r === "student" ? "I'm here to earn" : "I'm here to hire"}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    placeholder="First name"
+                    value={registerFirstName}
+                    onChange={(e) => setRegisterFirstName(e.target.value)}
+                  />
+                  <Input
+                    placeholder="Last name"
+                    value={registerLastName}
+                    onChange={(e) => setRegisterLastName(e.target.value)}
+                  />
+                </div>
+                <Input
+                  placeholder="College / company email"
+                  value={registerEmail}
+                  onChange={(e) => setRegisterEmail(e.target.value)}
+                />
+                <Input
+                  placeholder="College / university name"
+                  value={registerCollege}
+                  onChange={(e) => setRegisterCollege(e.target.value)}
+                />
+                <Input
+                  type="password"
+                  placeholder="Create password"
+                  value={registerPassword}
+                  onChange={(e) => setRegisterPassword(e.target.value)}
+                />
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full rounded-full bg-[var(--brand-gold)] text-[var(--brand-deep)] hover:bg-[var(--brand-gold)]/90"
+                >
+                  {loading ? "Creating account..." : "Create account"}
+                </Button>
+                <p className="text-[11px] text-muted-foreground text-center">By continuing you agree to our terms and our promise to never spam.</p>
+              </form>
             </TabsContent>
           </Tabs>
 

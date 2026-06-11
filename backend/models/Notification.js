@@ -17,6 +17,7 @@ const notificationSchema = new mongoose.Schema(
         "PROJECT_COMPLETED",   // Both parties receive on project completion
         "REVIEW_RECEIVED",     // User receives when they get a review
         "PROJECT_ASSIGNED",    // Student receives when assigned to project
+        "MESSAGE_RECEIVED",    // Receives when user gets a message
       ],
     },
     // Human-readable notification message

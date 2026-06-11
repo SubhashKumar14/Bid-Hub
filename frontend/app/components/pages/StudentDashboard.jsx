@@ -4,6 +4,8 @@ import { StatusBadge } from "../StatusBadge";
 import { Sparkles, TrendingUp, Wallet, Eye } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { ChatDrawer } from "../ChatDrawer";
+import { MilestoneSubmitModal } from "../MilestoneSubmitModal";
 
 export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) {
   const [stats, setStats] = useState({
@@ -17,8 +19,28 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatProjectId, setChatProjectId] = useState(null);
+  const [chatProjectTitle, setChatProjectTitle] = useState("");
+
+  const openChat = (projectId, projectTitle) => {
+    setChatProjectId(projectId);
+    setChatProjectTitle(projectTitle);
+    setChatOpen(true);
+  };
+
+  const [submitModalOpen, setSubmitModalOpen] = useState(false);
+  const [submitMilestoneId, setSubmitMilestoneId] = useState(null);
+  const [submitMilestoneTitle, setSubmitMilestoneTitle] = useState("");
+
+  const openSubmitModal = (milestoneId, milestoneTitle) => {
+    setSubmitMilestoneId(milestoneId);
+    setSubmitMilestoneTitle(milestoneTitle);
+    setSubmitModalOpen(true);
+  };
+
   const fetchDashboardData = async () => {
-    if (!token) return;
+    if (!token || !currentUser) return;
     setLoading(true);
     try {
       // 1. Fetch Payment Ledger & Stats
@@ -71,6 +93,7 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
               amount: p.budget,
               progress,
               status: inReview ? "in-review" : "active",
+              projectStatus: p.status, // Store actual backend status
               milestones, // Store milestones list for submission trigger
             });
             activeContractsCount++;
@@ -197,9 +220,16 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
                       <p className="text-sm font-semibold">{c.title}</p>
                       <p className="text-xs text-muted-foreground">{c.statusText}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="font-serif num">{c.amount}</p>
-                      <StatusBadge tone={c.status === "in-review" ? "gold" : "sand"}>{c.status}</StatusBadge>
+                    <div className="flex items-center gap-3">
+                      {["ASSIGNED", "IN_PROGRESS", "COMPLETED"].includes(c.projectStatus) && (
+                        <Button size="xs" variant="outline" className="rounded-full px-3 text-xs" onClick={() => openChat(c.id, c.title)}>
+                          Chat
+                        </Button>
+                      )}
+                      <div className="text-right">
+                        <p className="font-serif num">{c.amount}</p>
+                        <StatusBadge tone={c.status === "in-review" ? "gold" : "sand"}>{c.status}</StatusBadge>
+                      </div>
                     </div>
                   </div>
                   <div className="mt-3 h-1.5 rounded-full bg-muted overflow-hidden">
@@ -216,9 +246,17 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
                       <div key={m._id} className="w-full flex items-center justify-between bg-background/50 p-2.5 rounded-lg text-xs">
                         <span>{m.title} ({m.amount})</span>
                         {m.status === "PENDING" && (
-                          <Button size="xs" className="rounded-full py-1 px-3 bg-[var(--brand-gold)] text-[var(--brand-deep)]" onClick={() => handleSubmitMilestone(m._id)}>
+                          <Button size="xs" className="rounded-full py-1 px-3 bg-[var(--brand-gold)] text-[var(--brand-deep)]" onClick={() => openSubmitModal(m._id, m.title)}>
                             Submit Work
                           </Button>
+                        )}
+                        {m.status === "CHANGES_REQUESTED" && (
+                          <div className="flex items-center gap-2">
+                            <StatusBadge tone="danger" className="text-[10px]">Revision Needed</StatusBadge>
+                            <Button size="xs" variant="outline" className="rounded-full py-1 px-3 border-red-500 text-red-500 hover:bg-red-500/10 text-[10px]" onClick={() => openSubmitModal(m._id, m.title)}>
+                              Resubmit
+                            </Button>
+                          </div>
                         )}
                         {m.status === "SUBMITTED" && (
                           <StatusBadge tone="gold" className="text-[10px]">Under Review</StatusBadge>
@@ -299,6 +337,24 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
           </div>
         </div>
       </section>
+
+      <ChatDrawer
+        open={chatOpen}
+        onClose={() => setChatOpen(false)}
+        projectId={chatProjectId}
+        projectTitle={chatProjectTitle}
+        token={token}
+        currentUser={currentUser}
+      />
+
+      <MilestoneSubmitModal
+        open={submitModalOpen}
+        onClose={() => setSubmitModalOpen(false)}
+        milestoneId={submitMilestoneId}
+        milestoneTitle={submitMilestoneTitle}
+        token={token}
+        onSuccess={fetchDashboardData}
+      />
     </div>
   );
 }

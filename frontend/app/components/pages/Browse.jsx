@@ -23,7 +23,7 @@ export function Browse({ setPage }) {
     setLoading(true);
     try {
       let url = "/api/projects";
-      const params = [];
+      const params = ["status=OPEN"];
       if (activeCategory && activeCategory !== "All") {
         params.push(`category=${encodeURIComponent(activeCategory)}`);
       }

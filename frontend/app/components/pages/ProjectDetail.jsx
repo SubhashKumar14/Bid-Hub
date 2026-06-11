@@ -134,17 +134,95 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
     }
   };
 
+const loadRazorpay = () => {
+  return new Promise((resolve) => {
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
+
   const handleAcceptBid = async (bidId) => {
-    if (!window.confirm("Are you sure you want to accept this student's bid? This will lock milestones into escrow.")) return;
+    if (!window.confirm("Are you sure you want to hire this student? You will proceed to secure checkout to deposit the contract budget in Escrow.")) return;
     try {
-      const res = await fetch(`/api/bids/${bidId}/accept`, {
-        method: "PATCH",
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await fetch(`/api/payments/checkout-session`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ bidId }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to accept bid");
-      toast.success("Bid accepted! Contract has been signed.");
-      fetchProjectData();
+      if (!res.ok) throw new Error(data.message || "Failed to initiate escrow checkout");
+
+      if (data.provider === "razorpay") {
+        toast.info("Opening Razorpay payment portal...");
+        await loadRazorpay();
+        const options = {
+          key: data.keyId,
+          amount: data.amount,
+          currency: data.currency,
+          name: "Bid·Hub Escrow",
+          description: data.description,
+          order_id: data.orderId,
+          handler: async function (response) {
+            try {
+              const verifyRes = await fetch("/api/payments/verify", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature,
+                }),
+              });
+              const verifyData = await verifyRes.json();
+              if (verifyRes.ok) {
+                toast.success("Payment verified! Student hired successfully.");
+                setPage("client");
+              } else {
+                throw new Error(verifyData.message || "Verification failed");
+              }
+            } catch (vErr) {
+              toast.error("Payment verification failed: " + vErr.message);
+            }
+          },
+          modal: {
+            ondismiss: async function () {
+              toast.warn("Payment modal closed.");
+              await fetch("/api/payments/cancel", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ sessionId: data.orderId }),
+              });
+              fetchProjectData();
+            },
+          },
+          prefill: {
+            name: currentUser ? currentUser.name : "",
+            email: currentUser ? currentUser.email : "",
+          },
+          theme: { color: "#2C221E" },
+        };
+        const rzp = new window.Razorpay(options);
+        rzp.open();
+      } else {
+        toast.success("Redirecting to payment checkout...");
+        window.location.href = data.url;
+      }
     } catch (err) {
       toast.error(err.message);
     }

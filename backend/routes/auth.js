@@ -33,6 +33,16 @@ router.post("/register", authLimiter, async (req, res) => {
     return res.status(400).json({ message: "Please provide name, email, password, and role." });
   }
 
+  if (
+    typeof name !== "string" ||
+    typeof email !== "string" ||
+    typeof password !== "string" ||
+    typeof role !== "string" ||
+    (college && typeof college !== "string")
+  ) {
+    return res.status(400).json({ message: "Invalid field formats. All inputs must be strings." });
+  }
+
   const allowedRoles = ["student", "client"];
   if (!allowedRoles.includes(role)) {
     return res.status(400).json({ message: "Role must be either 'student' or 'client'." });
@@ -86,6 +96,10 @@ router.post("/login", authLimiter, async (req, res) => {
 
   if (!email || !password) {
     return res.status(400).json({ message: "Please provide email and password." });
+  }
+
+  if (typeof email !== "string" || typeof password !== "string") {
+    return res.status(400).json({ message: "Invalid email or password format." });
   }
 
   try {

@@ -122,98 +122,13 @@ const genTxnRef = () =>
   Math.random().toString(36).substring(2, 7).toUpperCase() +
   Math.random().toString(36).substring(2, 7).toUpperCase();
 
-// @desc    Accept a bid
+// @desc    Accept a bid (Disabled: use /api/payments/checkout-session)
 // @route   PATCH /api/bids/:id/accept
 // @access  Private (Client only)
 router.patch("/bids/:id/accept", protect, requireRole("client"), async (req, res) => {
-  try {
-    const bid = await Bid.findById(req.params.id).populate("studentId", "name");
-    if (!bid) {
-      return res.status(404).json({ message: "Bid not found." });
-    }
-
-    const project = await Project.findById(bid.projectId);
-    if (!project) {
-      return res.status(404).json({ message: "Project not found." });
-    }
-
-    // Verify ownership
-    if (project.clientId.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: "You are not authorized to accept bids for this project." });
-    }
-
-    if (project.status !== "OPEN") {
-      return res.status(400).json({ message: "A bid has already been accepted for this project." });
-    }
-
-    // Accept this bid
-    bid.status = "ACCEPTED";
-    await bid.save();
-
-    // Reject all other bids for this project
-    const rejectedBids = await Bid.find({
-      projectId: project._id,
-      _id: { $ne: bid._id },
-    }).select("studentId");
-
-    await Bid.updateMany(
-      { projectId: project._id, _id: { $ne: bid._id } },
-      { status: "REJECTED" }
-    );
-
-    // Update project state
-    project.status = "ASSIGNED";
-    project.acceptedBidId = bid._id;
-    await project.save();
-
-    // Setup simulated escrow ledger entries for each milestone
-    const milestones = await Milestone.find({ projectId: project._id });
-    for (const milestone of milestones) {
-      // Parse numeric amount from string like "₹12,000" or raw "12000"
-      const numAmount = parseFloat(String(milestone.amount).replace(/[^0-9.]/g, "")) || 0;
-
-      await PaymentLedger.create({
-        projectId: project._id,
-        milestoneId: milestone._id,
-        clientId: project.clientId,
-        studentId: bid.studentId._id || bid.studentId,
-        amount: numAmount,
-        status: "LOCKED",
-        transactionRef: genTxnRef(),
-      });
-    }
-
-    // Log Activity
-    await Activity.create({
-      actorId: req.user._id,
-      type: "BID_ACCEPTED",
-      message: `${req.user.name} accepted a bid for "${project.title}"`,
-      targetId: project._id,
-    });
-
-    // Notify the accepted student
-    await Notification.create({
-      recipientId: bid.studentId._id || bid.studentId,
-      type: "BID_ACCEPTED",
-      message: `Your bid was accepted! You've been assigned to "${project.title}". Milestones are now locked in escrow.`,
-      targetId: project._id,
-    });
-
-    // Notify rejected students
-    for (const rejectedBid of rejectedBids) {
-      await Notification.create({
-        recipientId: rejectedBid.studentId,
-        type: "BID_REJECTED",
-        message: `Your bid on "${project.title}" was not selected this time. Keep bidding!`,
-        targetId: project._id,
-      });
-    }
-
-    res.json({ message: "Bid accepted. Milestone payments are now locked in escrow.", bid, project });
-  } catch (error) {
-    console.error("Accept bid error:", error);
-    res.status(500).json({ message: "Failed to accept bid. Please try again." });
-  }
+  return res.status(400).json({
+    message: "Direct acceptance is disabled. Bids must be accepted via Razorpay Escrow deposit.",
+  });
 });
 
 // @desc    Reject a bid

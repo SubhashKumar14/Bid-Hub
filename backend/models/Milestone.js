@@ -9,7 +9,7 @@ const milestoneSchema = new mongoose.Schema(
     status: {
       type: String,
       required: true,
-      enum: ["PENDING", "SUBMITTED", "APPROVED", "RELEASED"],
+      enum: ["PENDING", "SUBMITTED", "APPROVED", "RELEASED", "CHANGES_REQUESTED"],
       default: "PENDING",
     },
   },

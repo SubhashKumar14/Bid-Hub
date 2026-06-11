@@ -4,6 +4,8 @@ import { StatusBadge } from "../StatusBadge";
 import { ShieldCheck, Briefcase } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { ChatDrawer } from "../ChatDrawer";
+import { MilestoneReviewModal } from "../MilestoneReviewModal";
 
 export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
   const [stats, setStats] = useState({
@@ -20,8 +22,28 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatProjectId, setChatProjectId] = useState(null);
+  const [chatProjectTitle, setChatProjectTitle] = useState("");
+
+  const openChat = (projectId, projectTitle) => {
+    setChatProjectId(projectId);
+    setChatProjectTitle(projectTitle);
+    setChatOpen(true);
+  };
+
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [reviewMilestoneId, setReviewMilestoneId] = useState(null);
+  const [reviewMilestoneTitle, setReviewMilestoneTitle] = useState("");
+
+  const openReviewModal = (milestoneId, milestoneTitle) => {
+    setReviewMilestoneId(milestoneId);
+    setReviewMilestoneTitle(milestoneTitle);
+    setReviewModalOpen(true);
+  };
+
   const fetchDashboardData = async () => {
-    if (!token) return;
+    if (!token || !currentUser) return;
     setLoading(true);
     try {
       // 1. Fetch Payment Stats
@@ -65,6 +87,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
             statusText: p.status === "ASSIGNED" ? "Hired / Kickoff" : p.status === "IN_PROGRESS" ? "Development" : "Completed",
             budget: p.budget,
             progress,
+            status: p.status, // Store actual backend status
           });
 
           // Extract SUBMITTED milestones
@@ -129,16 +152,129 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
     fetchDashboardData();
   }, [token, currentUser]);
 
+  useEffect(() => {
+    if (!token) return;
+    const params = new URLSearchParams(window.location.search);
+    const paymentStatus = params.get("payment_status") || params.get("status");
+    const sessionId = params.get("session_id");
+
+    if (paymentStatus === "success" && sessionId) {
+      // Clear URL query parameters immediately to prevent loop on refresh
+      window.history.replaceState({}, document.title, window.location.pathname);
+
+      const runSimulation = async () => {
+        try {
+          const res = await fetch("/api/payments/simulate-payment", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ sessionId }),
+          });
+          if (res.ok) {
+            toast.success("Simulated Razorpay deposit completed! Escrow funds locked.");
+          } else {
+            console.log("Checkout synced or real webhook handled successfully.");
+          }
+          fetchDashboardData();
+        } catch (err) {
+          console.error("Simulated webhook trigger failed:", err);
+        }
+      };
+      runSimulation();
+    }
+  }, [token]);
+
+const loadRazorpay = () => {
+  return new Promise((resolve) => {
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
+
   const handleAcceptBid = async (bidId) => {
+    if (!window.confirm("Are you sure you want to hire this student? You will proceed to secure checkout to deposit the contract budget in Escrow.")) return;
     try {
-      const res = await fetch(`/api/bids/${bidId}/accept`, {
-        method: "PATCH",
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await fetch(`/api/payments/checkout-session`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ bidId }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to accept bid");
-      toast.success("Proposal accepted! ESCROW funds locked.");
-      fetchDashboardData();
+      if (!res.ok) throw new Error(data.message || "Failed to initiate escrow checkout");
+
+      if (data.provider === "razorpay") {
+        toast.info("Opening Razorpay payment portal...");
+        await loadRazorpay();
+        const options = {
+          key: data.keyId,
+          amount: data.amount,
+          currency: data.currency,
+          name: "Bid·Hub Escrow",
+          description: data.description,
+          order_id: data.orderId,
+          handler: async function (response) {
+            try {
+              const verifyRes = await fetch("/api/payments/verify", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature,
+                }),
+              });
+              const verifyData = await verifyRes.json();
+              if (verifyRes.ok) {
+                toast.success("Payment verified! Student hired successfully.");
+                fetchDashboardData();
+              } else {
+                throw new Error(verifyData.message || "Verification failed");
+              }
+            } catch (vErr) {
+              toast.error("Payment verification failed: " + vErr.message);
+            }
+          },
+          modal: {
+            ondismiss: async function () {
+              toast.warn("Payment modal closed.");
+              await fetch("/api/payments/cancel", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ sessionId: data.orderId }),
+              });
+              fetchDashboardData();
+            },
+          },
+          prefill: {
+            name: currentUser ? currentUser.name : "",
+            email: currentUser ? currentUser.email : "",
+          },
+          theme: { color: "#2C221E" },
+        };
+        const rzp = new window.Razorpay(options);
+        rzp.open();
+      } else {
+        toast.success("Redirecting to payment checkout...");
+        window.location.href = data.url;
+      }
     } catch (err) {
       toast.error(err.message);
     }
@@ -276,9 +412,9 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
                     <Button
                       size="sm"
                       className="rounded-full flex-1 bg-[var(--brand-gold)] text-[var(--brand-deep)] hover:bg-[var(--brand-gold)]/90"
-                      onClick={() => handleReleaseMilestone(m.id)}
+                      onClick={() => openReviewModal(m.id, m.title)}
                     >
-                      Release Escrow
+                      Review & Release
                     </Button>
                   </div>
                 </div>
@@ -299,7 +435,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
               </div>
             ) : (
               activeProjects.map((p) => (
-                <div key={p.id} className="py-3 grid grid-cols-[1fr_auto_auto] items-center gap-4">
+                <div key={p.id} className="py-3 grid grid-cols-[1fr_auto_auto_auto] items-center gap-4">
                   <div>
                     <p className="text-sm font-semibold hover:underline cursor-pointer" onClick={() => {
                       localStorage.setItem("currentProjectId", p.id);
@@ -310,6 +446,11 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
                   <div className="hidden sm:block w-32 h-1.5 rounded-full bg-muted overflow-hidden">
                     <div className="h-full bg-[var(--brand-gold)]" style={{ width: `${p.progress}%` }} />
                   </div>
+                  {["ASSIGNED", "IN_PROGRESS", "COMPLETED"].includes(p.status) && (
+                    <Button size="xs" variant="outline" className="rounded-full px-3 text-xs" onClick={() => openChat(p.id, p.title)}>
+                      Chat
+                    </Button>
+                  )}
                   <p className="font-serif num text-sm">{p.budget}</p>
                 </div>
               ))
@@ -340,6 +481,24 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
           </ol>
         </div>
       </section>
+
+      <ChatDrawer
+        open={chatOpen}
+        onClose={() => setChatOpen(false)}
+        projectId={chatProjectId}
+        projectTitle={chatProjectTitle}
+        token={token}
+        currentUser={currentUser}
+      />
+
+      <MilestoneReviewModal
+        open={reviewModalOpen}
+        onClose={() => setReviewModalOpen(false)}
+        milestoneId={reviewMilestoneId}
+        milestoneTitle={reviewMilestoneTitle}
+        token={token}
+        onSuccess={fetchDashboardData}
+      />
     </div>
   );
 }

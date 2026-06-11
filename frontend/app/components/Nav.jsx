@@ -25,6 +25,7 @@ const notifMeta = {
   PROJECT_COMPLETED: { label: "Project Done", color: "bg-emerald-500" },
   REVIEW_RECEIVED: { label: "New Review", color: "bg-purple-500" },
   PROJECT_ASSIGNED: { label: "Assigned", color: "bg-teal-500" },
+  MESSAGE_RECEIVED: { label: "New Message", color: "bg-amber-500" },
 };
 
 function NotificationBell({ token }) {
@@ -167,14 +168,21 @@ function NotificationBell({ token }) {
   );
 }
 
-export function Nav({ page, setPage, role, setRole, theme, toggleTheme, onOpenEscrow, currentUser, onLogout, token }) {
+export function Nav({ page, setPage, role, setRole, theme, toggleTheme, onOpenEscrow, currentUser, onLogout, token, providerLabel }) {
   const [open, setOpen] = useState(false);
   return (
     <header className="sticky top-0 z-40 backdrop-blur-md bg-background/80 border-b border-border">
       <div className="mx-auto max-w-7xl px-5 lg:px-8 h-16 flex items-center gap-4">
         <button onClick={() => setPage("landing")} className="flex items-center gap-2 group">
           <img src="/bidhublogo.png" alt="Bid·Hub Logo" className="size-8 object-contain rounded-md" />
-          <span className="font-serif text-xl tracking-tight">Bid<span className="text-[var(--brand-gold)]">·</span>Hub</span>
+          <span className="font-serif text-xl tracking-tight flex items-center gap-2">
+            Bid<span className="text-[var(--brand-gold)]">·</span>Hub
+            {providerLabel && (
+              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-secondary text-secondary-foreground border border-border uppercase tracking-wider select-none font-sans">
+                {providerLabel}
+              </span>
+            )}
+          </span>
         </button>
 
         <nav className="hidden md:flex items-center gap-1 ml-4">
@@ -199,17 +207,18 @@ export function Nav({ page, setPage, role, setRole, theme, toggleTheme, onOpenEs
               className="pl-9 bg-input-background border-transparent focus-visible:ring-1" />
           </div>
         </div>
-
         <div className="ml-auto flex items-center gap-1">
-          <div className="hidden md:flex items-center gap-1 rounded-full bg-secondary p-1 text-xs">
-            {["student","client"].map(r => (
-              <button key={r} onClick={() => { setRole(r); if (page==="student"||page==="client") setPage(r); }}
-                className={cn("px-3 py-1 rounded-full transition-colors capitalize",
-                  role===r ? "bg-background text-foreground shadow-sm" : "text-muted-foreground")}>
-                {r}
-              </button>
-            ))}
-          </div>
+          {!currentUser && (
+            <div className="hidden md:flex items-center gap-1 rounded-full bg-secondary p-1 text-xs">
+              {["student","client"].map(r => (
+                <button key={r} onClick={() => { setRole(r); if (page==="student"||page==="client") setPage(r); }}
+                  className={cn("px-3 py-1 rounded-full transition-colors capitalize",
+                    role===r ? "bg-background text-foreground shadow-sm" : "text-muted-foreground")}>
+                  {r}
+                </button>
+              ))}
+            </div>
+          )}
 
           <Button variant="ghost" size="icon" onClick={onOpenEscrow} aria-label="Escrow">
             <Wallet className="size-4" />

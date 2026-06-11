@@ -12,7 +12,7 @@ const projectSchema = new mongoose.Schema(
     status: {
       type: String,
       required: true,
-      enum: ["OPEN", "ASSIGNED", "IN_PROGRESS", "COMPLETED", "CANCELLED"],
+      enum: ["OPEN", "PENDING_FUNDING", "ASSIGNED", "IN_PROGRESS", "COMPLETED", "CANCELLED"],
       default: "OPEN",
     },
     files: [

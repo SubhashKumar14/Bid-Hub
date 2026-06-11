@@ -3,16 +3,19 @@ import mongoose from "mongoose";
 const paymentLedgerSchema = new mongoose.Schema(
   {
     projectId: { type: mongoose.Schema.Types.ObjectId, ref: "Project", required: true },
-    milestoneId: { type: mongoose.Schema.Types.ObjectId, ref: "Milestone", required: true },
+    milestoneId: { type: mongoose.Schema.Types.ObjectId, ref: "Milestone", default: null }, // optional for full project deposits
     clientId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     studentId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    amount: { type: String, required: true },
+    amount: { type: Number, required: true }, // Store as Number for precise math
     status: {
       type: String,
-      enum: ["LOCKED", "PENDING", "RELEASED"],
-      default: "LOCKED",
+      enum: ["PENDING_CHECKOUT", "LOCKED", "PENDING_REVIEW", "RELEASED", "FAILED", "REFUNDED"],
+      default: "PENDING_CHECKOUT",
     },
     transactionRef: { type: String, default: "" },
+    stripeSessionId: { type: String, default: "" },
+    stripePaymentIntentId: { type: String, default: "" },
+    stripeTransferId: { type: String, default: "" },
     releasedAt: { type: Date, default: null },
   },
   { timestamps: true }

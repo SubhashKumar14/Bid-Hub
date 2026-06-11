@@ -7,6 +7,7 @@ import { User } from "../models/User.js";
 import { Activity } from "../models/Activity.js";
 import { Notification } from "../models/Notification.js";
 import { protect, requireRole } from "../middleware/auth.js";
+import { MilestoneSubmission } from "../models/MilestoneSubmission.js";
 
 const router = express.Router();
 
@@ -35,8 +36,33 @@ router.patch("/:id/submit", protect, requireRole("student"), async (req, res) =>
       return res.status(400).json({ message: "This milestone is already complete." });
     }
 
-    if (milestone.status === "SUBMITTED") {
-      return res.status(400).json({ message: "This milestone has already been submitted. Wait for the client to review it." });
+    const { githubUrl, demoUrl, description, attachments } = req.body;
+
+    if (githubUrl && (!githubUrl.startsWith("http") || !githubUrl.includes("github.com"))) {
+      return res.status(400).json({ message: "Please provide a valid GitHub repository URL." });
+    }
+
+    const finalGithubUrl = githubUrl || "https://github.com/mock/repo";
+
+    let submission = await MilestoneSubmission.findOne({ milestoneId: milestone._id });
+    if (submission) {
+      submission.githubUrl = finalGithubUrl;
+      submission.demoUrl = demoUrl || "";
+      submission.description = description || "";
+      submission.attachments = attachments || [];
+      submission.status = "SUBMITTED";
+      submission.reviewComment = "";
+      await submission.save();
+    } else {
+      submission = await MilestoneSubmission.create({
+        milestoneId: milestone._id,
+        submittedBy: req.user._id,
+        githubUrl: finalGithubUrl,
+        demoUrl: demoUrl || "",
+        description: description || "",
+        attachments: attachments || [],
+        status: "SUBMITTED",
+      });
     }
 
     milestone.status = "SUBMITTED";
@@ -45,7 +71,7 @@ router.patch("/:id/submit", protect, requireRole("student"), async (req, res) =>
     // Update escrow ledger status
     await PaymentLedger.updateOne(
       { milestoneId: milestone._id },
-      { status: "PENDING" }
+      { status: "PENDING_REVIEW" }
     );
 
     // Log Activity
@@ -75,6 +101,8 @@ router.patch("/:id/submit", protect, requireRole("student"), async (req, res) =>
 // @route   PATCH /api/milestones/:id/release
 // @access  Private (Client only)
 router.patch("/:id/release", protect, requireRole("client"), async (req, res) => {
+  const { status, reviewComment } = req.body;
+
   try {
     const milestone = await Milestone.findById(req.params.id);
     if (!milestone) {
@@ -91,24 +119,90 @@ router.patch("/:id/release", protect, requireRole("client"), async (req, res) =>
       return res.status(403).json({ message: "You are not the client for this project." });
     }
 
-    if (milestone.status === "RELEASED") {
-      return res.status(400).json({ message: "Funds for this milestone have already been released." });
+    // Handle CHANGES_REQUESTED
+    if (status === "CHANGES_REQUESTED") {
+      if (!reviewComment || !reviewComment.trim()) {
+        return res.status(400).json({ message: "Review comment/feedback is required to request changes." });
+      }
+
+      // Update milestone status back to CHANGES_REQUESTED
+      const updatedMilestone = await Milestone.findOneAndUpdate(
+        { _id: req.params.id, status: "SUBMITTED" },
+        { status: "CHANGES_REQUESTED" },
+        { new: true }
+      );
+
+      if (!updatedMilestone) {
+        return res.status(400).json({
+          message: "Cannot request changes. Milestone is not in SUBMITTED state.",
+        });
+      }
+
+      // Update MilestoneSubmission status
+      await MilestoneSubmission.findOneAndUpdate(
+        { milestoneId: milestone._id, status: "SUBMITTED" },
+        { status: "CHANGES_REQUESTED", reviewComment: reviewComment.trim() }
+      );
+
+      // Revert PaymentLedger back to LOCKED
+      await PaymentLedger.updateOne(
+        { milestoneId: milestone._id },
+        { status: "LOCKED" }
+      );
+
+      // Log Activity
+      await Activity.create({
+        actorId: req.user._id,
+        type: "MILESTONE_RELEASED",
+        message: `${req.user.name} requested changes for milestone: "${milestone.title}"`,
+        targetId: project._id,
+      });
+
+      // Notify Student
+      const acceptedBid = await Bid.findById(project.acceptedBidId);
+      if (acceptedBid) {
+        await Notification.create({
+          recipientId: acceptedBid.studentId,
+          type: "BID_REJECTED",
+          message: `Changes requested on milestone "${milestone.title}" for project "${project.title}": ${reviewComment}`,
+          targetId: project._id,
+        });
+      }
+
+      return res.json({ message: "Changes requested successfully.", milestone: updatedMilestone });
     }
 
-    if (milestone.status !== "SUBMITTED") {
-      return res.status(400).json({ message: "This milestone has not been submitted yet. Ask the student to submit their work first." });
+    // Default: APPROVED / RELEASED
+    // Atomic update to prevent duplicate release race conditions
+    const updatedMilestone = await Milestone.findOneAndUpdate(
+      { _id: req.params.id, status: "SUBMITTED" },
+      { status: "RELEASED" },
+      { new: true }
+    );
+
+    if (!updatedMilestone) {
+      return res.status(400).json({
+        message: "Milestone funds cannot be released. Either it is already released or has not been submitted yet.",
+      });
     }
 
-    milestone.status = "RELEASED";
-    await milestone.save();
+    // Update MilestoneSubmission to APPROVED
+    await MilestoneSubmission.findOneAndUpdate(
+      { milestoneId: milestone._id, status: "SUBMITTED" },
+      { status: "APPROVED" }
+    );
 
-    // Update escrow ledger entry
-    const ledger = await PaymentLedger.findOne({ milestoneId: milestone._id });
-    if (ledger) {
-      ledger.status = "RELEASED";
-      ledger.releasedAt = new Date();
-      await ledger.save();
-    }
+    // Update escrow ledger entry (simulate Razorpay Connect/Payout transfer to student connected account)
+    const mockTransferId = "tr_mock_" + Math.random().toString(36).substring(2, 12);
+    const ledger = await PaymentLedger.findOneAndUpdate(
+      { milestoneId: milestone._id, status: { $in: ["LOCKED", "PENDING_REVIEW"] } },
+      {
+        status: "RELEASED",
+        stripeTransferId: mockTransferId,
+        releasedAt: new Date(),
+      },
+      { new: true }
+    );
 
     // Log Activity
     await Activity.create({
@@ -174,10 +268,44 @@ router.patch("/:id/release", protect, requireRole("client"), async (req, res) =>
       }
     }
 
-    res.json({ message: "Milestone funds released successfully.", milestone, project });
+    res.json({ message: "Milestone funds released successfully.", milestone: updatedMilestone, project });
   } catch (error) {
     console.error("Release milestone error:", error);
     res.status(500).json({ message: "Failed to release milestone funds. Please try again." });
+  }
+});
+
+// @desc    Get latest submission for a milestone
+// @route   GET /api/milestones/:id/submission
+// @access  Private (Client or Assigned Student only)
+router.get("/:id/submission", protect, async (req, res) => {
+  try {
+    const milestone = await Milestone.findById(req.params.id);
+    if (!milestone) {
+      return res.status(404).json({ message: "Milestone not found." });
+    }
+
+    const project = await Project.findById(milestone.projectId);
+    if (!project) {
+      return res.status(404).json({ message: "Project not found." });
+    }
+
+    // Verify authorized user
+    const acceptedBid = await Bid.findById(project.acceptedBidId);
+    const isStudent = acceptedBid && acceptedBid.studentId.toString() === req.user._id.toString();
+    const isClient = project.clientId.toString() === req.user._id.toString();
+
+    if (!isStudent && !isClient) {
+      return res.status(403).json({ message: "Not authorized to view this milestone's submissions." });
+    }
+
+    const submission = await MilestoneSubmission.findOne({ milestoneId: req.params.id })
+      .populate("submittedBy", "name avatarUrl");
+
+    res.json(submission || null);
+  } catch (error) {
+    console.error("Get milestone submission error:", error);
+    res.status(500).json({ message: "Failed to load milestone submission." });
   }
 });
 
