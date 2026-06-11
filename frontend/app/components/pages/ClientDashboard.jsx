@@ -170,7 +170,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
           return;
         }
 
-        toast.info("Opening Razorpay payment portal...");
+        toast.info("Opening Razorpay test portal. Test Card: 4111 1111 1111 1111 | Expiry: 12/30 | CVV: 111", { duration: 10000 });
         await loadRazorpay();
         const options = {
           key: data.keyId,
