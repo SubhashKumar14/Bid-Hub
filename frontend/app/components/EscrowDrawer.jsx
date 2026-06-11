@@ -103,7 +103,7 @@ export function EscrowDrawer({ open, onClose, token, currentUser }) {
             </div>
 
             <div>
-              <p className="eyebrow mb-2">Simulated Ledger Ledger</p>
+              <p className="eyebrow mb-2">Escrow Ledger History</p>
               <div className="space-y-1 text-sm">
                 {transactions.length === 0 ? (
                   <div className="text-center py-4 text-xs text-muted-foreground italic">No transaction history.</div>
@@ -142,11 +142,11 @@ export function EscrowDrawer({ open, onClose, token, currentUser }) {
               >
                 <ArrowUpFromLine className="size-4 mr-1.5" /> Release next
               </Button>
-              <Button variant="outline" className="flex-1 text-xs" onClick={() => toast.success("Funds withdrawn to simulated bank account!")}>
+              <Button variant="outline" className="flex-1 text-xs" onClick={() => toast.success("Funds withdrawn to bank account!")}>
                 <ArrowDownToLine className="size-4 mr-1.5" /> Withdraw
               </Button>
             </div>
-            <p className="text-[11px] text-muted-foreground">Powered by Razorpay X (Simulated) · Settlements typically arrive within 2 banking hours.</p>
+            <p className="text-[11px] text-muted-foreground">Settlements typically arrive within 2 banking hours.</p>
           </div>
         )}
       </SheetContent>

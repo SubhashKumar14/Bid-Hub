@@ -6,6 +6,8 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { ChatDrawer } from "../ChatDrawer";
 import { MilestoneReviewModal } from "../MilestoneReviewModal";
+import { PaymentDisclaimerModal } from "../PaymentDisclaimerModal";
+import { PaymentSuccessModal } from "../PaymentSuccessModal";
 
 export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
   const [stats, setStats] = useState({
@@ -21,6 +23,9 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
   const [activeProjects, setActiveProjects] = useState([]);
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [disclaimerOpen, setDisclaimerOpen] = useState(false);
+  const [successOpen, setSuccessOpen] = useState(false);
+  const [selectedBidId, setSelectedBidId] = useState(null);
 
   const [chatOpen, setChatOpen] = useState(false);
   const [chatProjectId, setChatProjectId] = useState(null);
@@ -152,56 +157,28 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
     fetchDashboardData();
   }, [token, currentUser]);
 
-  useEffect(() => {
-    if (!token) return;
-    const params = new URLSearchParams(window.location.search);
-    const paymentStatus = params.get("payment_status") || params.get("status");
-    const sessionId = params.get("session_id");
+  const loadRazorpay = () => {
+    return new Promise((resolve) => {
+      if (window.Razorpay) {
+        resolve(true);
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
 
-    if (paymentStatus === "success" && sessionId) {
-      // Clear URL query parameters immediately to prevent loop on refresh
-      window.history.replaceState({}, document.title, window.location.pathname);
+  const handleAcceptBid = (bidId) => {
+    setSelectedBidId(bidId);
+    setDisclaimerOpen(true);
+  };
 
-      const runSimulation = async () => {
-        try {
-          const res = await fetch("/api/payments/simulate-payment", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ sessionId }),
-          });
-          if (res.ok) {
-            toast.success("Simulated Razorpay deposit completed! Escrow funds locked.");
-          } else {
-            console.log("Checkout synced or real webhook handled successfully.");
-          }
-          fetchDashboardData();
-        } catch (err) {
-          console.error("Simulated webhook trigger failed:", err);
-        }
-      };
-      runSimulation();
-    }
-  }, [token]);
-
-const loadRazorpay = () => {
-  return new Promise((resolve) => {
-    if (window.Razorpay) {
-      resolve(true);
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
-  });
-};
-
-  const handleAcceptBid = async (bidId) => {
-    if (!window.confirm("Are you sure you want to hire this student? You will proceed to secure checkout to deposit the contract budget in Escrow.")) return;
+  const confirmCheckout = async () => {
+    setDisclaimerOpen(false);
+    if (!selectedBidId) return;
     try {
       const res = await fetch(`/api/payments/checkout-session`, {
         method: "POST",
@@ -209,7 +186,7 @@ const loadRazorpay = () => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ bidId }),
+        body: JSON.stringify({ bidId: selectedBidId }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to initiate escrow checkout");
@@ -240,7 +217,7 @@ const loadRazorpay = () => {
               });
               const verifyData = await verifyRes.json();
               if (verifyRes.ok) {
-                toast.success("Payment verified! Student hired successfully.");
+                setSuccessOpen(true);
                 fetchDashboardData();
               } else {
                 throw new Error(verifyData.message || "Verification failed");
@@ -498,6 +475,15 @@ const loadRazorpay = () => {
         milestoneTitle={reviewMilestoneTitle}
         token={token}
         onSuccess={fetchDashboardData}
+      />
+      <PaymentDisclaimerModal
+        open={disclaimerOpen}
+        onConfirm={confirmCheckout}
+        onCancel={() => setDisclaimerOpen(false)}
+      />
+      <PaymentSuccessModal
+        open={successOpen}
+        onClose={() => setSuccessOpen(false)}
       />
     </div>
   );

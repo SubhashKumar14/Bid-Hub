@@ -8,6 +8,7 @@ import mongoSanitize from "express-mongo-sanitize";
 import rateLimit from "express-rate-limit";
 import { connectDB } from "./config/db.js";
 import { Activity } from "./models/Activity.js";
+import { getPaymentProvider } from "./payments/index.js";
 
 // Load environment variables
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
@@ -20,6 +21,16 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET === "replace_with_a_long_r
 }
 if (!process.env.MONGODB_URI) {
   console.warn("WARNING: MONGODB_URI is not set. Using local mongodb://localhost:27017/bidhub");
+}
+
+try {
+  getPaymentProvider();
+} catch (err) {
+  console.error("\n========================================================");
+  console.error("FATAL CONFIGURATION ERROR:");
+  console.error(err.message);
+  console.error("========================================================\n");
+  process.exit(1);
 }
 
 // Connect to Database

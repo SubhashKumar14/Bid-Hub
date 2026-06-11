@@ -18,14 +18,6 @@ export default function App() {
   const [escrowOpen, setEscrowOpen] = useState(false);
   const [token, setToken] = useState(localStorage.getItem("token") || "");
   const [currentUser, setCurrentUser] = useState(null);
-  const [providerLabel, setProviderLabel] = useState("");
-
-  useEffect(() => {
-    fetch("/api/payments/config")
-      .then((res) => res.json())
-      .then((data) => setProviderLabel(data.providerLabel))
-      .catch((err) => console.error("Failed to load payment config", err));
-  }, []);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
@@ -182,7 +174,6 @@ export default function App() {
         currentUser={currentUser}
         onLogout={handleLogout}
         token={token}
-        providerLabel={providerLabel}
       />
 
       <main>

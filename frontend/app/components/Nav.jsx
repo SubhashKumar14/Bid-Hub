@@ -168,7 +168,7 @@ function NotificationBell({ token }) {
   );
 }
 
-export function Nav({ page, setPage, role, setRole, theme, toggleTheme, onOpenEscrow, currentUser, onLogout, token, providerLabel }) {
+export function Nav({ page, setPage, role, setRole, theme, toggleTheme, onOpenEscrow, currentUser, onLogout, token }) {
   const [open, setOpen] = useState(false);
   return (
     <header className="sticky top-0 z-40 backdrop-blur-md bg-background/80 border-b border-border">
@@ -177,11 +177,6 @@ export function Nav({ page, setPage, role, setRole, theme, toggleTheme, onOpenEs
           <img src="/bidhublogo.png" alt="Bid·Hub Logo" className="size-8 object-contain rounded-md" />
           <span className="font-serif text-xl tracking-tight flex items-center gap-2">
             Bid<span className="text-[var(--brand-gold)]">·</span>Hub
-            {providerLabel && (
-              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-secondary text-secondary-foreground border border-border uppercase tracking-wider select-none font-sans">
-                {providerLabel}
-              </span>
-            )}
           </span>
         </button>
 

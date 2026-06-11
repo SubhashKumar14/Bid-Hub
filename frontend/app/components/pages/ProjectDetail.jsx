@@ -7,6 +7,8 @@ import { Separator } from "../ui/separator";
 import { StatusBadge } from "../StatusBadge";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { PaymentDisclaimerModal } from "../PaymentDisclaimerModal";
+import { PaymentSuccessModal } from "../PaymentSuccessModal";
 
 export function ProjectDetail({ setPage, role, token, currentUser }) {
   const projectId = localStorage.getItem("currentProjectId");
@@ -14,6 +16,9 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
   const [milestones, setMilestones] = useState([]);
   const [bids, setBids] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [disclaimerOpen, setDisclaimerOpen] = useState(false);
+  const [successOpen, setSuccessOpen] = useState(false);
+  const [selectedBidId, setSelectedBidId] = useState(null);
 
   // Bid form state
   const [bidAmount, setBidAmount] = useState("");
@@ -148,8 +153,14 @@ const loadRazorpay = () => {
   });
 };
 
-  const handleAcceptBid = async (bidId) => {
-    if (!window.confirm("Are you sure you want to hire this student? You will proceed to secure checkout to deposit the contract budget in Escrow.")) return;
+  const handleAcceptBid = (bidId) => {
+    setSelectedBidId(bidId);
+    setDisclaimerOpen(true);
+  };
+
+  const confirmCheckout = async () => {
+    setDisclaimerOpen(false);
+    if (!selectedBidId) return;
     try {
       const res = await fetch(`/api/payments/checkout-session`, {
         method: "POST",
@@ -157,7 +168,7 @@ const loadRazorpay = () => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ bidId }),
+        body: JSON.stringify({ bidId: selectedBidId }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to initiate escrow checkout");
@@ -188,8 +199,7 @@ const loadRazorpay = () => {
               });
               const verifyData = await verifyRes.json();
               if (verifyRes.ok) {
-                toast.success("Payment verified! Student hired successfully.");
-                setPage("client");
+                setSuccessOpen(true);
               } else {
                 throw new Error(verifyData.message || "Verification failed");
               }
@@ -653,6 +663,18 @@ const loadRazorpay = () => {
           </div>
         </aside>
       </div>
+      <PaymentDisclaimerModal
+        open={disclaimerOpen}
+        onConfirm={confirmCheckout}
+        onCancel={() => setDisclaimerOpen(false)}
+      />
+      <PaymentSuccessModal
+        open={successOpen}
+        onClose={() => {
+          setSuccessOpen(false);
+          setPage("client");
+        }}
+      />
     </div>
   );
 }
