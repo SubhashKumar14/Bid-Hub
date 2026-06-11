@@ -6,6 +6,7 @@ import { Button } from "./ui/button";
 export function MilestoneSubmitModal({ open, onClose, milestoneId, milestoneTitle, token, onSuccess }) {
   const [githubUrl, setGithubUrl] = useState("");
   const [demoUrl, setDemoUrl] = useState("");
+  const [videoUrl, setVideoUrl] = useState("");
   const [description, setDescription] = useState("");
   const [attachments, setAttachments] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -26,12 +27,14 @@ export function MilestoneSubmitModal({ open, onClose, milestoneId, milestoneTitl
         setPreviousSubmission(data);
         setGithubUrl(data.githubUrl || "");
         setDemoUrl(data.demoUrl || "");
+        setVideoUrl(data.videoUrl || "");
         setDescription(data.description || "");
         setAttachments(data.attachments || []);
       } else {
         setPreviousSubmission(null);
         setGithubUrl("");
         setDemoUrl("");
+        setVideoUrl("");
         setDescription("");
         setAttachments([]);
       }
@@ -89,6 +92,18 @@ export function MilestoneSubmitModal({ open, onClose, milestoneId, milestoneTitl
       toast.error("Please enter a valid GitHub URL.");
       return;
     }
+    if (!demoUrl.trim()) {
+      toast.error("Live Demo URL is required.");
+      return;
+    }
+    if (!videoUrl.trim()) {
+      toast.error("Demo Video URL is required.");
+      return;
+    }
+    if (description.trim().length < 10) {
+      toast.error("Submission Notes must be at least 10 characters.");
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -101,6 +116,7 @@ export function MilestoneSubmitModal({ open, onClose, milestoneId, milestoneTitl
         body: JSON.stringify({
           githubUrl: githubUrl.trim(),
           demoUrl: demoUrl.trim(),
+          videoUrl: videoUrl.trim(),
           description: description.trim(),
           attachments,
         }),
@@ -168,13 +184,30 @@ export function MilestoneSubmitModal({ open, onClose, milestoneId, milestoneTitl
               {/* Demo URL */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                  <Link className="size-3.5" /> Live Demo URL (Optional)
+                  <Link className="size-3.5" /> Live Demo URL <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="url"
                   placeholder="https://project.vercel.app"
                   value={demoUrl}
                   onChange={(e) => setDemoUrl(e.target.value)}
+                  required
+                  disabled={submitting}
+                  className="w-full rounded-xl bg-background border border-border px-3.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--brand-gold)]"
+                />
+              </div>
+
+              {/* Video URL */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                  <Link className="size-3.5" /> Demo Video URL (Loom/YouTube) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://www.loom.com/share/..."
+                  value={videoUrl}
+                  onChange={(e) => setVideoUrl(e.target.value)}
+                  required
                   disabled={submitting}
                   className="w-full rounded-xl bg-background border border-border px-3.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--brand-gold)]"
                 />
@@ -183,14 +216,15 @@ export function MilestoneSubmitModal({ open, onClose, milestoneId, milestoneTitl
               {/* Description / Notes */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                  <FileText className="size-3.5" /> Notes to Client
+                  <FileText className="size-3.5" /> Notes to Client <span className="text-red-500">*</span>
                 </label>
                 <textarea
-                  placeholder="Describe your implementation details, verify completed features, or leave comments..."
+                  placeholder="Describe your implementation details, verify completed features, or leave comments (min 10 characters)..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
+                  required
                   disabled={submitting}
-                  rows={4}
+                  rows={3}
                   className="w-full rounded-xl bg-background border border-border px-3.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--brand-gold)]"
                 />
               </div>
@@ -198,7 +232,7 @@ export function MilestoneSubmitModal({ open, onClose, milestoneId, milestoneTitl
               {/* Attachments Selector */}
               <div className="space-y-2">
                 <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                  <Upload className="size-3.5" /> Attachments (Optional, max 50MB)
+                  <Upload className="size-3.5" /> Attachments (Optional, max 10MB per file)
                 </span>
                 <div className="flex items-center justify-center border-2 border-dashed border-border rounded-xl p-6 bg-background/50 hover:bg-background/80 transition-colors relative cursor-pointer group">
                   <input
@@ -218,7 +252,7 @@ export function MilestoneSubmitModal({ open, onClose, milestoneId, milestoneTitl
                       <>
                         <Upload className="size-6 mx-auto text-muted-foreground group-hover:text-[var(--brand-gold)] transition-colors" />
                         <p className="text-xs text-muted-foreground font-medium">Click or Drag files to attach</p>
-                        <p className="text-[10px] text-muted-foreground/60">ZIP, PDF, PNG, JPG, JPEG, WEBP</p>
+                        <p className="text-[10px] text-muted-foreground/60">PDF, DOCX, PPTX, PNG, JPG, JPEG</p>
                       </>
                     )}
                   </div>
@@ -254,7 +288,7 @@ export function MilestoneSubmitModal({ open, onClose, milestoneId, milestoneTitl
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={submitting || uploading || !githubUrl.trim() || loading}
+            disabled={submitting || uploading || !githubUrl.trim() || !demoUrl.trim() || !videoUrl.trim() || description.trim().length < 10 || loading}
             className="bg-[var(--brand-gold)] text-[var(--brand-deep)] hover:bg-[var(--brand-gold)]/90"
           >
             {submitting ? (

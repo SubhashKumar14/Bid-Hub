@@ -9,6 +9,15 @@ const router = express.Router();
 // Helper: escape special regex characters to prevent ReDoS
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+const parseAmount = (val) => {
+  if (typeof val === "number") return val;
+  if (!val) return 0;
+  const cleaned = val.toString().replace(/[₹$,\s]/g, "");
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? 0 : num;
+};
+
+
 // @desc    Get all projects with search & filter
 // @route   GET /api/projects
 // @access  Public
@@ -87,7 +96,7 @@ router.post("/", protect, requireRole("client"), async (req, res) => {
       title: title.trim(),
       description: description.trim(),
       category,
-      budget,
+      budget: parseAmount(budget),
       deadline,
       skillsRequired: skillsRequired || [],
       clientId: req.user._id,
@@ -102,7 +111,7 @@ router.post("/", protect, requireRole("client"), async (req, res) => {
       const milestoneDocs = milestones.map((m) => ({
         projectId: project._id,
         title: m.title,
-        amount: m.amount,
+        amount: parseAmount(m.amount),
         dueDate: m.dueDate || "",
         status: "PENDING",
       }));
@@ -163,7 +172,7 @@ router.patch("/:id", protect, requireRole("client"), async (req, res) => {
     }
     if (title) project.title = title.trim();
     if (description) project.description = description.trim();
-    if (budget) project.budget = budget;
+    if (budget) project.budget = parseAmount(budget);
     if (deadline) project.deadline = deadline;
 
     const updatedProject = await project.save();

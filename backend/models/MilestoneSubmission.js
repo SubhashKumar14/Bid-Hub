@@ -5,8 +5,9 @@ const milestoneSubmissionSchema = new mongoose.Schema(
     milestoneId: { type: mongoose.Schema.Types.ObjectId, ref: "Milestone", required: true },
     submittedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     githubUrl: { type: String, required: true },
-    demoUrl: { type: String, default: "" },
-    description: { type: String, default: "" }, // notes to client
+    demoUrl: { type: String, required: true },
+    videoUrl: { type: String, required: true },
+    description: { type: String, required: true }, // notes to client
     attachments: [
       {
         name: { type: String },

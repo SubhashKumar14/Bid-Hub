@@ -179,6 +179,27 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
                 </div>
               )}
 
+              {/* Demo Video Link */}
+              {submission.videoUrl && (
+                <div className="paper hairline rounded-xl p-4 bg-background/40 flex items-center justify-between gap-4">
+                  <div className="flex items-start gap-2.5 min-w-0">
+                    <Link className="size-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <p className="text-xs text-muted-foreground font-semibold">Demo Video URL</p>
+                      <p className="text-sm text-foreground/80 truncate font-mono mt-0.5">{submission.videoUrl}</p>
+                    </div>
+                  </div>
+                  <a
+                    href={submission.videoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-xs text-[var(--brand-gold)] hover:underline flex-shrink-0 font-medium"
+                  >
+                    Open <ExternalLink className="size-3" />
+                  </a>
+                </div>
+              )}
+
               {/* Notes / Description */}
               {submission.description && (
                 <div className="space-y-1">

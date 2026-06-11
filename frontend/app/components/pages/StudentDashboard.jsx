@@ -7,6 +7,16 @@ import { toast } from "sonner";
 import { ChatDrawer } from "../ChatDrawer";
 import { MilestoneSubmitModal } from "../MilestoneSubmitModal";
 
+const formatCurrency = (val) => {
+  if (val === undefined || val === null) return "";
+  if (typeof val === "number") {
+    return `₹${val.toLocaleString("en-IN")}`;
+  }
+  if (val.toString().includes("₹")) return val;
+  const num = parseFloat(val.toString().replace(/[₹$,\s]/g, ""));
+  return isNaN(num) ? val : `₹${num.toLocaleString("en-IN")}`;
+};
+
 export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) {
   const [stats, setStats] = useState({
     earnings: 0,
@@ -223,7 +233,7 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
                         </Button>
                       )}
                       <div className="text-right">
-                        <p className="font-serif num">{c.amount}</p>
+                        <p className="font-serif num">{formatCurrency(c.amount)}</p>
                         <StatusBadge tone={c.status === "in-review" ? "gold" : "sand"}>{c.status}</StatusBadge>
                       </div>
                     </div>
@@ -240,7 +250,7 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
                   <div className="pt-2 flex flex-wrap gap-2 border-t border-border/40">
                     {c.milestones.map((m) => (
                       <div key={m._id} className="w-full flex items-center justify-between bg-background/50 p-2.5 rounded-lg text-xs">
-                        <span>{m.title} ({m.amount})</span>
+                        <span>{m.title} ({formatCurrency(m.amount)})</span>
                         {m.status === "PENDING" && (
                           <Button size="xs" className="rounded-full py-1 px-3 bg-[var(--brand-gold)] text-[var(--brand-deep)]" onClick={() => openSubmitModal(m._id, m.title)}>
                             Submit Work
@@ -287,7 +297,7 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
                 >
                   <div>
                     <p className="hover:underline font-serif">{b.title}</p>
-                    <p className="text-xs text-muted-foreground num">{b.amount}</p>
+                    <p className="text-xs text-muted-foreground num">{formatCurrency(b.amount)}</p>
                   </div>
                   <StatusBadge tone={b.status === "accepted" ? "success" : b.status === "rejected" ? "danger" : "gold"}>
                     {b.status}

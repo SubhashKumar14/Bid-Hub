@@ -10,6 +10,7 @@ import { ClientDashboard } from "./components/pages/ClientDashboard";
 import { Profile } from "./components/pages/Profile";
 import { Auth } from "./components/pages/Auth";
 import { Toaster } from "./components/ui/sonner";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 export default function App() {
   const [page, setPage] = useState("landing");
@@ -155,54 +156,56 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <Nav
-        page={page}
-        setPage={(p) => {
-          if (["student", "client", "post", "profile"].includes(p)) {
-            requireAuth(p, () => { setPage(p); window.scrollTo({ top: 0 }); });
-          } else {
-            setPage(p);
-            window.scrollTo({ top: 0 });
-          }
-        }}
-        role={role}
-        setRole={(r) => { setRole(r); navigateDashboard(r); }}
-        theme={theme}
-        toggleTheme={() => setTheme(t => t === "dark" ? "light" : "dark")}
-        onOpenEscrow={() => requireAuth("escrow", () => setEscrowOpen(true))}
-        currentUser={currentUser}
-        onLogout={handleLogout}
-        token={token}
-      />
+    <ErrorBoundary>
+      <div className="min-h-screen bg-background text-foreground">
+        <Nav
+          page={page}
+          setPage={(p) => {
+            if (["student", "client", "post", "profile"].includes(p)) {
+              requireAuth(p, () => { setPage(p); window.scrollTo({ top: 0 }); });
+            } else {
+              setPage(p);
+              window.scrollTo({ top: 0 });
+            }
+          }}
+          role={role}
+          setRole={(r) => { setRole(r); navigateDashboard(r); }}
+          theme={theme}
+          toggleTheme={() => setTheme(t => t === "dark" ? "light" : "dark")}
+          onOpenEscrow={() => requireAuth("escrow", () => setEscrowOpen(true))}
+          currentUser={currentUser}
+          onLogout={handleLogout}
+          token={token}
+        />
 
-      <main>
-        {page === "landing" && <Landing setPage={setPage} />}
-        {page === "browse" && <Browse setPage={setPage} />}
-        {page === "detail" && <ProjectDetail setPage={setPage} role={role} token={token} currentUser={currentUser} />}
-        {page === "post" && <PostProject token={token} onDone={() => setPage("client")} />}
-        {page === "student" && (
-          <StudentDashboard
-            setPage={setPage}
-            onOpenEscrow={() => setEscrowOpen(true)}
-            token={token}
-            currentUser={currentUser}
-          />
-        )}
-        {page === "client" && (
-          <ClientDashboard
-            setPage={setPage}
-            onOpenEscrow={() => setEscrowOpen(true)}
-            token={token}
-            currentUser={currentUser}
-          />
-        )}
-        {page === "profile" && <Profile token={token} currentUser={currentUser} />}
-        {page === "auth" && <Auth onDone={(userRole) => setPage(userRole || "landing")} setToken={setToken} />}
-      </main>
+        <main>
+          {page === "landing" && <Landing setPage={setPage} />}
+          {page === "browse" && <Browse setPage={setPage} />}
+          {page === "detail" && <ProjectDetail setPage={setPage} role={role} token={token} currentUser={currentUser} />}
+          {page === "post" && <PostProject token={token} onDone={() => setPage("client")} />}
+          {page === "student" && (
+            <StudentDashboard
+              setPage={setPage}
+              onOpenEscrow={() => setEscrowOpen(true)}
+              token={token}
+              currentUser={currentUser}
+            />
+          )}
+          {page === "client" && (
+            <ClientDashboard
+              setPage={setPage}
+              onOpenEscrow={() => setEscrowOpen(true)}
+              token={token}
+              currentUser={currentUser}
+            />
+          )}
+          {page === "profile" && <Profile token={token} currentUser={currentUser} />}
+          {page === "auth" && <Auth onDone={(userRole) => setPage(userRole || "landing")} setToken={setToken} />}
+        </main>
 
-      <EscrowDrawer open={escrowOpen} onClose={() => setEscrowOpen(false)} token={token} currentUser={currentUser} />
-      <Toaster />
-    </div>
+        <EscrowDrawer open={escrowOpen} onClose={() => setEscrowOpen(false)} token={token} currentUser={currentUser} />
+        <Toaster />
+      </div>
+    </ErrorBoundary>
   );
 }

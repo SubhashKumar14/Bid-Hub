@@ -4,7 +4,7 @@ const milestoneSchema = new mongoose.Schema(
   {
     projectId: { type: mongoose.Schema.Types.ObjectId, ref: "Project", required: true },
     title: { type: String, required: true },
-    amount: { type: String, required: true },
+    amount: { type: Number, required: true },
     dueDate: { type: String },
     status: {
       type: String,

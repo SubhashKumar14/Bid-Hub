@@ -251,6 +251,7 @@ async function runVerification() {
       {
         githubUrl: "https://github.com/student/runtime-verification-test",
         demoUrl: "https://runtime-verification-test.vercel.app",
+        videoUrl: "https://www.youtube.com/watch?v=mock-demo",
         description: "Implemented all verification scripts.",
         attachments: [{ name: "report.pdf", url: "https://cloudinary.com/mock.pdf" }]
       },

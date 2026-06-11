@@ -49,24 +49,47 @@ if (isCloudinaryConfigured) {
 export const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB
+    fileSize: 10 * 1024 * 1024, // 10MB per file
   },
   fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const blockedExts = [
+      ".exe", ".bat", ".cmd", ".ps1", ".apk", ".msi", ".jar", ".scr", ".com", ".dll", ".iso", ".sh", ".bash", ".vbs"
+    ];
+    if (blockedExts.includes(ext)) {
+      return cb(new Error(`Security Alert: File type ${ext} is dangerous and not allowed.`));
+    }
+
+    const isImportRoute = req.originalUrl && req.originalUrl.includes("/import/");
+
+    // Allowed extensions for general uploads
+    const allowedExts = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf", ".docx", ".pptx"];
+    if (isImportRoute) {
+      allowedExts.push(".zip");
+    }
+
+    // Allowed MIME types
     const allowedMimes = [
       "image/jpeg",
       "image/png",
       "image/gif",
       "image/webp",
       "application/pdf",
-      "application/zip",
-      "application/x-zip-compressed",
-      "application/octet-stream",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "application/octet-stream"
     ];
-    // For zip imports, allow any application type
-    if (allowedMimes.includes(file.mimetype) || file.mimetype.startsWith("image/")) {
+    if (isImportRoute) {
+      allowedMimes.push("application/zip", "application/x-zip-compressed");
+    }
+
+    const isExtAllowed = allowedExts.includes(ext);
+    const isMimeAllowed = allowedMimes.includes(file.mimetype) || file.mimetype.startsWith("image/");
+
+    if (isExtAllowed && isMimeAllowed) {
       cb(null, true);
     } else {
-      cb(new Error(`Unsupported file type: ${file.mimetype}. Allowed: images, PDF, ZIP.`));
+      cb(new Error(`Unsupported file type: ${ext} (${file.mimetype}). Allowed formats: images, PDF, DOCX, PPTX.`));
     }
   },
 });

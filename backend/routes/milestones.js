@@ -11,6 +11,15 @@ import { MilestoneSubmission } from "../models/MilestoneSubmission.js";
 
 const router = express.Router();
 
+const parseAmount = (val) => {
+  if (typeof val === "number") return val;
+  if (!val) return 0;
+  const cleaned = val.toString().replace(/[₹$,\s]/g, "");
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? 0 : num;
+};
+
+
 // @desc    Submit milestone work (Student)
 // @route   PATCH /api/milestones/:id/submit
 // @access  Private (Student only)
@@ -36,19 +45,33 @@ router.patch("/:id/submit", protect, requireRole("student"), async (req, res) =>
       return res.status(400).json({ message: "This milestone is already complete." });
     }
 
-    const { githubUrl, demoUrl, description, attachments } = req.body;
+    const { githubUrl, demoUrl, videoUrl, description, attachments } = req.body;
 
-    if (githubUrl && (!githubUrl.startsWith("http") || !githubUrl.includes("github.com"))) {
+    if (!githubUrl || !githubUrl.trim()) {
+      return res.status(400).json({ message: "GitHub Repository URL is required." });
+    }
+    if (!githubUrl.startsWith("http") || !githubUrl.includes("github.com")) {
       return res.status(400).json({ message: "Please provide a valid GitHub repository URL." });
     }
 
-    const finalGithubUrl = githubUrl || "https://github.com/mock/repo";
+    if (!demoUrl || !demoUrl.trim() || !demoUrl.startsWith("http")) {
+      return res.status(400).json({ message: "Please provide a valid Live Demo URL (starting with http/https)." });
+    }
+
+    if (!videoUrl || !videoUrl.trim() || !videoUrl.startsWith("http")) {
+      return res.status(400).json({ message: "Please provide a valid Demo Video URL (starting with http/https)." });
+    }
+
+    if (!description || description.trim().length < 10) {
+      return res.status(400).json({ message: "Submission Notes are required and must be at least 10 characters long." });
+    }
 
     let submission = await MilestoneSubmission.findOne({ milestoneId: milestone._id });
     if (submission) {
-      submission.githubUrl = finalGithubUrl;
-      submission.demoUrl = demoUrl || "";
-      submission.description = description || "";
+      submission.githubUrl = githubUrl.trim();
+      submission.demoUrl = demoUrl.trim();
+      submission.videoUrl = videoUrl.trim();
+      submission.description = description.trim();
       submission.attachments = attachments || [];
       submission.status = "SUBMITTED";
       submission.reviewComment = "";
@@ -57,9 +80,10 @@ router.patch("/:id/submit", protect, requireRole("student"), async (req, res) =>
       submission = await MilestoneSubmission.create({
         milestoneId: milestone._id,
         submittedBy: req.user._id,
-        githubUrl: finalGithubUrl,
-        demoUrl: demoUrl || "",
-        description: description || "",
+        githubUrl: githubUrl.trim(),
+        demoUrl: demoUrl.trim(),
+        videoUrl: videoUrl.trim(),
+        description: description.trim(),
         attachments: attachments || [],
         status: "SUBMITTED",
       });
@@ -329,7 +353,7 @@ router.post("/projects/:id/milestones", protect, requireRole("client"), async (r
     const milestone = await Milestone.create({
       projectId: project._id,
       title: title.trim(),
-      amount,
+      amount: parseAmount(amount),
       dueDate,
       status: "PENDING",
     });

@@ -9,6 +9,16 @@ import { MilestoneReviewModal } from "../MilestoneReviewModal";
 import { PaymentDisclaimerModal } from "../PaymentDisclaimerModal";
 import { PaymentSuccessModal } from "../PaymentSuccessModal";
 
+const formatCurrency = (val) => {
+  if (val === undefined || val === null) return "";
+  if (typeof val === "number") {
+    return `₹${val.toLocaleString("en-IN")}`;
+  }
+  if (val.toString().includes("₹")) return val;
+  const num = parseFloat(val.toString().replace(/[₹$,\s]/g, ""));
+  return isNaN(num) ? val : `₹${num.toLocaleString("en-IN")}`;
+};
+
 export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
   const [stats, setStats] = useState({
     postedCount: 0,
@@ -341,7 +351,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
                     <p className="text-xs text-muted-foreground truncate">{b.projectTitle}</p>
                   </div>
                   <div className="text-right hidden sm:block">
-                    <p className="font-serif num">{b.amount}</p>
+                    <p className="font-serif num">{formatCurrency(b.amount)}</p>
                     <p className="text-[11px] text-muted-foreground">{b.timeline}</p>
                   </div>
                   <div className="flex gap-1.5">
@@ -383,7 +393,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
                 <div key={m.id} className="hairline rounded-xl p-3 space-y-3 bg-card/45">
                   <div>
                     <p className="text-sm font-semibold truncate">{m.title}</p>
-                    <p className="text-xs text-muted-foreground num">{m.amount}</p>
+                    <p className="text-xs text-muted-foreground num">{formatCurrency(m.amount)}</p>
                   </div>
                   <div className="flex gap-1.5">
                     <Button
@@ -428,7 +438,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
                       Chat
                     </Button>
                   )}
-                  <p className="font-serif num text-sm">{p.budget}</p>
+                  <p className="font-serif num text-sm">{formatCurrency(p.budget)}</p>
                 </div>
               ))
             )}

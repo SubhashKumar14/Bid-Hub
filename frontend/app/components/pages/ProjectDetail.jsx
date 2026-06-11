@@ -10,6 +10,16 @@ import { toast } from "sonner";
 import { PaymentDisclaimerModal } from "../PaymentDisclaimerModal";
 import { PaymentSuccessModal } from "../PaymentSuccessModal";
 
+const formatCurrency = (val) => {
+  if (val === undefined || val === null) return "";
+  if (typeof val === "number") {
+    return `₹${val.toLocaleString("en-IN")}`;
+  }
+  if (val.toString().includes("₹")) return val;
+  const num = parseFloat(val.toString().replace(/[₹$,\s]/g, ""));
+  return isNaN(num) ? val : `₹${num.toLocaleString("en-IN")}`;
+};
+
 export function ProjectDetail({ setPage, role, token, currentUser }) {
   const projectId = localStorage.getItem("currentProjectId");
   const [project, setProject] = useState(null);
@@ -390,7 +400,7 @@ const loadRazorpay = () => {
                       <span className="text-sm">{m.title}</span>
                     </div>
                     <div className="flex items-center gap-4">
-                      <span className="text-sm num text-muted-foreground">{m.amount}</span>
+                      <span className="text-sm num text-muted-foreground">{formatCurrency(m.amount)}</span>
                       <StatusBadge tone={m.status === "RELEASED" ? "success" : m.status === "SUBMITTED" ? "gold" : "muted"}>{m.status}</StatusBadge>
                     </div>
                   </div>
@@ -524,7 +534,7 @@ const loadRazorpay = () => {
                             </p>
                           </div>
                           <div className="text-right">
-                            <p className="font-serif text-lg num">{b.amount}</p>
+                            <p className="font-serif text-lg num">{formatCurrency(b.amount)}</p>
                             <p className="text-xs text-muted-foreground">{b.timeline}</p>
                           </div>
                         </div>
@@ -564,7 +574,7 @@ const loadRazorpay = () => {
               <div className="paper hairline rounded-2xl p-6 relative overflow-hidden">
                 <div className="absolute -top-10 -right-10 size-32 rounded-full bg-[var(--brand-gold)]/15 blur-2xl" />
                 <p className="eyebrow">Estimate</p>
-                <p className="font-serif text-4xl mt-1 num">{project.budget}</p>
+                <p className="font-serif text-4xl mt-1 num">{formatCurrency(project.budget)}</p>
                 <p className="text-xs text-muted-foreground mt-1">Funds released per milestone</p>
 
                 <Separator className="my-5" />
@@ -572,7 +582,7 @@ const loadRazorpay = () => {
                 <p className="eyebrow mb-3">Place a bid</p>
                 {hasAlreadyBid ? (
                   <div className="space-y-3 bg-secondary/20 p-4 rounded-xl text-center">
-                    <p className="text-sm font-serif">Your bid of <span className="font-bold text-[var(--brand-gold)]">{bidAmount}</span> is active</p>
+                    <p className="text-sm font-serif">Your bid of <span className="font-bold text-[var(--brand-gold)]">{formatCurrency(bidAmount)}</span> is active</p>
                     <p className="text-xs text-muted-foreground">Timeline: {bidTimeline}</p>
                     <p className="text-xs text-muted-foreground text-left italic">"{bidProposal}"</p>
                     <StatusBadge tone="gold" className="mt-2 mx-auto">Active Bid</StatusBadge>

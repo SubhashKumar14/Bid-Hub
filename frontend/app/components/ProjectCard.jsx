@@ -2,6 +2,16 @@ import { Clock, Users, MapPin, ArrowUpRight } from "lucide-react";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { StatusBadge } from "./StatusBadge";
 
+const formatCurrency = (val) => {
+  if (val === undefined || val === null) return "";
+  if (typeof val === "number") {
+    return `₹${val.toLocaleString("en-IN")}`;
+  }
+  if (val.toString().includes("₹")) return val;
+  const num = parseFloat(val.toString().replace(/[₹$,\s]/g, ""));
+  return isNaN(num) ? val : `₹${num.toLocaleString("en-IN")}`;
+};
+
 export function ProjectCard({ project, onOpen }) {
   return (
     <button onClick={onOpen}
@@ -35,7 +45,7 @@ export function ProjectCard({ project, onOpen }) {
           </div>
         </div>
         <div className="text-right">
-          <p className="font-serif text-lg num">{project.budget}</p>
+          <p className="font-serif text-lg num">{formatCurrency(project.budget)}</p>
           <p className="text-[11px] text-muted-foreground">est. budget</p>
         </div>
       </div>
