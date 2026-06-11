@@ -186,7 +186,7 @@ export function Nav({ page, setPage, role, setRole, theme, toggleTheme, onOpenEs
   });
   return (
     <header className="sticky top-0 z-40 backdrop-blur-md bg-background/80 border-b border-border">
-      <div className="mx-auto max-w-7xl px-5 lg:px-8 h-16 flex items-center gap-4">
+      <div className="mx-auto max-w-7xl 2xl:max-w-[1440px] min-[1920px]:max-w-[1680px] min-[2560px]:max-w-[2200px] min-[3400px]:max-w-[2800px] px-5 lg:px-8 h-16 flex items-center gap-4">
         <button onClick={() => setPage("landing")} className="flex items-center gap-2 group">
           <img src="/bidhublogo.png" alt="Bid·Hub Logo" className="size-8 object-contain rounded-md" />
           <span className="font-serif text-xl tracking-tight flex items-center gap-2">

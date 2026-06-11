@@ -65,8 +65,8 @@ export function Landing({ setPage }) {
     <div>
       {/* Hero */}
       <section className="relative overflow-hidden">
-        <div className="mx-auto max-w-7xl px-5 lg:px-8 pt-16 lg:pt-24 pb-20 lg:pb-28 grid lg:grid-cols-12 gap-10">
-          <div className={featuredProject ? "lg:col-span-7" : "lg:col-span-12 max-w-4xl"}>
+        <div className="mx-auto max-w-7xl 2xl:max-w-[1440px] min-[1920px]:max-w-[1680px] min-[2560px]:max-w-[2200px] min-[3400px]:max-w-[2800px] px-5 lg:px-8 pt-16 lg:pt-24 pb-20 lg:pb-28 grid lg:grid-cols-12 gap-10">
+          <div className={featuredProject ? "lg:col-span-7" : "lg:col-span-12"}>
             <div className="flex items-center gap-2 mb-6">
               <span className="eyebrow">Summer term marketplace</span>
               <span className="h-px w-12 bg-border" />
@@ -75,7 +75,7 @@ export function Landing({ setPage }) {
             <h1 className="display text-5xl md:text-6xl lg:text-7xl">
               A quieter marketplace for <span className="italic text-[var(--brand-gold)]">student talent</span>, built on trust and small money.
             </h1>
-            <p className="mt-6 max-w-xl text-muted-foreground text-lg">
+            <p className={`mt-6 text-muted-foreground text-lg ${featuredProject ? "max-w-xl" : "max-w-3xl lg:max-w-4xl"}`}>
               Bid·Hub is where college students take on real, paid briefs — design, code, writing, video — with escrow, milestones, and reviews that travel with them after graduation.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
@@ -151,7 +151,7 @@ export function Landing({ setPage }) {
 
         {/* Trust strip */}
         <div className="border-y border-border bg-card/40">
-          <div className="mx-auto max-w-7xl px-5 lg:px-8 grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-border">
+          <div className="mx-auto max-w-7xl 2xl:max-w-[1440px] min-[1920px]:max-w-[1680px] min-[2560px]:max-w-[2200px] min-[3400px]:max-w-[2800px] px-5 lg:px-8 grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-border">
             {displayStats.map(s => (
               <div key={s.k} className="py-6 px-4 text-center md:text-left">
                 <p className="font-serif text-3xl num">{s.v}</p>
@@ -163,7 +163,7 @@ export function Landing({ setPage }) {
       </section>
 
       {/* How it works */}
-      <section className="mx-auto max-w-7xl px-5 lg:px-8 py-20">
+      <section className="mx-auto max-w-7xl 2xl:max-w-[1440px] min-[1920px]:max-w-[1680px] min-[2560px]:max-w-[2200px] min-[3400px]:max-w-[2800px] px-5 lg:px-8 py-20">
         <div className="grid lg:grid-cols-12 gap-10">
           <div className="lg:col-span-4">
             <span className="eyebrow">Method</span>
@@ -183,7 +183,7 @@ export function Landing({ setPage }) {
       </section>
 
       {/* Categories */}
-      <section className="mx-auto max-w-7xl px-5 lg:px-8 pb-16">
+      <section className="mx-auto max-w-7xl 2xl:max-w-[1440px] min-[1920px]:max-w-[1680px] min-[2560px]:max-w-[2200px] min-[3400px]:max-w-[2800px] px-5 lg:px-8 pb-16">
         <div className="flex items-end justify-between mb-6">
           <div>
             <span className="eyebrow">Where students earn</span>
@@ -203,7 +203,7 @@ export function Landing({ setPage }) {
       </section>
 
       {/* Journey cards */}
-      <section className="mx-auto max-w-7xl px-5 lg:px-8 py-16 grid lg:grid-cols-2 gap-6">
+      <section className="mx-auto max-w-7xl 2xl:max-w-[1440px] min-[1920px]:max-w-[1680px] min-[2560px]:max-w-[2200px] min-[3400px]:max-w-[2800px] px-5 lg:px-8 py-16 grid lg:grid-cols-2 gap-6">
         {[
           { icon: <Sparkles className="size-4" />, eyebrow: "For students", title: "Earn while you study, on your own terms.",
             body: "Browse curated briefs, bid with a short proposal, and ship work that builds a portfolio you actually own.",
@@ -228,11 +228,11 @@ export function Landing({ setPage }) {
 
       {/* Dynamic Testimonials */}
       {reviewsList.length > 0 && (
-        <section className="mx-auto max-w-5xl px-5 lg:px-8 py-20 text-center">
+        <section className="mx-auto max-w-5xl 2xl:max-w-[1100px] min-[1920px]:max-w-[1280px] px-5 lg:px-8 py-20 text-center">
           <Quote className="mx-auto text-[var(--brand-gold)] size-8" />
           <div className="mt-6 space-y-8">
             {reviewsList.slice(0, 1).map((r, i) => (
-              <div key={i} className="max-w-2xl mx-auto">
+              <div key={i} className="max-w-2xl 2xl:max-w-4xl mx-auto">
                 <p className="font-serif text-2xl md:text-3xl leading-snug">
                   "{r.comment || "Excellent collaboration. Milestones delivered on schedule with premium quality."}"
                 </p>
@@ -260,7 +260,7 @@ export function Landing({ setPage }) {
       )}
 
       <footer className="border-t border-border">
-        <div className="mx-auto max-w-7xl px-5 lg:px-8 py-10 flex flex-col md:flex-row gap-6 items-start md:items-center justify-between">
+        <div className="mx-auto max-w-7xl 2xl:max-w-[1440px] min-[1920px]:max-w-[1680px] min-[2560px]:max-w-[2200px] min-[3400px]:max-w-[2800px] px-5 lg:px-8 py-10 flex flex-col md:flex-row gap-6 items-start md:items-center justify-between">
           <div className="flex items-center gap-3">
             <img src="/bidhublogo.png" alt="Bid·Hub Logo" className="size-10 object-contain rounded-md" />
             <div>
