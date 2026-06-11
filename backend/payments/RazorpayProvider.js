@@ -55,6 +55,15 @@ export class RazorpayProvider extends PaymentProvider {
   }
 
   verifySignature(orderId, paymentId, signature) {
+    // Strictly validate payment ID pattern and reject mock values in production
+    if (process.env.NODE_ENV === "production") {
+      const isRealPattern = /^pay_[a-zA-Z0-9]+$/.test(paymentId);
+      const isMockPattern = /mock|test/i.test(paymentId);
+      if (!isRealPattern || isMockPattern) {
+        console.warn(`[Security Alert] Rejected invalid or mock payment ID in production: "${paymentId}"`);
+        return false;
+      }
+    }
     const shasum = crypto.createHmac("sha256", this.keySecret);
     shasum.update(orderId + "|" + paymentId);
     const generated = shasum.digest("hex");
