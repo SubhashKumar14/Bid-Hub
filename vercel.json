@@ -6,23 +6,7 @@
       "destination": "https://bid-hub-yp0m.onrender.com/api/:path*"
     },
     {
-      "source": "/client",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/student",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/profile",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/project/:id",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/((?!api|assets|.*\\..*).*)",
+      "source": "/:path*",
       "destination": "/index.html"
     }
   ]
