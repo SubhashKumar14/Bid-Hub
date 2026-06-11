@@ -112,6 +112,24 @@ router.post("/", protect, async (req, res) => {
   }
 });
 
+// @desc    Get latest public reviews for landing page
+// @route   GET /api/reviews/public
+// @access  Public
+router.get("/public", async (req, res) => {
+  try {
+    const reviews = await Review.find()
+      .populate("reviewerId", "name avatarUrl college role")
+      .populate("projectId", "title")
+      .sort({ createdAt: -1 })
+      .limit(3)
+      .lean();
+    res.json(reviews);
+  } catch (error) {
+    console.error("Get public reviews error:", error);
+    res.status(500).json({ message: "Failed to fetch public reviews." });
+  }
+});
+
 // @desc    Get reviews for a user
 // @route   GET /api/reviews/users/:id/reviews
 // @access  Public

@@ -3,10 +3,12 @@ import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { Separator } from "../ui/separator";
 import { useState } from "react";
-import { Quote } from "lucide-react";
+import { Quote, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 export function Auth({ onDone, setToken }) {
+  const [showPassword, setShowPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [role, setRole] = useState("student");
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -139,13 +141,23 @@ export function Auth({ onDone, setToken }) {
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">Password</label>
-                  <Input
-                    className="mt-1"
-                    type="password"
-                    placeholder="••••••••"
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                  />
+                  <div className="relative mt-1">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  </div>
                 </div>
                 <Button
                   type="submit"
@@ -206,12 +218,23 @@ export function Auth({ onDone, setToken }) {
                   value={registerCollege}
                   onChange={(e) => setRegisterCollege(e.target.value)}
                 />
-                <Input
-                  type="password"
-                  placeholder="Create password"
-                  value={registerPassword}
-                  onChange={(e) => setRegisterPassword(e.target.value)}
-                />
+                <div className="relative">
+                  <Input
+                    type={showRegisterPassword ? "text" : "password"}
+                    placeholder="Create password"
+                    value={registerPassword}
+                    onChange={(e) => setRegisterPassword(e.target.value)}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowRegisterPassword(!showRegisterPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none"
+                    aria-label={showRegisterPassword ? "Hide password" : "Show password"}
+                  >
+                    {showRegisterPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </button>
+                </div>
                 <Button
                   type="submit"
                   disabled={loading}
@@ -224,14 +247,6 @@ export function Auth({ onDone, setToken }) {
             </TabsContent>
           </Tabs>
 
-          <div className="my-6 flex items-center gap-3">
-            <Separator className="flex-1" />
-            <span className="text-xs text-muted-foreground">or</span>
-            <Separator className="flex-1" />
-          </div>
-          <Button variant="outline" className="w-full rounded-full" onClick={() => toast.info("Google sign-in is simulated. Please create an email account.")}>
-            Continue with Google
-          </Button>
         </div>
       </main>
     </div>

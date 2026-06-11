@@ -1,6 +1,8 @@
 import { Button } from "../ui/button";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { StatusBadge } from "../StatusBadge";
+import { Input } from "../ui/input";
+import { Textarea } from "../ui/textarea";
 import { Star, MapPin, Github, Globe, Camera, Plus, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";

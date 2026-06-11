@@ -47,6 +47,7 @@ export default function App() {
           if (path === "/student" && user.role !== "student") setPage("client");
           if (path === "/client" && user.role !== "client") setPage("student");
           if (path === "/post" && user.role !== "client") setPage("student");
+          if (path === "/auth") setPage(user.role);
         })
         .catch((err) => {
           console.error("Auth check failed error:", err);
@@ -80,15 +81,23 @@ export default function App() {
       } else if (path === "/browse") {
         setPage("browse");
       } else if (path === "/student") {
-        setPage("student");
+        requireAuth("student", () => setPage("student"));
       } else if (path === "/client") {
-        setPage("client");
+        requireAuth("client", () => setPage("client"));
       } else if (path === "/profile") {
-        setPage("profile");
+        requireAuth("profile", () => setPage("profile"));
       } else if (path === "/post") {
-        setPage("post");
+        requireAuth("post", () => setPage("post"));
       } else if (path === "/auth") {
-        setPage("auth");
+        if (activeToken) {
+          if (currentUser) {
+            setPage(currentUser.role);
+          } else {
+            setPage("landing");
+          }
+        } else {
+          setPage("auth");
+        }
       } else if (path.startsWith("/project/")) {
         const id = path.split("/").pop();
         if (id) {
@@ -101,7 +110,7 @@ export default function App() {
     handlePopState();
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [token]);
+  }, [token, currentUser]);
 
   useEffect(() => {
     let targetPath = "/";
@@ -154,6 +163,14 @@ export default function App() {
 
     action();
   };
+
+  if (token && !currentUser) {
+    return (
+      <div className="min-h-screen bg-[var(--brand-deep)] text-[#f1e8cf] flex items-center justify-center font-serif text-xl animate-pulse">
+        Initializing secure marketplace session...
+      </div>
+    );
+  }
 
   return (
     <ErrorBoundary>

@@ -2,13 +2,7 @@ import { ArrowRight, Sparkles, Briefcase, Quote } from "lucide-react";
 import { Button } from "../ui/button";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { StatusBadge } from "../StatusBadge";
-
-const stats = [
-  { k: "Students on the platform", v: "12,840" },
-  { k: "Projects posted this term", v: "3,217" },
-  { k: "Held in escrow", v: "₹4.8 Cr" },
-  { k: "Average review", v: "4.86 / 5" },
-];
+import { useState, useEffect } from "react";
 
 const steps = [
   { n: "01", t: "Post or browse", d: "Clients write a short brief. Students browse a curated wall of real, paid work." },
@@ -20,16 +14,63 @@ const steps = [
 const categories = ["Product Design", "Frontend", "Backend", "Writing", "Video", "Branding", "Research", "Data", "Marketing", "Illustration"];
 
 export function Landing({ setPage }) {
+  const [statsData, setStatsData] = useState(null);
+  const [featuredProject, setFeaturedProject] = useState(null);
+  const [reviewsList, setReviewsList] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchLandingData = async () => {
+      try {
+        // 1. Fetch public stats
+        const statsRes = await fetch("/api/projects/public/stats");
+        if (statsRes.ok) {
+          const sData = await statsRes.json();
+          setStatsData(sData);
+        }
+
+        // 2. Fetch latest open project for featured card
+        const projectsRes = await fetch("/api/projects?status=OPEN");
+        if (projectsRes.ok) {
+          const pData = await projectsRes.json();
+          if (pData && pData.length > 0) {
+            setFeaturedProject(pData[0]); // Most recent open project
+          }
+        }
+
+        // 3. Fetch latest public reviews
+        const reviewsRes = await fetch("/api/reviews/public");
+        if (reviewsRes.ok) {
+          const rData = await reviewsRes.json();
+          setReviewsList(rData || []);
+        }
+      } catch (err) {
+        console.error("Failed to load landing page dynamic data", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLandingData();
+  }, []);
+
+  const displayStats = [
+    { k: "Registered Students", v: statsData ? statsData.studentsCount.toLocaleString() : "0" },
+    { k: "Open Briefs", v: statsData ? statsData.projectsCount.toLocaleString() : "0" },
+    { k: "Completed Gigs", v: statsData ? statsData.completedCount.toLocaleString() : "0" },
+    { k: "Escrow Secured", v: statsData ? `₹${statsData.totalEscrow.toLocaleString("en-IN")}` : "₹0" },
+  ];
+
   return (
     <div>
       {/* Hero */}
       <section className="relative overflow-hidden">
         <div className="mx-auto max-w-7xl px-5 lg:px-8 pt-16 lg:pt-24 pb-20 lg:pb-28 grid lg:grid-cols-12 gap-10">
-          <div className="lg:col-span-7">
+          <div className={featuredProject ? "lg:col-span-7" : "lg:col-span-12 max-w-4xl"}>
             <div className="flex items-center gap-2 mb-6">
-              <span className="eyebrow">Issue №12 · Summer term</span>
+              <span className="eyebrow">Summer term marketplace</span>
               <span className="h-px w-12 bg-border" />
-              <span className="eyebrow">For students who freelance</span>
+              <span className="eyebrow">For college students who freelance</span>
             </div>
             <h1 className="display text-5xl md:text-6xl lg:text-7xl">
               A quieter marketplace for <span className="italic text-[var(--brand-gold)]">student talent</span>, built on trust and small money.
@@ -47,73 +88,71 @@ export function Landing({ setPage }) {
               </Button>
             </div>
             <div className="mt-8 flex items-center gap-4 text-sm text-muted-foreground">
-              <div className="flex -space-x-2">
-                {["AR","MN","SK","JP"].map(i => (
-                  <Avatar key={i} className="size-7 ring-2 ring-background">
-                    <AvatarFallback className="text-[10px] bg-[var(--brand-bronze)] text-[var(--brand-gold)]">{i}</AvatarFallback>
-                  </Avatar>
-                ))}
-              </div>
-              <p>Joined this week by students from <span className="text-foreground">BITS Pilani, NID, IIM-A</span> and 41 more.</p>
+              <p>Trusted on campuses in <span className="text-foreground font-semibold">Bengaluru, Delhi, Mumbai, Ahmedabad</span> and beyond.</p>
             </div>
           </div>
 
           {/* Featured project card */}
-          <div className="lg:col-span-5 relative">
-            <div className="absolute -top-4 -right-4 size-28 rounded-full blur-3xl bg-[var(--brand-gold)]/20" />
-            <div className="paper hairline rounded-3xl p-6 relative grain overflow-hidden">
-              <div className="flex items-center justify-between">
-                <StatusBadge tone="gold">Featured this week</StatusBadge>
-                <span className="text-xs text-muted-foreground num">#PRJ-208</span>
-              </div>
-              <h3 className="font-serif text-2xl mt-4 leading-tight">
-                Design and ship a landing site for a slow-fashion label out of Jaipur.
-              </h3>
-              <p className="text-sm text-muted-foreground mt-3">
-                Editorial direction, soft palettes, 6 pages, Framer or Next.js. Two senior designers shortlisting.
-              </p>
-              <div className="mt-5 grid grid-cols-3 gap-3 text-sm">
-                <div><p className="eyebrow">Budget</p><p className="font-serif text-lg num mt-1">₹42,000</p></div>
-                <div><p className="eyebrow">Timeline</p><p className="font-serif text-lg mt-1">3 weeks</p></div>
-                <div><p className="eyebrow">Bids</p><p className="font-serif text-lg num mt-1">17</p></div>
-              </div>
-              <div className="mt-5 flex flex-wrap gap-1.5">
-                {["UX/UI","Framer","Editorial","E-commerce"].map(s =>
-                  <span key={s} className="text-xs px-2 py-1 rounded-full bg-secondary">{s}</span>)}
-              </div>
-              <div className="mt-5 pt-5 border-t border-border flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Avatar className="size-8"><AvatarFallback className="bg-[var(--brand-espresso)] text-[var(--brand-gold)] text-xs">RV</AvatarFallback></Avatar>
-                  <div className="leading-tight">
-                    <p className="text-sm">Raha Vastra</p>
-                    <p className="text-xs text-muted-foreground">Verified client · 4.9 ★</p>
+          {featuredProject && (
+            <div className="lg:col-span-5 relative">
+              <div className="absolute -top-4 -right-4 size-28 rounded-full blur-3xl bg-[var(--brand-gold)]/20" />
+              <div className="paper hairline rounded-3xl p-6 relative grain overflow-hidden">
+                <div className="flex items-center justify-between">
+                  <StatusBadge tone="gold">Featured this week</StatusBadge>
+                  <span className="text-xs text-muted-foreground num">#OPEN</span>
+                </div>
+                <h3 className="font-serif text-2xl mt-4 leading-tight">
+                  {featuredProject.title}
+                </h3>
+                <p className="text-sm text-muted-foreground mt-3 line-clamp-3">
+                  {featuredProject.description}
+                </p>
+                <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="eyebrow">Budget</p>
+                    <p className="font-serif text-lg num mt-1">₹{featuredProject.budget?.toLocaleString("en-IN") || featuredProject.budget}</p>
+                  </div>
+                  <div>
+                    <p className="eyebrow">Category</p>
+                    <p className="font-serif text-lg mt-1 truncate">{featuredProject.category}</p>
                   </div>
                 </div>
-                <Button size="sm" onClick={async () => {
-                  try {
-                    const res = await fetch("/api/projects");
-                    const data = await res.json();
-                    if (res.ok && data.length > 0) {
-                      localStorage.setItem("currentProjectId", data[0]._id);
-                      setPage("detail");
-                    } else {
-                      setPage("browse");
-                    }
-                  } catch (e) {
-                    setPage("browse");
-                  }
-                }} className="rounded-full bg-foreground text-background hover:bg-foreground/85">
-                  View brief
-                </Button>
+                <div className="mt-5 flex flex-wrap gap-1.5">
+                  {featuredProject.skillsRequired?.slice(0, 3).map(s =>
+                    <span key={s} className="text-xs px-2 py-1 rounded-full bg-secondary">{s}</span>)}
+                </div>
+                <div className="mt-5 pt-5 border-t border-border flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Avatar className="size-8">
+                      {featuredProject.clientId?.avatarUrl ? (
+                        <img src={featuredProject.clientId.avatarUrl} alt="" className="size-full object-cover rounded-full" />
+                      ) : (
+                        <AvatarFallback className="bg-[var(--brand-espresso)] text-[var(--brand-gold)] text-xs">
+                          {featuredProject.clientId?.name?.charAt(0).toUpperCase() || "C"}
+                        </AvatarFallback>
+                      )}
+                    </Avatar>
+                    <div className="leading-tight">
+                      <p className="text-sm font-semibold truncate max-w-[150px]">{featuredProject.clientId?.name || "Client"}</p>
+                      <p className="text-xs text-muted-foreground">{featuredProject.clientId?.college || "Verified Client"}</p>
+                    </div>
+                  </div>
+                  <Button size="sm" onClick={() => {
+                    localStorage.setItem("currentProjectId", featuredProject._id);
+                    setPage("detail");
+                  }} className="rounded-full bg-foreground text-background hover:bg-foreground/85">
+                    View brief
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Trust strip */}
         <div className="border-y border-border bg-card/40">
           <div className="mx-auto max-w-7xl px-5 lg:px-8 grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-border">
-            {stats.map(s => (
+            {displayStats.map(s => (
               <div key={s.k} className="py-6 px-4 text-center md:text-left">
                 <p className="font-serif text-3xl num">{s.v}</p>
                 <p className="text-xs text-muted-foreground mt-1">{s.k}</p>
@@ -156,7 +195,7 @@ export function Landing({ setPage }) {
         </div>
         <div className="flex flex-wrap gap-2">
           {categories.map(c => (
-            <button key={c} className="px-4 py-2 rounded-full hairline bg-card hover:bg-secondary text-sm transition-colors">
+            <button key={c} onClick={() => setPage("browse")} className="px-4 py-2 rounded-full hairline bg-card hover:bg-secondary text-sm transition-colors">
               {c}
             </button>
           ))}
@@ -187,20 +226,38 @@ export function Landing({ setPage }) {
         ))}
       </section>
 
-      {/* Testimonial */}
-      <section className="mx-auto max-w-5xl px-5 lg:px-8 py-20 text-center">
-        <Quote className="mx-auto text-[var(--brand-gold)] size-8" />
-        <p className="font-serif text-2xl md:text-3xl leading-snug mt-6">
-          "I paid my last semester's fees from three Bid·Hub gigs. The escrow made me trust strangers, and the reviews now sit on top of my résumé."
-        </p>
-        <div className="mt-6 flex items-center justify-center gap-3">
-          <Avatar className="size-9"><AvatarFallback className="bg-[var(--brand-bronze)] text-[var(--brand-gold)] text-xs">NK</AvatarFallback></Avatar>
-          <div className="text-left">
-            <p className="text-sm">Nidhi Kapoor</p>
-            <p className="text-xs text-muted-foreground">Final year · NID Ahmedabad</p>
+      {/* Dynamic Testimonials */}
+      {reviewsList.length > 0 && (
+        <section className="mx-auto max-w-5xl px-5 lg:px-8 py-20 text-center">
+          <Quote className="mx-auto text-[var(--brand-gold)] size-8" />
+          <div className="mt-6 space-y-8">
+            {reviewsList.slice(0, 1).map((r, i) => (
+              <div key={i} className="max-w-2xl mx-auto">
+                <p className="font-serif text-2xl md:text-3xl leading-snug">
+                  "{r.comment || "Excellent collaboration. Milestones delivered on schedule with premium quality."}"
+                </p>
+                <div className="mt-6 flex items-center justify-center gap-3">
+                  <Avatar className="size-9">
+                    {r.reviewerId?.avatarUrl ? (
+                      <img src={r.reviewerId.avatarUrl} alt="" className="size-full object-cover rounded-full" />
+                    ) : (
+                      <AvatarFallback className="bg-[var(--brand-bronze)] text-[var(--brand-gold)] text-xs">
+                        {r.reviewerId?.name?.charAt(0).toUpperCase() || "R"}
+                      </AvatarFallback>
+                    )}
+                  </Avatar>
+                  <div className="text-left">
+                    <p className="text-sm font-semibold">{r.reviewerId?.name || "Verified Client"}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {r.reviewerId?.college || "Client"} · {"★".repeat(r.rating)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       <footer className="border-t border-border">
         <div className="mx-auto max-w-7xl px-5 lg:px-8 py-10 flex flex-col md:flex-row gap-6 items-start md:items-center justify-between">

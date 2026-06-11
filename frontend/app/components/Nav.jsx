@@ -178,6 +178,12 @@ function NotificationBell({ token, setPage }) {
 
 export function Nav({ page, setPage, role, setRole, theme, toggleTheme, onOpenEscrow, currentUser, onLogout, token }) {
   const [open, setOpen] = useState(false);
+  const filteredLinks = links.filter(l => {
+    if (l.page === "post") {
+      return currentUser && currentUser.role === "client";
+    }
+    return true;
+  });
   return (
     <header className="sticky top-0 z-40 backdrop-blur-md bg-background/80 border-b border-border">
       <div className="mx-auto max-w-7xl px-5 lg:px-8 h-16 flex items-center gap-4">
@@ -189,9 +195,9 @@ export function Nav({ page, setPage, role, setRole, theme, toggleTheme, onOpenEs
         </button>
 
         <nav className="hidden md:flex items-center gap-1 ml-4">
-          {links.map(l => (
+          {filteredLinks.map(l => (
             <button key={l.page}
-              onClick={() => setPage(l.page === "student" ? (role === "client" ? "client" : "student") : l.page)}
+              onClick={() => setPage(l.page === "student" ? (currentUser ? currentUser.role : (role === "client" ? "client" : "student")) : l.page)}
               className={cn(
                 "px-3 py-1.5 rounded-md text-sm transition-colors",
                 page === l.page || (l.page === "student" && (page === "student" || page === "client"))
@@ -253,11 +259,11 @@ export function Nav({ page, setPage, role, setRole, theme, toggleTheme, onOpenEs
               <DropdownMenuContent align="end" className="w-52">
                 <div className="px-2 py-2">
                   <p className="text-sm font-medium">{currentUser.name}</p>
-                  <p className="text-xs text-muted-foreground">{currentUser.college || "No College"} · {role}</p>
+                  <p className="text-xs text-muted-foreground">{currentUser.college || "No College"} · {currentUser.role}</p>
                 </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setPage("profile")}>View profile</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setPage(role)}>Dashboard</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setPage(currentUser.role)}>Dashboard</DropdownMenuItem>
                 <DropdownMenuItem onClick={onOpenEscrow}>Escrow & payouts</DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={onLogout}>Sign out</DropdownMenuItem>
@@ -280,8 +286,8 @@ export function Nav({ page, setPage, role, setRole, theme, toggleTheme, onOpenEs
 
       {open && (
         <div className="md:hidden border-t border-border px-5 py-3 space-y-1 bg-background">
-          {links.map(l => (
-            <button key={l.page} onClick={() => { setPage(l.page === "student" ? role : l.page); setOpen(false); }}
+          {filteredLinks.map(l => (
+            <button key={l.page} onClick={() => { setPage(l.page === "student" ? (currentUser ? currentUser.role : role) : l.page); setOpen(false); }}
               className="block w-full text-left py-2 text-sm">{l.label}</button>
           ))}
         </div>

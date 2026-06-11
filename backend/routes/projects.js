@@ -3,6 +3,8 @@ import { Project } from "../models/Project.js";
 import { Milestone } from "../models/Milestone.js";
 import { Bid } from "../models/Bid.js";
 import { Activity } from "../models/Activity.js";
+import { User } from "../models/User.js";
+import { PaymentLedger } from "../models/PaymentLedger.js";
 import { protect, requireRole } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -202,6 +204,33 @@ router.get("/client/dashboard", protect, requireRole("client"), async (req, res)
   } catch (error) {
     console.error("Client dashboard projects error:", error);
     res.status(500).json({ message: "Failed to load dashboard data." });
+  }
+});
+
+// @desc    Get public stats for the landing page
+// @route   GET /api/projects/public/stats
+// @access  Public
+router.get("/public/stats", async (req, res) => {
+  try {
+    const studentsCount = await User.countDocuments({ role: "student" });
+    const clientsCount = await User.countDocuments({ role: "client" });
+    const projectsCount = await Project.countDocuments({ status: "OPEN" });
+    const completedCount = await Project.countDocuments({ status: "COMPLETED" });
+
+    // Calculate total escrow: Sum of amounts in ledger
+    const ledgers = await PaymentLedger.find({ status: { $in: ["LOCKED", "PENDING_REVIEW", "RELEASED"] } });
+    const totalEscrow = ledgers.reduce((acc, curr) => acc + (curr.amount || 0), 0);
+
+    res.json({
+      studentsCount,
+      clientsCount,
+      projectsCount,
+      completedCount,
+      totalEscrow,
+    });
+  } catch (error) {
+    console.error("Get public stats error:", error);
+    res.status(500).json({ message: "Failed to load stats." });
   }
 });
 
