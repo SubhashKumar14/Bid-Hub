@@ -163,7 +163,7 @@ router.patch("/:id/release", protect, requireRole("client"), async (req, res) =>
       if (acceptedBid) {
         await Notification.create({
           recipientId: acceptedBid.studentId,
-          type: "BID_REJECTED",
+          type: "MILESTONE_CHANGES_REQUESTED",
           message: `Changes requested on milestone "${milestone.title}" for project "${project.title}": ${reviewComment}`,
           targetId: project._id,
         });

@@ -102,15 +102,18 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
       }
       setContracts(activeGigs);
 
-      // Find bids placed by student
+      // Find bids placed by student (across all project statuses)
       let openBidsCount = 0;
       const studentBids = [];
       for (const p of projects) {
-        if (p.status === "OPEN") {
+        // Fetch bids for this project to check if student has placed one
+        try {
           const bidsRes = await fetch(`/api/projects/${p._id}/bids`, {
             headers: { Authorization: `Bearer ${token}` },
           });
+          if (!bidsRes.ok) continue; // Skip if unauthorized (not our project)
           const bidsData = await bidsRes.json();
+          if (!Array.isArray(bidsData)) continue;
           const myBid = bidsData.find(b => b.studentId?._id === currentUser._id || b.studentId === currentUser._id);
           if (myBid) {
             studentBids.push({
@@ -120,8 +123,10 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
               amount: myBid.amount,
               status: myBid.status.toLowerCase(),
             });
-            openBidsCount++;
+            if (myBid.status === "PENDING") openBidsCount++;
           }
+        } catch {
+          // Skip individual project errors silently
         }
       }
       setBids(studentBids);
@@ -143,19 +148,10 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
     fetchDashboardData();
   }, [token, currentUser]);
 
-  const handleSubmitMilestone = async (milestoneId) => {
-    try {
-      const res = await fetch(`/api/milestones/${milestoneId}/submit`, {
-        method: "PATCH",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to submit milestone");
-      toast.success("Milestone submitted for client review!");
-      fetchDashboardData();
-    } catch (err) {
-      toast.error(err.message);
-    }
+  const handleSubmitMilestone = (milestoneId, milestoneTitle) => {
+    // Open the MilestoneSubmitModal which collects GitHub URL, demo URL, description, and attachments
+    // This replaces the old direct PATCH (which sent no body and used a mock GitHub URL)
+    openSubmitModal(milestoneId, milestoneTitle);
   };
 
   if (loading) {

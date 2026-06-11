@@ -140,7 +140,27 @@ router.patch("/:id", protect, requireRole("client"), async (req, res) => {
 
     const { status, title, description, budget, deadline } = req.body;
 
-    if (status) project.status = status;
+    if (status) {
+      // Define allowed manual transitions (clients cannot skip the payment/escrow workflow)
+      const allowedTransitions = {
+        OPEN: ["CANCELLED"],         // Client can cancel their OPEN project
+        PENDING_FUNDING: [],          // Must go through payment flow
+        ASSIGNED: ["IN_PROGRESS"],    // Client can mark project as in progress
+        IN_PROGRESS: [],              // Completion only via milestone release
+        COMPLETED: [],                // Immutable once complete
+        CANCELLED: [],                // Immutable once cancelled
+      };
+
+      const currentStatus = project.status;
+      const allowed = allowedTransitions[currentStatus] || [];
+      if (!allowed.includes(status)) {
+        return res.status(400).json({
+          message: `Cannot transition project from '${currentStatus}' to '${status}'. This transition is not permitted via manual update.`,
+        });
+      }
+
+      project.status = status;
+    }
     if (title) project.title = title.trim();
     if (description) project.description = description.trim();
     if (budget) project.budget = budget;

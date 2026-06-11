@@ -228,7 +228,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
           },
           modal: {
             ondismiss: async function () {
-              toast.warn("Payment modal closed.");
+              toast.info("Payment modal closed.");
               await fetch("/api/payments/cancel", {
                 method: "POST",
                 headers: {

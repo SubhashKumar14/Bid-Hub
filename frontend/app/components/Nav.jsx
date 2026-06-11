@@ -22,6 +22,7 @@ const notifMeta = {
   BID_REJECTED: { label: "Bid Rejected", color: "bg-red-400" },
   MILESTONE_SUBMITTED: { label: "Work Submitted", color: "bg-amber-500" },
   MILESTONE_RELEASED: { label: "Funds Released", color: "bg-green-500" },
+  MILESTONE_CHANGES_REQUESTED: { label: "Changes Requested", color: "bg-orange-500" },
   PROJECT_COMPLETED: { label: "Project Done", color: "bg-emerald-500" },
   REVIEW_RECEIVED: { label: "New Review", color: "bg-purple-500" },
   PROJECT_ASSIGNED: { label: "Assigned", color: "bg-teal-500" },
