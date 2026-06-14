@@ -9,6 +9,7 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { PaymentDisclaimerModal } from "../PaymentDisclaimerModal";
 import { PaymentSuccessModal } from "../PaymentSuccessModal";
+import { MilestoneReviewModal } from "../MilestoneReviewModal";
 
 const formatCurrency = (val) => {
   if (val === undefined || val === null) return "";
@@ -30,6 +31,17 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
   const [successOpen, setSuccessOpen] = useState(false);
   const [selectedBidId, setSelectedBidId] = useState(null);
   const [pendingPayment, setPendingPayment] = useState(null);
+
+  // Milestone review states
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [reviewMilestoneId, setReviewMilestoneId] = useState(null);
+  const [reviewMilestoneTitle, setReviewMilestoneTitle] = useState("");
+
+  const openReviewModal = (milestoneId, milestoneTitle) => {
+    setReviewMilestoneId(milestoneId);
+    setReviewMilestoneTitle(milestoneTitle);
+    setReviewModalOpen(true);
+  };
 
   // Bid form state
   const [bidAmount, setBidAmount] = useState("");
@@ -558,7 +570,17 @@ const loadRazorpay = () => {
                     </div>
                     <div className="flex items-center gap-4">
                       <span className="text-sm num text-muted-foreground">{formatCurrency(m.amount)}</span>
-                      <StatusBadge tone={m.status === "RELEASED" ? "success" : m.status === "SUBMITTED" ? "gold" : "muted"}>{m.status}</StatusBadge>
+                      {m.status === "SUBMITTED" && isOwner ? (
+                        <Button
+                          size="xs"
+                          className="rounded-full bg-[var(--brand-gold)] text-[var(--brand-deep)] hover:bg-[var(--brand-gold)]/90 px-3 text-xs"
+                          onClick={() => openReviewModal(m._id, m.title)}
+                        >
+                          Review Checkpoint
+                        </Button>
+                      ) : (
+                        <StatusBadge tone={m.status === "RELEASED" ? "success" : m.status === "SUBMITTED" ? "gold" : "muted"}>{m.status}</StatusBadge>
+                      )}
                     </div>
                   </div>
                 ))
@@ -866,6 +888,17 @@ const loadRazorpay = () => {
         onClose={() => {
           setSuccessOpen(false);
           setPage("client");
+        }}
+      />
+      <MilestoneReviewModal
+        open={reviewModalOpen}
+        onClose={() => setReviewModalOpen(false)}
+        milestoneId={reviewMilestoneId}
+        milestoneTitle={reviewMilestoneTitle}
+        token={token}
+        onSuccess={() => {
+          setReviewModalOpen(false);
+          fetchProjectData();
         }}
       />
     </div>
