@@ -7,7 +7,7 @@
       "destination": "https://bid-hub-yp0m.onrender.com/api/:path*"
     },
     {
-      "source": "/((?!api|assets|favicon.svg|bidhublogo.png).*)",
+      "source": "/:path*",
       "destination": "/index.html"
     }
   ]
