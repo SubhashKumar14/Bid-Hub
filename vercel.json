@@ -7,7 +7,7 @@
       "destination": "https://bid-hub-yp0m.onrender.com/api/:path*"
     },
     {
-      "source": "/:path*",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]
