@@ -83,6 +83,12 @@ router.get("/student/dashboard", protect, requireRole("student"), async (req, re
     // Fetch milestones for all active projects
     const milestones = await Milestone.find({ projectId: { $in: acceptedProjectIds } });
 
+    // Fetch pending checkout ledgers involving this student
+    const pendingLedgers = await PaymentLedger.find({
+      studentId: req.user._id,
+      status: "PENDING_CHECKOUT"
+    });
+
     // Map milestones to their respective projects
     const projectsWithMilestones = activeProjects.map(proj => {
       const projMilestones = milestones.filter(m => m.projectId.toString() === proj._id.toString());
@@ -93,13 +99,18 @@ router.get("/student/dashboard", protect, requireRole("student"), async (req, re
     });
 
     res.json({
-      bids: studentBids.map(b => ({
-        id: b._id,
-        projectId: b.projectId?._id || b.projectId,
-        title: b.projectId?.title || "Deleted Project",
-        amount: b.amount,
-        status: b.status.toLowerCase(),
-      })),
+      bids: studentBids.map(b => {
+        const isPendingEscrow = pendingLedgers.some(l => 
+          l.projectId.toString() === (b.projectId?._id || b.projectId).toString()
+        );
+        return {
+          id: b._id,
+          projectId: b.projectId?._id || b.projectId,
+          title: b.projectId?.title || "Deleted Project",
+          amount: b.amount,
+          status: isPendingEscrow ? "accepted (escrow pending)" : b.status.toLowerCase(),
+        };
+      }),
       contracts: projectsWithMilestones.map(item => {
         const p = item.project;
         const ms = item.milestones;
@@ -163,7 +174,7 @@ router.get("/client/dashboard", protect, requireRole("client"), async (req, res)
         activeProjects.push({
           id: p._id,
           title: p.title,
-          statusText: p.status === "ASSIGNED" ? "Hired / Kickoff" : p.status === "IN_PROGRESS" ? "Development" : "Completed",
+          statusText: p.status === "PENDING_FUNDING" ? "Escrow Pending" : p.status === "ASSIGNED" ? "Hired / Kickoff" : p.status === "IN_PROGRESS" ? "Development" : "Completed",
           budget: p.budget,
           progress,
           status: p.status,
@@ -250,7 +261,13 @@ router.get("/:id", async (req, res) => {
     // Find milestones for this project
     const milestones = await Milestone.find({ projectId: project._id });
 
-    res.json({ project, milestones });
+    // Find pending checkout ledger if project is PENDING_FUNDING
+    let pendingPayment = null;
+    if (project.status === "PENDING_FUNDING") {
+      pendingPayment = await PaymentLedger.findOne({ projectId: project._id, status: "PENDING_CHECKOUT" });
+    }
+
+    res.json({ project, milestones, pendingPayment });
   } catch (error) {
     console.error("Get project error:", error);
     res.status(500).json({ message: "Failed to load project details. Please try again." });

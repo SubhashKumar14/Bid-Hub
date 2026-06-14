@@ -209,15 +209,30 @@ router.post("/verify", protect, async (req, res) => {
 // @route   POST /api/payments/cancel
 // @access  Private
 router.post("/cancel", protect, async (req, res) => {
-  const { sessionId } = req.body;
+  const { sessionId, projectId } = req.body;
 
-  if (!sessionId) {
-    return res.status(400).json({ message: "Session/Order ID is required." });
+  if (!sessionId && !projectId) {
+    return res.status(400).json({ message: "Session/Order ID or Project ID is required." });
   }
 
   try {
-    const ledger = await PaymentLedger.findOne({ stripeSessionId: sessionId, status: "PENDING_CHECKOUT" });
+    let ledger = null;
+    if (sessionId) {
+      ledger = await PaymentLedger.findOne({ stripeSessionId: sessionId, status: "PENDING_CHECKOUT" });
+    }
+    if (!ledger && projectId) {
+      ledger = await PaymentLedger.findOne({ projectId, status: "PENDING_CHECKOUT" });
+    }
+
     if (!ledger) {
+      // Revert project status anyway if it's currently stuck in PENDING_FUNDING
+      if (projectId) {
+        const proj = await Project.findById(projectId);
+        if (proj && proj.status === "PENDING_FUNDING") {
+          await Project.findByIdAndUpdate(projectId, { status: "OPEN" });
+          return res.json({ message: "No checkout session found, but project status reset to OPEN." });
+        }
+      }
       return res.status(404).json({ message: "Pending payment checkout session not found." });
     }
 

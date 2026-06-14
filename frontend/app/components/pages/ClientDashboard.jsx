@@ -103,6 +103,39 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
 
   useEffect(() => {
     fetchDashboardData();
+    const interval = setInterval(async () => {
+      if (!token || !currentUser) return;
+      try {
+        // Fetch stats & dashboard data silently
+        const paymentsRes = await fetch("/api/payments", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const paymentsData = await paymentsRes.json();
+        const lockedEscrow = paymentsData.stats?.lockedAmount || 0;
+        const releasedEscrow = paymentsData.stats?.releasedAmount || 0;
+
+        const dashRes = await fetch("/api/projects/client/dashboard", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const dashData = await dashRes.json();
+        if (dashRes.ok) {
+          setPendingBids(dashData.pendingBids || []);
+          setMilestonesToApprove(dashData.milestonesToApprove || []);
+          setActiveProjects(dashData.activeProjects || []);
+          setStats({
+            postedCount: dashData.postedCount || 0,
+            bidsReceivedCount: dashData.bidsReceivedCount || 0,
+            activeGigsCount: dashData.activeGigsCount || 0,
+            lockedEscrow,
+            releasedEscrow,
+          });
+        }
+      } catch (err) {
+        console.error("Dashboard polling error:", err);
+      }
+    }, 8000);
+
+    return () => clearInterval(interval);
   }, [token, currentUser]);
 
   const loadRazorpay = () => {
@@ -404,6 +437,14 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
                   {["ASSIGNED", "IN_PROGRESS", "COMPLETED"].includes(p.status) && (
                     <Button size="xs" variant="outline" className="rounded-full px-3 text-xs" onClick={() => openChat(p.id, p.title)}>
                       Chat
+                    </Button>
+                  )}
+                  {p.status === "PENDING_FUNDING" && (
+                    <Button size="xs" className="rounded-full bg-[var(--brand-gold)] text-[var(--brand-deep)] hover:bg-[var(--brand-gold)]/90 px-3 text-xs" onClick={() => {
+                      localStorage.setItem("currentProjectId", p.id);
+                      setPage("detail");
+                    }}>
+                      Pay Escrow
                     </Button>
                   )}
                   <p className="font-serif num text-sm">{formatCurrency(p.budget)}</p>

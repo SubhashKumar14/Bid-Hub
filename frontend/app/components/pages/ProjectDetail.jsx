@@ -29,6 +29,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
   const [disclaimerOpen, setDisclaimerOpen] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
   const [selectedBidId, setSelectedBidId] = useState(null);
+  const [pendingPayment, setPendingPayment] = useState(null);
 
   // Bid form state
   const [bidAmount, setBidAmount] = useState("");
@@ -54,6 +55,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
       if (!projectRes.ok) throw new Error(projectData.message || "Failed to load project details");
       setProject(projectData.project);
       setMilestones(projectData.milestones || []);
+      setPendingPayment(projectData.pendingPayment || null);
 
       // 2. Fetch bids if user is logged in
       let bidsData = [];
@@ -109,6 +111,38 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
 
   useEffect(() => {
     fetchProjectData();
+    const interval = setInterval(async () => {
+      if (!projectId) return;
+      try {
+        const projectRes = await fetch(`/api/projects/${projectId}`);
+        const projectData = await projectRes.json();
+        if (projectRes.ok) {
+          setProject(projectData.project);
+          setMilestones(projectData.milestones || []);
+          setPendingPayment(projectData.pendingPayment || null);
+        }
+
+        if (token) {
+          const bidsRes = await fetch(`/api/projects/${projectId}/bids`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const bidsData = await bidsRes.json();
+          if (bidsRes.ok) {
+            setBids(bidsData);
+            const myBid = bidsData.find(b => b.studentId?._id === currentUser?._id || b.studentId === currentUser?._id);
+            if (myBid) {
+              setHasAlreadyBid(true);
+            } else {
+              setHasAlreadyBid(false);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Project details polling error:", err);
+      }
+    }, 8000);
+
+    return () => clearInterval(interval);
   }, [projectId, token, currentUser]);
 
   const handlePlaceBid = async () => {
@@ -277,6 +311,39 @@ const loadRazorpay = () => {
     }
   };
 
+  const handleCancelCheckout = async () => {
+    try {
+      const res = await fetch("/api/payments/cancel", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          sessionId: pendingPayment ? pendingPayment.stripeSessionId : undefined,
+          projectId: project ? project._id : undefined
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to cancel checkout");
+      toast.success("Project reopened for bidding!");
+      fetchProjectData();
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
+  const handleResumeCheckout = () => {
+    if (!pendingPayment) return;
+    const selectedBid = bids.find(b => (b.studentId?._id || b.studentId) === pendingPayment.studentId);
+    if (selectedBid) {
+      setSelectedBidId(selectedBid._id);
+      setDisclaimerOpen(true);
+    } else {
+      toast.error("Selected bid not found in bids list.");
+    }
+  };
+
   const handleSubmitReview = async () => {
     if (!token) {
       toast.error("Please log in to leave a review");
@@ -351,6 +418,67 @@ const loadRazorpay = () => {
       <button onClick={() => setPage("browse")} className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 mb-6">
         <ArrowLeft className="size-4" /> Back to wall
       </button>
+
+      {project.status === "PENDING_FUNDING" && isOwner && pendingPayment && (
+        <div className="mb-6 p-5 paper hairline rounded-2xl bg-amber-500/5 border border-amber-500/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <h3 className="font-serif text-lg text-amber-500 flex items-center gap-2">
+              <ShieldCheck className="size-5" /> Escrow Deposit Pending
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              You selected a student bid for this project. To assign this contract and start development, please complete the escrow deposit of <span className="font-bold text-foreground font-serif">{formatCurrency(pendingPayment.amount)}</span>.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <Button
+              className="rounded-full bg-[var(--brand-gold)] text-[var(--brand-deep)] hover:bg-[var(--brand-gold)]/90 text-sm px-6 h-10 font-semibold"
+              onClick={handleResumeCheckout}
+            >
+              Pay Escrow
+            </Button>
+            <Button
+              variant="outline"
+              className="rounded-full text-sm px-6 h-10 border-border/60 hover:bg-secondary/40 text-muted-foreground hover:text-foreground"
+              onClick={handleCancelCheckout}
+            >
+              Cancel Acceptance
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {project.status === "PENDING_FUNDING" && isOwner && !pendingPayment && (
+        <div className="mb-6 p-5 paper hairline rounded-2xl bg-destructive/10 border border-destructive/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <h3 className="font-serif text-lg text-destructive flex items-center gap-2">
+              <ShieldCheck className="size-5" /> Escrow Checkout Session Missing
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              This project is pending escrow funding, but the payment session could not be retrieved. Click below to reset the project status to Open.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <Button
+              variant="destructive"
+              className="rounded-full text-sm px-6 h-10 font-semibold"
+              onClick={handleCancelCheckout}
+            >
+              Reset Project to Open
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {project.status === "PENDING_FUNDING" && isStudent && pendingPayment && pendingPayment.studentId === currentUser._id && (
+        <div className="mb-6 p-5 paper hairline rounded-2xl bg-amber-500/5 border border-amber-500/20">
+          <h3 className="font-serif text-lg text-[var(--brand-gold)] flex items-center gap-2">
+            <ShieldCheck className="size-5" /> Bid Accepted (Escrow Pending)
+          </h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            The client has accepted your bid! The contract will start automatically as soon as they complete the escrow payment.
+          </p>
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-12 gap-8">
         {/* Left */}
@@ -578,6 +706,32 @@ const loadRazorpay = () => {
                             >
                               Accept bid
                             </Button>
+                          </div>
+                        )}
+
+                        {project.status === "PENDING_FUNDING" && b.status === "PENDING" && pendingPayment && (b.studentId?._id || b.studentId) === pendingPayment.studentId && (
+                          <div className="mt-3 flex gap-2">
+                            <Button
+                              size="sm"
+                              className="rounded-full bg-[var(--brand-gold)] text-[var(--brand-deep)] hover:bg-[var(--brand-gold)]/90"
+                              onClick={handleResumeCheckout}
+                            >
+                              Resume Payment
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="rounded-full border-border/60 hover:bg-secondary/40 text-muted-foreground hover:text-foreground"
+                              onClick={handleCancelCheckout}
+                            >
+                              Cancel Acceptance
+                            </Button>
+                          </div>
+                        )}
+
+                        {project.status === "PENDING_FUNDING" && b.status === "PENDING" && pendingPayment && (b.studentId?._id || b.studentId) !== pendingPayment.studentId && (
+                          <div className="mt-3">
+                            <span className="text-xs text-muted-foreground italic">Another bid selection is currently pending escrow.</span>
                           </div>
                         )}
 

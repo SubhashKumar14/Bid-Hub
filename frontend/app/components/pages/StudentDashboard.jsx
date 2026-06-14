@@ -95,6 +95,41 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
 
   useEffect(() => {
     fetchDashboardData();
+    const interval = setInterval(async () => {
+      if (!token || !currentUser) return;
+      try {
+        const paymentsRes = await fetch("/api/payments", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const paymentsData = await paymentsRes.json();
+        const releasedAmount = paymentsData.stats?.releasedAmount || 0;
+
+        const profileRes = await fetch(`/api/users/${currentUser._id}`);
+        const profileData = await profileRes.json();
+        const views = profileData.user?.profileViews || 0;
+        setReviews(profileData.reviews || []);
+
+        const dashRes = await fetch("/api/projects/student/dashboard", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const dashData = await dashRes.json();
+        if (dashRes.ok) {
+          setContracts(dashData.contracts || []);
+          setBids(dashData.bids || []);
+          const openBidsCount = (dashData.bids || []).filter(b => b.status === "pending").length;
+          setStats({
+            earnings: releasedAmount,
+            activeContractsCount: (dashData.contracts || []).length,
+            openBidsCount,
+            profileViews: views,
+          });
+        }
+      } catch (err) {
+        console.error("Student dashboard polling error:", err);
+      }
+    }, 8000);
+
+    return () => clearInterval(interval);
   }, [token, currentUser]);
 
   const handleSubmitMilestone = (milestoneId, milestoneTitle) => {

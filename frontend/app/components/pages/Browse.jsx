@@ -47,6 +47,31 @@ export function Browse({ setPage }) {
 
   useEffect(() => {
     fetchProjects();
+    const interval = setInterval(async () => {
+      try {
+        let url = "/api/projects";
+        const params = ["status=OPEN"];
+        if (activeCategory && activeCategory !== "All") {
+          params.push(`category=${encodeURIComponent(activeCategory)}`);
+        }
+        if (search) {
+          params.push(`search=${encodeURIComponent(search)}`);
+        }
+        if (params.length > 0) {
+          url += `?${params.join("&")}`;
+        }
+
+        const res = await fetch(url);
+        const data = await res.json();
+        if (res.ok) {
+          setProjects(data);
+        }
+      } catch (err) {
+        console.error("Browse projects polling error:", err);
+      }
+    }, 8000);
+
+    return () => clearInterval(interval);
   }, [activeCategory, search]);
 
   return (

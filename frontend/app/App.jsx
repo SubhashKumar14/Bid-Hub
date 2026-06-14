@@ -43,7 +43,10 @@ export default function App() {
           // Sync role switcher to user's registered role initially
           setRole(user.role);
           // Auto-redirect if page doesn't match role
-          const path = window.location.pathname;
+          let path = window.location.pathname;
+          if (path.length > 1 && path.endsWith("/")) {
+            path = path.slice(0, -1);
+          }
           if (path === "/student" && user.role !== "student") setPage("client");
           if (path === "/client" && user.role !== "client") setPage("student");
           if (path === "/post" && user.role !== "client") setPage("student");
@@ -67,7 +70,10 @@ export default function App() {
   // Synchronize browser history and pathing
   useEffect(() => {
     const handlePopState = () => {
-      const path = window.location.pathname;
+      let path = window.location.pathname;
+      if (path.length > 1 && path.endsWith("/")) {
+        path = path.slice(0, -1);
+      }
       const isPrivate = ["/student", "/client", "/profile", "/post"].includes(path) || path.startsWith("/project/");
       
       const activeToken = token || localStorage.getItem("token");
