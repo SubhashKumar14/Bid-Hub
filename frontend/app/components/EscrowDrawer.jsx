@@ -5,6 +5,7 @@ import { StatusBadge } from "./StatusBadge";
 import { ShieldCheck, ArrowUpFromLine, Copy, ExternalLink } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { BrandState } from "../brand/BrandState";
 
 export function EscrowDrawer({ open, onClose, token, currentUser }) {
   const [stats, setStats] = useState({
@@ -90,8 +91,13 @@ export function EscrowDrawer({ open, onClose, token, currentUser }) {
               <h3 className="text-xs uppercase tracking-wider font-mono text-muted-foreground">Active Milestone Contracts</h3>
               <div className="space-y-2">
                 {transactions.length === 0 ? (
-                  <div className="text-center py-6 text-xs text-muted-foreground italic rounded-[6px] border border-border p-4">
-                    No active escrow milestones.
+                  <div className="rounded-[6px] border border-border bg-background">
+                    <BrandState
+                      name="no-payments"
+                      title="No active escrow deposits"
+                      description="Active milestones and contract funds will appear here once proposals are funded."
+                      compact
+                    />
                   </div>
                 ) : (
                   transactions.map((tx, idx) => (

@@ -3,6 +3,7 @@ import { Avatar, AvatarFallback } from "../ui/avatar";
 import { StatusBadge } from "../StatusBadge";
 import { ShieldCheck, Plus, ArrowRight, MessageSquare, Check, Eye } from "lucide-react";
 import { BrandIcon } from "../../brand/BrandIcon";
+import { BrandState } from "../../brand/BrandState";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { ChatDrawer } from "../ChatDrawer";
@@ -330,9 +331,12 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
 
           <div className="space-y-3">
             {pendingBids.length === 0 ? (
-              <div className="text-center py-12 text-xs text-muted-foreground leading-relaxed">
-                No active proposals waiting on your review. Post a new brief or check back as student applications arrive.
-              </div>
+              <BrandState
+                name="no-proposals"
+                title="No proposals awaiting review"
+                description="Post a new brief or check back as student applications arrive."
+                compact
+              />
             ) : (
               pendingBids.map((b) => (
                 <div
@@ -402,9 +406,12 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
 
           <div className="space-y-3">
             {activeProjects.length === 0 ? (
-              <div className="text-center py-12 text-xs text-muted-foreground leading-relaxed">
-                No active projects in progress. Once you accept a proposal and fund escrow, projects appear here.
-              </div>
+              <BrandState
+                name="no-contracts"
+                title="No active projects in progress"
+                description="Once you accept a proposal and fund escrow, projects appear here."
+                compact
+              />
             ) : (
               activeProjects.map((p) => (
                 <div key={p.id} className="p-3.5 rounded-[6px] border border-border bg-secondary/10 space-y-2.5">

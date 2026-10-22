@@ -3,6 +3,7 @@ import { Avatar, AvatarFallback } from "../ui/avatar";
 import { StatusBadge } from "../StatusBadge";
 import { Sparkles, TrendingUp, Wallet, Eye, ArrowRight, MessageSquare } from "lucide-react";
 import { BrandIcon } from "../../brand/BrandIcon";
+import { BrandState } from "../../brand/BrandState";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { ChatDrawer } from "../ChatDrawer";
@@ -240,9 +241,21 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
 
           <div className="space-y-4">
             {contracts.length === 0 ? (
-              <div className="text-center py-12 text-xs text-muted-foreground leading-relaxed">
-                No active contracts. Explore open project briefs and submit proposals to get started.
-              </div>
+              <BrandState
+                name="no-contracts"
+                title="No active contracts"
+                description="Explore open project briefs and submit proposals to get started."
+                action={
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-[5px] text-xs h-8 px-4"
+                    onClick={() => setPage("browse")}
+                  >
+                    Browse Project Directory
+                  </Button>
+                }
+              />
             ) : (
               contracts.map((c, i) => (
                 <div key={i} className="border border-border/80 rounded-[6px] p-4 space-y-3 bg-secondary/15">
@@ -348,9 +361,12 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
 
           <div className="space-y-3">
             {bids.length === 0 ? (
-              <div className="text-center py-10 text-xs text-muted-foreground leading-relaxed">
-                You haven't submitted any proposals yet. Check the project directory to bid on open briefs.
-              </div>
+              <BrandState
+                name="no-proposals"
+                title="No proposals submitted yet"
+                description="Check the project directory to submit proposals on open briefs."
+                compact
+              />
             ) : (
               bids.map((b) => (
                 <div

@@ -5,6 +5,7 @@ import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
 import { Star, MapPin, Camera, Plus, X } from "lucide-react";
 import { BrandIcon } from "../../brand/BrandIcon";
+import { BrandState } from "../../brand/BrandState";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 
@@ -310,9 +311,12 @@ export function Profile({ token, currentUser }) {
 
           <div className="space-y-4">
             {reviews.length === 0 ? (
-              <div className="text-center py-10 text-muted-foreground text-xs leading-relaxed">
-                No reviews recorded yet. Completed project milestones automatically generate client feedback records.
-              </div>
+              <BrandState
+                name="no-reviews"
+                title="No reviews recorded yet"
+                description="Completed project milestones automatically generate client feedback records."
+                compact
+              />
             ) : (
               reviews.map((r, i) => (
                 <div key={i} className="border-b border-border/50 pb-4 last:border-0 last:pb-0 space-y-2">

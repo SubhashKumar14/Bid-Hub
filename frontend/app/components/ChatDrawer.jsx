@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { Send, MessageSquare, Loader2, ArrowUp } from "lucide-react";
 import { sendMessage, getMessages } from "../../api/messageApi";
+import { BrandState } from "../brand/BrandState";
 
 export function ChatDrawer({ open, onClose, projectId, projectTitle, token, currentUser }) {
   const [messages, setMessages] = useState([]);
@@ -196,9 +197,12 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
               )}
 
               {messages.length === 0 ? (
-                <div className="py-20 text-center text-xs text-muted-foreground italic">
-                  No messages yet. Send a message to start communicating.
-                </div>
+                <BrandState
+                  name="no-messages"
+                  title="No messages yet"
+                  description="Send a message to start communicating with your project partner."
+                  compact
+                />
               ) : (
                 messages.map((msg) => {
                   const isMe = (msg.senderId?._id || msg.senderId) === currentUser?._id;

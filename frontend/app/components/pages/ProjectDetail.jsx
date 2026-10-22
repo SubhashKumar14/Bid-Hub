@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { PaymentDisclaimerModal } from "../PaymentDisclaimerModal";
 import { PaymentSuccessModal } from "../PaymentSuccessModal";
 import { MilestoneReviewModal } from "../MilestoneReviewModal";
+import { BrandState } from "../../brand/BrandState";
 
 const formatCurrency = (val) => {
   if (val === undefined || val === null) return "";
@@ -411,11 +412,17 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
 
   if (!project) {
     return (
-      <div className="mx-auto max-w-7xl px-5 lg:px-8 py-20 text-center">
-        <h2 className="text-2xl font-semibold tracking-tight text-foreground">Project brief not found</h2>
-        <Button onClick={() => setPage("browse")} className="mt-4 rounded-[5px] bg-primary text-primary-foreground">
-          Return to directory
-        </Button>
+      <div className="mx-auto max-w-7xl px-5 lg:px-8 py-20">
+        <BrandState
+          name="not-found"
+          title="Project brief not found"
+          description="This brief may have been archived, completed, or removed by its author."
+          action={
+            <Button onClick={() => setPage("browse")} className="rounded-[5px] bg-primary text-primary-foreground text-xs h-9 px-4">
+              Return to project directory
+            </Button>
+          }
+        />
       </div>
     );
   }
@@ -722,8 +729,13 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
               </h2>
               <div className="space-y-3">
                 {bids.length === 0 ? (
-                  <div className="text-center rounded-[8px] bg-card border border-border p-8 text-xs text-muted-foreground">
-                    No proposals submitted yet.
+                  <div className="rounded-[8px] bg-card border border-border">
+                    <BrandState
+                      name="no-proposals"
+                      title="No proposals submitted yet"
+                      description="Students browsing the directory will submit proposals here."
+                      compact
+                    />
                   </div>
                 ) : (
                   bids.map(b => (

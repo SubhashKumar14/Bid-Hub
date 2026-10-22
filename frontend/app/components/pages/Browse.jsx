@@ -4,6 +4,8 @@ import { Button } from "../ui/button";
 import { ProjectRow } from "../ProjectCard";
 import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
+import { BrandState } from "../../brand/BrandState";
+import { BrandIcon } from "../../brand/BrandIcon";
 
 const categories = [
   "All",
@@ -93,7 +95,8 @@ export function Browse({ setPage }) {
       {/* Index Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 border-b border-border">
         <div>
-          <span className="eyebrow text-xs">
+          <span className="eyebrow text-xs inline-flex items-center gap-1.5">
+            <BrandIcon name="project-index" size={14} className="text-brand-accent" />
             {loading ? "Loading index…" : `${filteredAndSortedProjects.length} open project briefs`}
           </span>
           <h1 className="text-3xl font-medium tracking-tight text-foreground mt-1">
@@ -192,23 +195,26 @@ export function Browse({ setPage }) {
             ))}
           </div>
         ) : filteredAndSortedProjects.length === 0 ? (
-          <div className="text-center py-16 bg-card border border-border rounded-[8px] mt-4 px-4">
-            <h3 className="text-lg font-medium text-foreground">No matching project briefs</h3>
-            <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto leading-relaxed">
-              No briefs matched your filter parameters. Try clearing your search keyword or selecting "All" categories.
-            </p>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setSearch("");
-                setActiveCategory("All");
-                setLocationFilter("all");
-                setSortBy("newest");
-              }}
-              className="mt-4 rounded-[5px] text-xs h-8 px-4"
-            >
-              Reset directory filters
-            </Button>
+          <div className="bg-card border border-border rounded-[8px] mt-4">
+            <BrandState
+              name="no-projects"
+              title="No matching project briefs"
+              description="No briefs matched your filter parameters. Try clearing your search keyword or selecting All categories."
+              action={
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSearch("");
+                    setActiveCategory("All");
+                    setLocationFilter("all");
+                    setSortBy("newest");
+                  }}
+                  className="rounded-[5px] text-xs h-8 px-4"
+                >
+                  Reset directory filters
+                </Button>
+              }
+            />
           </div>
         ) : (
           <div className="space-y-3">

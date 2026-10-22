@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { Loader2, Github, Link, FileText, CornerDownRight, ExternalLink, Paperclip } from "lucide-react";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./ui/dialog";
+import { BrandState } from "../brand/BrandState";
+import { BrandIcon } from "../brand/BrandIcon";
 
 export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitle, token, onSuccess }) {
   const [submission, setSubmission] = useState(null);
@@ -110,7 +112,10 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-border">
           <div>
-            <span className="text-xs uppercase tracking-wider font-mono text-muted-foreground">Milestone Checkpoint</span>
+            <span className="text-xs uppercase tracking-wider font-mono text-muted-foreground inline-flex items-center gap-1.5">
+              <BrandIcon name="handover" size={14} className="text-brand-accent" />
+              Milestone Checkpoint & Handover
+            </span>
             <DialogTitle className="text-lg font-semibold tracking-tight text-foreground mt-1">{milestoneTitle}</DialogTitle>
             <DialogDescription id="milestone-review-description" className="sr-only">Review submitted deliverables and sign off or request changes.</DialogDescription>
           </div>
@@ -123,9 +128,12 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
               Fetching submitted deliverables…
             </div>
           ) : !submission ? (
-            <div className="py-12 text-center text-xs text-muted-foreground italic">
-              No submission record found for this checkpoint.
-            </div>
+            <BrandState
+              name="no-submissions"
+              title="No submission record found"
+              description="The student has not yet submitted deliverables for this milestone checkpoint."
+              compact
+            />
           ) : (
             <div className="space-y-4">
               {/* Submitted By */}

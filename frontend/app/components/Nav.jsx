@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback } from "react";
 import { cn } from "./ui/utils";
 import { getNotifications, markAllNotificationsRead, markNotificationRead } from "../../api/notificationApi";
 import { BrandLogo } from "../brand/BrandLogo";
+import { BrandState } from "../brand/BrandState";
 
 const links = [
   { label: "Find a project", page: "browse" },
@@ -120,11 +121,12 @@ function NotificationBell({ token, setPage }) {
           {loading && notifications.length === 0 ? (
             <div className="px-4 py-8 text-center text-xs text-muted-foreground">Loading notifications…</div>
           ) : notifications.length === 0 ? (
-            <div className="px-4 py-10 text-center">
-              <Bell className="size-6 mx-auto text-muted-foreground/40 mb-2" />
-              <p className="text-sm font-medium text-foreground">All caught up</p>
-              <p className="text-xs text-muted-foreground mt-0.5">No unread notifications.</p>
-            </div>
+            <BrandState
+              name="no-notifications"
+              title="All caught up"
+              description="No unread notifications at this time."
+              compact
+            />
           ) : (
             notifications.map((n) => {
               const meta = notifMeta[n.type] || { label: "Update", color: "bg-muted-foreground" };
