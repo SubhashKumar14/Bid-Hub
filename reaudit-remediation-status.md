@@ -51,7 +51,7 @@ Commands: `npm run test:security --prefix backend`, `npm run test:transactions -
 
 ## Deployment and migration gates
 
-MongoDB transactions require a replica set. Production requires stable secrets, test-mode provider credentials, and a durable private volume configured through `PRIVATE_UPLOAD_DIR`. A free ephemeral filesystem is unsuitable for private attachments. Actual provider payouts/refunds are unavailable, so live keys deliberately fail startup.
+MongoDB transactions require a replica set. Production requires stable secrets and test-mode provider credentials. Private attachments require a durable private volume configured through `PRIVATE_UPLOAD_DIR`; if it is missing or unusable, attachment endpoints return 503 while API startup proceeds. Ephemeral storage is not used as a production attachment fallback. Actual provider payouts/refunds are unavailable, so live keys deliberately fail startup.
 
 Existing payments need an operator-reviewed reconciliation report before introducing required bid, provider, integer-amount and schedule bindings. Existing submissions need a version/index inventory before production rollout. This pass does not rewrite historical financial records or restore backups. Old public attachment URLs require migration and cloud access revocation; changing new upload behavior does not retract previously shared public URLs.
 

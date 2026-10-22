@@ -53,13 +53,25 @@ if (isCloudinaryConfigured) {
   console.log("Local Filesystem Fallback Upload Storage configured (./uploads).");
 }
 
-if (process.env.NODE_ENV === "production" && !process.env.PRIVATE_UPLOAD_DIR) throw new Error("Set PRIVATE_UPLOAD_DIR to durable private storage before production startup.");
-const privateDir = process.env.PRIVATE_UPLOAD_DIR || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../private-uploads");
-fs.mkdirSync(privateDir, { recursive: true });
-const privateStorage = multer.diskStorage({ destination: privateDir, filename: (req, file, cb) => cb(null, crypto.randomUUID() + path.extname(file.originalname).toLowerCase()) });
+const configuredPrivateDir = process.env.PRIVATE_UPLOAD_DIR?.trim();
+export let privateUploadDirectory = configuredPrivateDir || (process.env.NODE_ENV === "production" ? null : path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../private-uploads"));
+if (privateUploadDirectory) {
+  try {
+    if (!path.isAbsolute(privateUploadDirectory)) throw new Error("Private storage path must be absolute.");
+    fs.mkdirSync(privateUploadDirectory, { recursive: true });
+    fs.accessSync(privateUploadDirectory, fs.constants.R_OK | fs.constants.W_OK);
+  } catch {
+    privateUploadDirectory = null;
+  }
+}
+if (!privateUploadDirectory) console.warn("Private attachment storage unavailable. Attachment endpoints will return 503; configure PRIVATE_UPLOAD_DIR on a durable volume to enable them.");
+const privateStorage = privateUploadDirectory ? multer.diskStorage({ destination: privateUploadDirectory, filename: (req, file, cb) => cb(null, crypto.randomUUID() + path.extname(file.originalname).toLowerCase()) }) : null;
+const privateStorageError = () => Object.assign(new Error("Private attachment storage is unavailable. Please try again after storage is configured."), { status: 503 });
+export const requirePrivateUploadStorage = (req, res, next) => privateUploadDirectory ? next() : next(privateStorageError());
 const checkedStorage = {
   async _handleFile(req, file, cb) {
     try {
+      if (file.fieldname !== "avatar" && !privateStorage) throw privateStorageError();
       const chunks = []; let length = 0;
       for await (const chunk of file.stream) { length += chunk.length; if (length > 10 * 1024 * 1024) throw new Error("File too large"); chunks.push(chunk); }
       const buffer = Buffer.concat(chunks);

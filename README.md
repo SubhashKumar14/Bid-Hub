@@ -15,7 +15,7 @@
 
 **Bid-Hub** is a full-stack MERN marketplace where clients post technical project briefs and students compete through structured bidding. Work execution is managed through milestone tracking, Razorpay Test Mode checkout demonstrations, an application escrow ledger, portfolio building, peer reviews, and reputation scoring.
 
-**Current release status:** live payments are disabled. See [the re-audit remediation status](reaudit-remediation-status.md) for verified fixes, remaining findings, and migration requirements. Transactions require a MongoDB replica set; production attachments require a durable private volume configured with `PRIVATE_UPLOAD_DIR`. Older setup and audit notes below are superseded where they conflict with that status report.
+**Current release status:** live payments are disabled. See [the re-audit remediation status](reaudit-remediation-status.md) for verified fixes, remaining findings, and migration requirements. Transactions require a MongoDB replica set. To enable production attachments, configure `PRIVATE_UPLOAD_DIR` as an absolute path on a durable private volume; otherwise attachment endpoints return 503 while the API can start. Older setup and audit notes below are superseded where they conflict with that status report.
 
 [Live Demo](#deployment) · [API Docs](#7-api-endpoint-documentation) · [Quick Start](#10-installation--setup) · [Deploy](#13-production-deployment-guide)
 
