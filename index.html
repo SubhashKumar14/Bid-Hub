@@ -3,25 +3,40 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Bid·Hub | Student-Focused Freelance Bidding Marketplace</title>
-    <meta name="description" content="Bid·Hub is a student-focused freelance bidding marketplace where clients post technical projects and students compete through a transparent bidding system with escrow protection." />
-    <meta name="keywords" content="student freelance, bidding marketplace, student projects, college freelance, escrow payments, campus talent" />
-    <meta property="og:title" content="Bid·Hub — Where Campus Talent Meets Real Work" />
-    <meta property="og:description" content="Post projects, bid with intent, and get paid with escrow protection. Built for students who freelance." />
+    <title>Bid·Hub — Independent Student Work Exchange</title>
+    <meta name="description" content="An independent student work exchange: editorial project briefs, precise project directories, and reliable escrow-protected milestones." />
+    <meta name="keywords" content="student freelance, student work exchange, college bidding, student projects, escrow protection" />
+    <meta property="og:title" content="Bid·Hub — Independent Student Work Exchange" />
+    <meta property="og:description" content="Good work shouldn't wait for graduation. Connect real projects with student talent through clear briefs and transparent escrow." />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="/bidhublogo.png" />
+    <meta property="og:image" content="/brand/bidhub/social/bidhub-social-light-1200.png" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:image" content="/bidhublogo.png" />
-    <meta name="theme-color" content="#1a1208" />
-    <!-- Favicon: SVG (modern browsers) + PNG fallback -->
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="alternate icon" type="image/png" href="/bidhublogo.png" />
-    <link rel="apple-touch-icon" href="/bidhublogo.png" />
+    <meta name="twitter:image" content="/brand/bidhub/social/bidhub-social-light-1200.png" />
+    <meta name="theme-color" content="#F5F3EE" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1A1917" media="(prefers-color-scheme: dark)" />
+    <!-- Favicon & Touch Icons -->
+    <link rel="icon" type="image/svg+xml" href="/brand/bidhub/app/favicon.svg" />
+    <link rel="alternate icon" type="image/png" sizes="32x32" href="/brand/bidhub/app/favicon-32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/brand/bidhub/app/apple-touch-icon-180.png" />
+    <link rel="manifest" href="/brand/bidhub/app/site.webmanifest" />
+    <script>
+      (function() {
+        try {
+          var saved = localStorage.getItem('bidhub-theme');
+          var isDark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.style.backgroundColor = '#1A1917';
+          } else {
+            document.documentElement.classList.remove('dark');
+            document.documentElement.style.backgroundColor = '#F5F3EE';
+          }
+        } catch(e) {}
+      })();
+    </script>
     <style>
       html, body { height: 100%; margin: 0; }
       #root { height: 100%; }
-      /* Prevent FOUC */
-      html { background: #1a1208; }
     </style>
   </head>
   <body>

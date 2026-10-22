@@ -2,30 +2,49 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { Paperclip, Sparkles, Lightbulb, Github, CheckCircle2 } from "lucide-react";
-import { useState } from "react";
+import { Paperclip, Github, Lightbulb, X, Plus } from "lucide-react";
+import { BrandIcon } from "../../brand/BrandIcon";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 
 const categories = [
   { label: "Product Design", value: "Product Design" },
   { label: "Web Development", value: "Web Development" },
+  { label: "Backend & APIs", value: "Backend & APIs" },
   { label: "Writing & Content", value: "Writing & Content" },
   { label: "Video & Motion", value: "Video & Motion" },
+  { label: "Graphic Design", value: "Graphic Design" },
+  { label: "Data & Research", value: "Data & Research" },
 ];
+
+const SUGGESTED_SKILLS = {
+  "Product Design": ["Figma", "UX/UI", "Wireframing", "Prototyping", "Design Systems"],
+  "Web Development": ["React", "TypeScript", "Tailwind CSS", "Next.js", "Node.js"],
+  "Backend & APIs": ["Node.js", "Express", "MongoDB", "PostgreSQL", "REST APIs"],
+  "Writing & Content": ["Copywriting", "Technical Writing", "Editorial", "SEO", "Research"],
+  "Video & Motion": ["Premiere Pro", "DaVinci Resolve", "After Effects", "Color Grading", "Sound Design"],
+  "Graphic Design": ["Typography", "Illustrator", "Brand Identity", "Print Design", "Packaging"],
+  "Data & Research": ["Python", "SQL", "Data Analysis", "User Research", "Market Sizing"],
+};
 
 export function PostProject({ token, onDone }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("");
+  const [category, setCategory] = useState("Web Development");
   const [level, setLevel] = useState("intermediate");
   const [budget, setBudget] = useState("");
-  const [duration, setDuration] = useState("");
+  const [duration, setDuration] = useState("2 weeks");
   const [deadline, setDeadline] = useState("");
-  
+  const [location, setLocation] = useState("Remote");
+
+  // Custom Skills state
+  const [skills, setSkills] = useState(["React", "TypeScript"]);
+  const [newSkillInput, setNewSkillInput] = useState("");
+
   // Milestones state
   const [milestones, setMilestones] = useState([
-    { title: "Discovery & research", amount: "10000" },
-    { title: "Hi-fi prototyping", amount: "15000" },
+    { title: "Discovery, architecture & setup", amount: "10000" },
+    { title: "Core deliverables & milestone handover", amount: "15000" },
   ]);
 
   // File uploads state
@@ -33,17 +52,59 @@ export function PostProject({ token, onDone }) {
   const [uploadingFiles, setUploadingFiles] = useState(false);
 
   // Import State
-  const [importSource, setImportSource] = useState(""); // "zip" | "github"
+  const [importSource, setImportSource] = useState("");
   const [githubUrl, setGithubUrl] = useState("");
   const [fileManifest, setFileManifest] = useState([]);
-  const [manifestStats, setManifestStats] = useState(null); // { fileCount, totalSize }
+  const [manifestStats, setManifestStats] = useState(null);
   const [importingSource, setImportingSource] = useState(false);
+
+  // Restore draft if available
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("bidhub_post_draft");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.title) setTitle(parsed.title);
+        if (parsed.description) setDescription(parsed.description);
+        if (parsed.category) setCategory(parsed.category);
+        if (parsed.budget) setBudget(parsed.budget);
+        if (parsed.deadline) setDeadline(parsed.deadline);
+        if (Array.isArray(parsed.skills) && parsed.skills.length) setSkills(parsed.skills);
+      }
+    } catch {}
+  }, []);
+
+  // Auto-save draft
+  useEffect(() => {
+    if (title || description) {
+      localStorage.setItem("bidhub_post_draft", JSON.stringify({
+        title, description, category, budget, deadline, skills,
+      }));
+    }
+  }, [title, description, category, budget, deadline, skills]);
+
+  const addSkill = (skillToAdd) => {
+    const s = (skillToAdd || newSkillInput).trim();
+    if (!s) return;
+    if (!skills.includes(s)) {
+      setSkills([...skills, s]);
+    }
+    setNewSkillInput("");
+  };
+
+  const removeSkill = (skillToRemove) => {
+    setSkills(skills.filter((s) => s !== skillToRemove));
+  };
 
   const addMilestone = () => {
     setMilestones([...milestones, { title: "", amount: "" }]);
   };
 
   const removeMilestone = (index) => {
+    if (milestones.length <= 1) {
+      toast.error("Project must have at least one milestone");
+      return;
+    }
     const next = [...milestones];
     next.splice(index, 1);
     setMilestones(next);
@@ -74,7 +135,7 @@ export function PostProject({ token, onDone }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to upload attachments");
       setAttachments([...attachments, ...data]);
-      toast.success("Attachments uploaded successfully!");
+      toast.success("Attachments indexed successfully");
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -101,7 +162,7 @@ export function PostProject({ token, onDone }) {
       if (!res.ok) throw new Error(data.message || "ZIP import rejected");
       setFileManifest(data.manifest);
       setManifestStats({ fileCount: data.fileCount, totalSize: data.totalSize });
-      toast.success(`ZIP import parsed: ${data.fileCount} files manifest indexed.`);
+      toast.success(`ZIP manifest parsed: ${data.fileCount} files indexed.`);
     } catch (err) {
       toast.error(err.message);
       setImportSource("");
@@ -112,7 +173,7 @@ export function PostProject({ token, onDone }) {
 
   const handleGithubImport = async () => {
     if (!githubUrl) {
-      toast.error("Please enter a GitHub repository URL");
+      toast.error("Please enter a public GitHub repository URL");
       return;
     }
 
@@ -131,7 +192,7 @@ export function PostProject({ token, onDone }) {
       if (!res.ok) throw new Error(data.message || "GitHub repository import failed");
       setFileManifest(data.manifest);
       setManifestStats({ fileCount: data.fileCount, totalSize: data.totalSize });
-      toast.success(`GitHub repository manifest imported successfully!`);
+      toast.success("GitHub repository manifest indexed successfully");
     } catch (err) {
       toast.error(err.message);
       setImportSource("");
@@ -141,15 +202,14 @@ export function PostProject({ token, onDone }) {
   };
 
   const handlePublish = async () => {
-    if (!title || !description || !category || !budget || !deadline) {
-      toast.error("Please fill in all basic fields");
+    if (!title.trim() || !description.trim() || !category || !budget || !deadline) {
+      toast.error("Please complete all required fields: title, description, category, budget, deadline.");
       return;
     }
 
-    // Filter milestones that are complete
-    const validMilestones = milestones.filter((m) => m.title && m.amount);
+    const validMilestones = milestones.filter((m) => m.title.trim() && m.amount);
     if (validMilestones.length === 0) {
-      toast.error("Please add at least one complete milestone checkpoint");
+      toast.error("Please configure at least one milestone with title and amount");
       return;
     }
 
@@ -161,21 +221,27 @@ export function PostProject({ token, onDone }) {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          title,
-          description,
+          title: title.trim(),
+          description: description.trim(),
           category,
           budget,
           deadline,
-          skillsRequired: ["UX/UI", "React", "Node", "Tailwind"].slice(0, 3), // default mock tags
+          skillsRequired: skills.length > 0 ? skills : [category],
           milestones: validMilestones,
           files: attachments,
           fileManifest,
           importSource,
+          remote: location.toLowerCase().includes("remote"),
+          location,
+          level,
+          duration,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to publish brief");
-      toast.success("Project brief published successfully on the wall!");
+      
+      localStorage.removeItem("bidhub_post_draft");
+      toast.success("Project brief published successfully");
       onDone();
     } catch (err) {
       toast.error(err.message);
@@ -183,72 +249,179 @@ export function PostProject({ token, onDone }) {
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-5 lg:px-8 py-12 grid lg:grid-cols-12 gap-8">
-      <main className="lg:col-span-8 space-y-8">
-        <header>
-          <span className="eyebrow">New brief</span>
-          <h1 className="font-serif text-4xl mt-2">Post a project</h1>
-          <p className="text-muted-foreground mt-2 max-w-xl">A good brief takes ten quiet minutes to write. Students will thank you for it.</p>
+    <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 py-10 grid lg:grid-cols-12 gap-8">
+      <main className="lg:col-span-8 space-y-6">
+        <header className="pb-4 border-b border-border">
+          <span className="eyebrow text-xs">New project brief</span>
+          <h1 className="text-3xl font-medium tracking-tight text-foreground mt-1">Post a Project</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Publish a structured brief with clear checkpoints so student talent can review scope and bid accurately.
+          </p>
         </header>
 
-        <section id="basics" className="paper hairline rounded-2xl p-6 lg:p-8 space-y-5">
-          <div className="flex items-center justify-between">
-            <h2 className="font-serif text-xl">The basics</h2>
-            <CheckCircle2 className="size-4 text-[var(--brand-gold)]" />
+        {/* Section 1: The Basics */}
+        <section id="basics" className="bg-card border border-border rounded-[8px] p-6 space-y-4">
+          <div className="flex items-center gap-2 pb-2 border-b border-border/60">
+            <BrandIcon name="project-brief" size={18} className="text-[var(--brand-accent)]" />
+            <h2 className="text-base font-medium text-foreground">Project Overview</h2>
           </div>
+
           <div>
-            <label htmlFor="project-title" className="text-sm text-muted-foreground">Project title</label>
+            <label htmlFor="project-title" className="text-xs font-medium text-foreground block mb-1">
+              Project Title <span className="text-[var(--brand-accent)]">*</span>
+            </label>
             <Input
               id="project-title"
-              placeholder="e.g. Redesign the onboarding flow for a campus fintech app"
-              className="mt-1.5"
+              placeholder="e.g. Redesign onboarding flow for campus fintech platform"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
           </div>
-          <div className="grid sm:grid-cols-2 gap-4">
+
+          <div className="grid sm:grid-cols-3 gap-4">
             <div>
-              <label htmlFor="project-category" className="text-sm text-muted-foreground">Category</label>
+              <label htmlFor="project-category" className="text-xs font-medium text-foreground block mb-1">
+                Discipline / Category <span className="text-[var(--brand-accent)]">*</span>
+              </label>
               <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger id="project-category" className="mt-1.5"><SelectValue placeholder="Choose a category" /></SelectTrigger>
-                <SelectContent>
+                <SelectTrigger id="project-category" className="w-full">
+                  <SelectValue placeholder="Choose category" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover border-border rounded-[8px]">
                   {categories.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                    <SelectItem key={c.value} value={c.value} className="cursor-pointer text-xs">
+                      {c.label}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+
             <div>
-              <label htmlFor="project-skill-level" className="text-sm text-muted-foreground">Skill level required</label>
+              <label htmlFor="project-skill-level" className="text-xs font-medium text-foreground block mb-1">
+                Experience Level
+              </label>
               <Select value={level} onValueChange={setLevel}>
-                <SelectTrigger id="project-skill-level" className="mt-1.5"><SelectValue placeholder="Any level" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="beginner">Beginner</SelectItem>
-                  <SelectItem value="intermediate">Intermediate</SelectItem>
-                  <SelectItem value="advanced">Advanced</SelectItem>
+                <SelectTrigger id="project-skill-level" className="w-full">
+                  <SelectValue placeholder="Skill level" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover border-border rounded-[8px]">
+                  <SelectItem value="beginner" className="cursor-pointer text-xs">Introductory</SelectItem>
+                  <SelectItem value="intermediate" className="cursor-pointer text-xs">Intermediate</SelectItem>
+                  <SelectItem value="advanced" className="cursor-pointer text-xs">Advanced / Lead</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
+            <div>
+              <label htmlFor="project-location" className="text-xs font-medium text-foreground block mb-1">
+                Location Mode
+              </label>
+              <Input
+                id="project-location"
+                placeholder="Remote, Bengaluru, Delhi…"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Required Skills Picker */}
+          <div>
+            <label className="text-xs font-medium text-foreground block mb-1">
+              Required Skills & Technologies
+            </label>
+            <div className="flex gap-2 mb-2">
+              <Input
+                placeholder="Add a required skill (e.g. React, Figma, Python)…"
+                value={newSkillInput}
+                onChange={(e) => setNewSkillInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addSkill();
+                  }
+                }}
+                className="h-9 text-xs"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => addSkill()}
+                className="rounded-[5px] text-xs h-9 px-3 shrink-0"
+              >
+                <Plus className="size-3.5 mr-1" /> Add
+              </Button>
+            </div>
+
+            {/* Selected Skills Chips */}
+            {skills.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {skills.map((s) => (
+                  <span
+                    key={s}
+                    className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-[4px] bg-secondary text-foreground font-mono"
+                  >
+                    {s}
+                    <button
+                      type="button"
+                      onClick={() => removeSkill(s)}
+                      className="text-muted-foreground hover:text-foreground cursor-pointer"
+                      aria-label={`Remove ${s}`}
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Suggested Skills for chosen category */}
+            {SUGGESTED_SKILLS[category] && (
+              <div className="text-[11px] text-muted-foreground flex flex-wrap items-center gap-1.5 pt-1">
+                <span>Suggested:</span>
+                {SUGGESTED_SKILLS[category].map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => addSkill(s)}
+                    className="underline hover:text-foreground cursor-pointer"
+                  >
+                    +{s}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </section>
 
-        <section id="scope" className="paper hairline rounded-2xl p-6 lg:p-8 space-y-5">
-          <h2 className="font-serif text-xl">Scope & deliverables</h2>
+        {/* Section 2: Scope & Deliverables */}
+        <section id="scope" className="bg-card border border-border rounded-[8px] p-6 space-y-4">
+          <div className="flex items-center gap-2 pb-2 border-b border-border/60">
+            <BrandIcon name="contract" size={18} className="text-[var(--brand-accent)]" />
+            <h2 className="text-base font-medium text-foreground">Scope & Specification</h2>
+          </div>
+
           <div>
-            <label htmlFor="project-description" className="text-sm text-muted-foreground">Describe the project</label>
+            <label htmlFor="project-description" className="text-xs font-medium text-foreground block mb-1">
+              Brief Description <span className="text-[var(--brand-accent)]">*</span>
+            </label>
             <Textarea
               id="project-description"
               rows={6}
-              className="mt-1.5"
-              placeholder="Write like you're talking to a quiet, careful student. What is this, who is it for, what does success look like?"
+              className="mt-1"
+              placeholder="State the objective, context, key deliverables, and criteria for milestone sign-off…"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
           </div>
 
           <div>
-            <label htmlFor="project-attachments" className="text-sm text-muted-foreground">Attachments upload</label>
-            <div className="mt-1.5 hairline rounded-xl p-6 text-center bg-input-background/60 relative">
+            <label htmlFor="project-attachments" className="text-xs font-medium text-foreground block mb-1">
+              Supporting Attachments (Briefs, Specs, Assets)
+            </label>
+            <div className="mt-1 border border-dashed border-input rounded-[5px] p-6 text-center bg-secondary/20 relative">
               <input
                 id="project-attachments"
                 type="file"
@@ -259,37 +432,40 @@ export function PostProject({ token, onDone }) {
                 disabled={uploadingFiles}
               />
               <Paperclip className="size-5 mx-auto text-muted-foreground" />
-              <p className="text-sm mt-2">{uploadingFiles ? "Uploading attachments..." : "Drop files or browse"}</p>
-              <p className="text-xs text-muted-foreground mt-1">PDF, ZIP, images · up to 50 MB</p>
+              <p className="text-xs font-medium mt-2 text-foreground">
+                {uploadingFiles ? "Indexing attachments…" : "Click or drag documents to upload"}
+              </p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">PDF, PNG, ZIP · up to 50 MB total</p>
             </div>
             {attachments.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="mt-2.5 flex flex-wrap gap-2">
                 {attachments.map((file, idx) => (
-                  <span key={idx} className="text-xs px-2.5 py-1.5 rounded-md bg-secondary text-secondary-foreground font-mono flex items-center gap-1.5">
-                    <Paperclip className="size-3" /> {file.name}
+                  <span key={idx} className="text-xs px-2 py-1 rounded-[4px] bg-secondary text-foreground font-mono flex items-center gap-1.5 border border-border">
+                    <Paperclip className="size-3 text-muted-foreground" /> {file.name}
                   </span>
                 ))}
               </div>
             )}
           </div>
 
-          {/* Code Import (ZIP/GitHub) */}
-          <div className="border border-dashed border-border/80 rounded-xl p-5 space-y-4 bg-card/20">
-            <h3 className="text-sm font-medium inline-flex items-center gap-2">
-              <Github className="size-4" /> Import Project codebase (Manifest limits strictly enforced)
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              We parse files tree and build a lightweight manifest of file paths and sizes instead of copying raw source code to MongoDB. Limits: max 20 files, 50MB size.
+          {/* Codebase / GitHub Import (Optional) */}
+          <div className="border border-border rounded-[6px] p-4 space-y-3 bg-secondary/15">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-medium text-foreground inline-flex items-center gap-1.5">
+                <Github className="size-3.5" /> Link Existing Codebase / Manifest (Optional)
+              </h3>
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              If this project builds on an existing repository, you can index a file manifest for student reference.
             </p>
 
-            <div className="grid sm:grid-cols-2 gap-4">
-              {/* Local Folder Zip Import */}
-              <div className="hairline rounded-lg p-4 bg-secondary/10 flex flex-col justify-between">
+            <div className="grid sm:grid-cols-2 gap-3 pt-1">
+              <div className="border border-border/80 rounded-[5px] p-3 bg-card flex flex-col justify-between">
                 <div>
-                  <p className="text-xs font-bold">1. Upload Folder (ZIP format)</p>
-                  <p className="text-[11px] text-muted-foreground mt-1">Select project directory zip archive to index.</p>
+                  <p className="text-xs font-medium text-foreground">1. Upload Repository ZIP</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Parse repository structure without copying bulk binaries.</p>
                 </div>
-                <div className="mt-4 relative">
+                <div className="mt-3 relative">
                   <input
                     aria-label="Upload project ZIP archive"
                     type="file"
@@ -298,82 +474,88 @@ export function PostProject({ token, onDone }) {
                     onChange={handleZipImport}
                     disabled={importingSource}
                   />
-                  <Button variant="outline" size="sm" className="w-full text-xs">
-                    Upload Zip
+                  <Button variant="outline" size="sm" className="w-full text-xs h-8">
+                    Select ZIP
                   </Button>
                 </div>
               </div>
 
-              {/* GitHub Repo Tree Import */}
-              <div className="hairline rounded-lg p-4 bg-secondary/10 flex flex-col justify-between">
+              <div className="border border-border/80 rounded-[5px] p-3 bg-card flex flex-col justify-between">
                 <div>
-                  <p className="text-xs font-bold">2. Import GitHub Repository</p>
-                  <p className="text-[11px] text-muted-foreground mt-1">Paste public GitHub URL (e.g. github.com/user/repo)</p>
+                  <p className="text-xs font-medium text-foreground">2. Import GitHub URL</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Index public GitHub repository tree.</p>
                 </div>
-                <div className="mt-3 flex gap-1.5">
+                <div className="mt-2.5 flex gap-1.5">
                   <Input
                     id="github-repository-url"
                     aria-label="GitHub repository URL"
-                    placeholder="github.com/user/repo"
+                    placeholder="github.com/org/repo"
                     className="text-xs h-8"
                     value={githubUrl}
                     onChange={(e) => setGithubUrl(e.target.value)}
                   />
                   <Button variant="outline" size="sm" className="h-8 text-xs shrink-0" onClick={handleGithubImport} disabled={importingSource}>
-                    Fetch
+                    Index
                   </Button>
                 </div>
               </div>
             </div>
 
             {importingSource && (
-              <p className="text-xs text-[var(--brand-gold)] animate-pulse">Parsing files manifest from source...</p>
+              <p className="text-xs text-[var(--brand-accent)] animate-pulse">Indexing codebase file tree…</p>
             )}
 
             {manifestStats && (
-              <div className="text-xs bg-secondary/35 p-3 rounded-lg border border-border flex items-center justify-between">
+              <div className="text-xs bg-secondary/50 p-2.5 rounded-[5px] border border-border flex items-center justify-between">
                 <div>
-                  <span className="font-semibold block capitalize">Import Source: {importSource}</span>
-                  <span className="text-muted-foreground">{manifestStats.fileCount} valid files indexed (node_modules/.git ignored)</span>
+                  <span className="font-medium text-foreground capitalize">Indexed: {importSource}</span>
+                  <span className="text-muted-foreground text-[11px] block">{manifestStats.fileCount} source files documented</span>
                 </div>
                 <div className="text-right">
-                  <span className="font-mono block">{(manifestStats.totalSize / (1024 * 1024)).toFixed(2)} MB</span>
-                  <span className="text-[10px] text-muted-foreground">manifest stored</span>
+                  <span className="font-mono text-xs">{(manifestStats.totalSize / (1024 * 1024)).toFixed(2)} MB</span>
                 </div>
               </div>
             )}
           </div>
         </section>
 
-        <section id="money" className="paper hairline rounded-2xl p-6 lg:p-8 space-y-5">
-          <h2 className="font-serif text-xl">Budget & timeline</h2>
+        {/* Section 3: Budget & Timeline */}
+        <section id="money" className="bg-card border border-border rounded-[8px] p-6 space-y-4">
+          <div className="flex items-center gap-2 pb-2 border-b border-border/60">
+            <BrandIcon name="milestone" size={18} className="text-[var(--brand-accent)]" />
+            <h2 className="text-base font-medium text-foreground">Budget & Timeline</h2>
+          </div>
+
           <div className="grid sm:grid-cols-3 gap-4">
             <div>
-              <label htmlFor="project-budget" className="text-sm text-muted-foreground">Budget (₹)</label>
+              <label htmlFor="project-budget" className="text-xs font-medium text-foreground block mb-1">
+                Client Budget (₹) <span className="text-[var(--brand-accent)]">*</span>
+              </label>
               <Input
                 id="project-budget"
-                placeholder="40,000"
-                className="mt-1.5"
+                placeholder="25000"
                 value={budget}
                 onChange={(e) => setBudget(e.target.value)}
               />
             </div>
             <div>
-              <label htmlFor="project-duration" className="text-sm text-muted-foreground">Duration</label>
+              <label htmlFor="project-duration" className="text-xs font-medium text-foreground block mb-1">
+                Estimated Duration
+              </label>
               <Input
                 id="project-duration"
-                placeholder="3 weeks"
-                className="mt-1.5"
+                placeholder="e.g. 2 weeks"
                 value={duration}
                 onChange={(e) => setDuration(e.target.value)}
               />
             </div>
             <div>
-              <label htmlFor="project-deadline" className="text-sm text-muted-foreground">Deadline</label>
+              <label htmlFor="project-deadline" className="text-xs font-medium text-foreground block mb-1">
+                Application Deadline <span className="text-[var(--brand-accent)]">*</span>
+              </label>
               <Input
                 id="project-deadline"
                 type="date"
-                className="mt-1.5"
                 value={deadline}
                 onChange={(e) => setDeadline(e.target.value)}
               />
@@ -381,72 +563,96 @@ export function PostProject({ token, onDone }) {
           </div>
         </section>
 
-        <section id="milestones" className="paper hairline rounded-2xl p-6 lg:p-8 space-y-5">
-          <h2 className="font-serif text-xl">Milestones</h2>
-          <p className="text-sm text-muted-foreground">Split the work into checkpoints. Funds release as each is signed off by you.</p>
-          {milestones.map((m, idx) => (
-            <div key={idx} className="grid sm:grid-cols-[1fr_140px_44px] gap-3 items-end">
-              <div>
-                <label htmlFor={`milestone-title-${idx}`} className="text-xs text-muted-foreground">Milestone {idx + 1} Checkpoint Description</label>
-                <Input
-                  id={`milestone-title-${idx}`}
-                  placeholder={`e.g. ${idx === 0 ? "Discovery" : idx === 1 ? "Hi-fi Prototype" : "Hand-off"}`}
-                  className="mt-1.5"
-                  value={m.title}
-                  onChange={(e) => handleMilestoneChange(idx, "title", e.target.value)}
-                />
+        {/* Section 4: Milestones */}
+        <section id="milestones" className="bg-card border border-border rounded-[8px] p-6 space-y-4">
+          <div className="flex items-center justify-between pb-2 border-b border-border/60">
+            <h2 className="text-base font-medium text-foreground">Milestones & Checkpoints</h2>
+            <Button variant="outline" size="sm" className="rounded-[4px] text-xs h-7 px-2.5" onClick={addMilestone}>
+              + Add checkpoint
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Divide the work into verifiable milestones. Escrow deposits unlock as you approve each deliverable.
+          </p>
+
+          <div className="space-y-3 pt-1">
+            {milestones.map((m, idx) => (
+              <div key={idx} className="grid sm:grid-cols-[1fr_130px_36px] gap-2 items-end">
+                <div>
+                  <label htmlFor={`milestone-title-${idx}`} className="text-[11px] text-muted-foreground block mb-0.5">
+                    Checkpoint {idx + 1} Deliverable
+                  </label>
+                  <Input
+                    id={`milestone-title-${idx}`}
+                    placeholder={`e.g. ${idx === 0 ? "Architecture & Setup" : "Final Delivery & QA"}`}
+                    value={m.title}
+                    onChange={(e) => handleMilestoneChange(idx, "title", e.target.value)}
+                    className="h-10 text-xs"
+                  />
+                </div>
+                <div>
+                  <label htmlFor={`milestone-amount-${idx}`} className="text-[11px] text-muted-foreground block mb-0.5">
+                    Amount (₹)
+                  </label>
+                  <Input
+                    id={`milestone-amount-${idx}`}
+                    placeholder="10000"
+                    value={m.amount}
+                    onChange={(e) => handleMilestoneChange(idx, "amount", e.target.value)}
+                    className="h-10 text-xs font-mono"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="size-10 rounded-[4px] text-muted-foreground hover:text-destructive"
+                  aria-label={`Remove checkpoint ${idx + 1}`}
+                  onClick={() => removeMilestone(idx)}
+                >
+                  <X className="size-4" />
+                </Button>
               </div>
-              <div>
-                <label htmlFor={`milestone-amount-${idx}`} className="text-xs text-muted-foreground">Escrow Amount</label>
-                <Input
-                  id={`milestone-amount-${idx}`}
-                  placeholder="12000"
-                  className="mt-1.5"
-                  value={m.amount}
-                  onChange={(e) => handleMilestoneChange(idx, "amount", e.target.value)}
-                />
-              </div>
-              <Button type="button" variant="ghost" className="h-11 min-w-11 text-muted-foreground hover:text-[var(--status-danger-fg)]" aria-label={`Remove milestone ${idx + 1}`} onClick={() => removeMilestone(idx)}>
-                −
-              </Button>
-            </div>
-          ))}
-          <Button variant="outline" size="sm" className="rounded-full" onClick={addMilestone}>
-            + Add milestone checkpoint
-          </Button>
+            ))}
+          </div>
         </section>
 
-        <div className="flex justify-between items-center">
-          <Button variant="ghost" onClick={() => onDone()}>Cancel</Button>
+        {/* Bottom Actions */}
+        <div className="flex justify-between items-center pt-2">
+          <Button variant="ghost" onClick={() => onDone()} className="rounded-[5px] text-xs">
+            Cancel
+          </Button>
           <Button
+            variant="default"
             onClick={handlePublish}
-            className="rounded-full px-6 bg-[var(--brand-gold)] text-[var(--brand-deep)] hover:bg-[var(--brand-gold)]/90"
+            className="rounded-[5px] px-6 h-11 text-sm font-medium"
           >
-            Publish brief
+            Publish Project Brief
           </Button>
         </div>
       </main>
 
+      {/* Sidebar: Writing Tips & Guide */}
       <aside className="lg:col-span-4">
         <div className="sticky top-24 space-y-4">
-          <div className="paper hairline rounded-2xl p-5">
-            <div className="flex items-center gap-2 text-[var(--brand-gold)]">
-              <Lightbulb className="size-4" /><span className="eyebrow">Writing tips</span>
+          <div className="bg-card border border-border rounded-[8px] p-5 space-y-3">
+            <div className="flex items-center gap-1.5 text-foreground font-medium text-xs">
+              <Lightbulb className="size-4 text-[var(--brand-accent)]" />
+              <span>Editorial Guidelines</span>
             </div>
-            <ul className="mt-3 space-y-3 text-sm">
-              <li><span className="block text-foreground">Lead with the why.</span><span className="text-muted-foreground">Students bid more carefully when they understand the audience.</span></li>
-              <li><span className="block text-foreground">Show the messy first.</span><span className="text-muted-foreground">Attach the current site / draft / footage. Real beats polished.</span></li>
-              <li><span className="block text-foreground">Be specific about "done."</span><span className="text-muted-foreground">Name the deliverable, the file format, and where it lives after.</span></li>
+            <ul className="space-y-3 text-xs text-muted-foreground leading-relaxed">
+              <li>
+                <strong className="text-foreground block font-medium">State the acceptance criteria:</strong>
+                Define what a completed checkpoint looks like (e.g. Figma file, deployed URL, test coverage).
+              </li>
+              <li>
+                <strong className="text-foreground block font-medium">Be explicit about dependencies:</strong>
+                Mention any APIs, accounts, brand assets, or references the student will need.
+              </li>
+              <li>
+                <strong className="text-foreground block font-medium">Fair milestone sizing:</strong>
+                Keep checkpoints balanced so students can submit increments rather than one massive delivery.
+              </li>
             </ul>
-          </div>
-
-          <div className="paper hairline rounded-2xl p-5">
-            <div className="flex items-center gap-2 text-[var(--brand-gold)]">
-              <Sparkles className="size-4" /><span className="eyebrow">Example</span>
-            </div>
-            <p className="mt-3 font-serif italic text-sm leading-relaxed text-muted-foreground">
-              "We're a four-year-old slow-fashion label out of Jaipur. Our current site looks like a weekend project, because it was. Looking for a designer who reads, who cares about type, and who can sit with our craft for two weeks before starting layout work."
-            </p>
           </div>
         </div>
       </aside>

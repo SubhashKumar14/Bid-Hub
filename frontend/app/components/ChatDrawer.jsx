@@ -1,6 +1,5 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "./ui/sheet";
 import { Button } from "./ui/button";
-import { Separator } from "./ui/separator";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { Send, MessageSquare, Loader2, ArrowUp } from "lucide-react";
@@ -93,15 +92,12 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
       const data = await getMessages(projectId, token, nextPage, 20);
       
       if (targetRef.current !== target) return;
-      // Store current scroll height
       const container = scrollContainerRef.current;
       const prevScrollHeight = container ? container.scrollHeight : 0;
 
-      // Update state
       setMessages(prev => Array.from(new Map([...data.messages, ...prev].map(m => [m._id, m])).values()));
       setPagination(data.pagination);
 
-      // Restore scroll position so user doesn't jump
       setTimeout(() => {
         if (container) {
           container.scrollTop = container.scrollHeight - prevScrollHeight;
@@ -131,13 +127,12 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
     } catch (err) {
       if (targetRef.current !== target) return;
       toast.error(err.message || "Failed to send message");
-      setInputText(content); // Restore input in case of failure
+      setInputText(content);
     } finally {
       if (targetRef.current === target) setSending(false);
     }
   };
 
-  // Load initial messages on open
   useEffect(() => {
     setMessages([]);
     setInputText("");
@@ -150,7 +145,6 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
     }
   }, [open, projectId, token]);
 
-  // Set up polling interval every 5 seconds
   useEffect(() => {
     let intervalId;
     if (open && projectId && token && !pollingDisabled) {
@@ -163,15 +157,15 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent side="right" className="w-full sm:max-w-md bg-background flex flex-col h-full p-0">
+      <SheetContent side="right" className="w-full sm:max-w-md bg-card border-l border-border flex flex-col h-full p-0">
         <SheetHeader className="p-4 border-b border-border">
-          <div className="flex items-center gap-2 text-[var(--brand-gold)]">
-            <MessageSquare className="size-4" />
-            <span className="eyebrow">Project Chat</span>
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <MessageSquare className="size-3.5" />
+            <span className="text-xs uppercase tracking-wider font-mono">Workspace Channel</span>
           </div>
-          <SheetTitle className="font-serif text-lg truncate">{projectTitle}</SheetTitle>
-          <SheetDescription className="truncate">
-            Conversation between Client and Student
+          <SheetTitle className="text-base font-semibold tracking-tight text-foreground truncate">{projectTitle}</SheetTitle>
+          <SheetDescription className="truncate text-xs text-muted-foreground">
+            Direct communication for project milestones
           </SheetDescription>
         </SheetHeader>
 
@@ -182,8 +176,8 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
           style={{ minHeight: 0 }}
         >
           {loading && messages.length === 0 ? (
-            <div className="py-20 text-center text-sm text-muted-foreground animate-pulse font-serif">
-              Opening chat history...
+            <div className="py-20 text-center text-xs text-muted-foreground animate-pulse">
+              Opening channel history…
             </div>
           ) : (
             <>
@@ -193,7 +187,7 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-xs text-[var(--brand-gold)] hover:text-[var(--brand-gold)]/80 hover:bg-muted"
+                    className="text-xs text-muted-foreground hover:text-foreground rounded-[4px]"
                     onClick={handleLoadMore}
                   >
                     <ArrowUp className="size-3 mr-1" /> Load older messages
@@ -203,11 +197,11 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
 
               {messages.length === 0 ? (
                 <div className="py-20 text-center text-xs text-muted-foreground italic">
-                  No messages yet. Send a message to start communicating!
+                  No messages yet. Send a message to start communicating.
                 </div>
               ) : (
                 messages.map((msg) => {
-                  const isMe = msg.senderId?._id === currentUser?._id;
+                  const isMe = (msg.senderId?._id || msg.senderId) === currentUser?._id;
                   return (
                     <div
                       key={msg._id}
@@ -216,7 +210,7 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
                       }`}
                     >
                       {/* Avatar */}
-                      <div className="size-8 rounded-full bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground overflow-hidden flex-shrink-0 border border-border">
+                      <div className="size-7 rounded-[4px] bg-secondary flex items-center justify-center text-xs font-medium text-foreground overflow-hidden shrink-0 border border-border">
                         {msg.senderId?.avatarUrl ? (
                           <img
                             src={msg.senderId.avatarUrl}
@@ -231,10 +225,10 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
                       {/* Bubble content */}
                       <div className="space-y-1">
                         <div
-                          className={`rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
+                          className={`rounded-[8px] px-3.5 py-2 text-xs leading-relaxed ${
                             isMe
-                              ? "bg-[var(--brand-gold)] text-[var(--brand-deep)] rounded-tr-none font-medium"
-                              : "bg-card border border-border/80 rounded-tl-none text-foreground"
+                              ? "bg-primary text-primary-foreground rounded-br-none"
+                              : "bg-secondary text-foreground rounded-bl-none border border-border"
                           }`}
                         >
                           {msg.content}
@@ -244,7 +238,7 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
                             isMe ? "justify-end" : "justify-start"
                           }`}
                         >
-                          <span className="font-semibold capitalize text-[9px] bg-muted px-1.5 py-0.5 rounded">
+                          <span className="capitalize text-[9px] bg-secondary px-1 py-0.2 rounded font-mono">
                             {msg.senderId?.role || "user"}
                           </span>
                           <span>{formatTime(msg.createdAt)}</span>
@@ -260,26 +254,26 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
         </div>
 
         {/* Input Bar */}
-        <form onSubmit={handleSend} className="p-4 border-t border-border bg-card flex gap-2">
+        <form onSubmit={handleSend} className="p-3 border-t border-border bg-card flex gap-2">
           <input
             type="text"
             aria-label="Type a message"
-            placeholder="Type a message..."
+            placeholder="Type a message…"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             disabled={sending}
-            className="flex-1 min-w-0 rounded-xl bg-background border border-border px-3.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--brand-gold)] disabled:opacity-75"
+            className="flex-1 min-w-0 rounded-[5px] bg-input-background border border-input px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring focus:border-ring disabled:opacity-75"
           />
           <Button
             type="submit"
             size="icon"
             disabled={sending || !inputText.trim()}
-            className="bg-[var(--brand-gold)] text-[var(--brand-deep)] hover:bg-[var(--brand-gold)]/90 rounded-xl flex-shrink-0"
+            className="size-9 rounded-[5px] bg-primary text-primary-foreground hover:bg-primary/90 shrink-0"
           >
             {sending ? (
-              <Loader2 className="size-4 animate-spin" />
+              <Loader2 className="size-3.5 animate-spin" />
             ) : (
-              <Send className="size-4" />
+              <Send className="size-3.5" />
             )}
           </Button>
         </form>

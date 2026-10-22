@@ -1,4 +1,4 @@
-import { Bell, Search, Moon, Sun, Wallet, Menu, ChevronDown, CheckCheck, Trash2 } from "lucide-react";
+import { Bell, Search, Moon, Sun, Wallet, Menu, ChevronDown, CheckCheck } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Avatar, AvatarFallback } from "./ui/avatar";
@@ -8,25 +8,25 @@ import {
 import { useState, useEffect, useCallback } from "react";
 import { cn } from "./ui/utils";
 import { getNotifications, markAllNotificationsRead, markNotificationRead } from "../../api/notificationApi";
+import { BrandLogo } from "../brand/BrandLogo";
 
 const links = [
-  { label: "Browse", page: "browse" },
+  { label: "Find a project", page: "browse" },
   { label: "Post a project", page: "post" },
-  { label: "Dashboard", page: "student" },
+  { label: "Workspace", page: "student" },
 ];
 
-// Notification type to display label/color
 const notifMeta = {
-  BID_RECEIVED: { label: "New Bid", color: "bg-[var(--status-info-fg)]" },
-  BID_ACCEPTED: { label: "Bid Accepted", color: "bg-[var(--status-success-fg)]" },
-  BID_REJECTED: { label: "Bid Rejected", color: "bg-[var(--status-danger-fg)]" },
-  MILESTONE_SUBMITTED: { label: "Work Submitted", color: "bg-[var(--status-warning-fg)]" },
-  MILESTONE_RELEASED: { label: "Funds Released", color: "bg-[var(--status-success-fg)]" },
-  MILESTONE_CHANGES_REQUESTED: { label: "Changes Requested", color: "bg-[var(--status-danger-fg)]" },
-  PROJECT_COMPLETED: { label: "Project Done", color: "bg-[var(--status-success-fg)]" },
-  REVIEW_RECEIVED: { label: "New Review", color: "bg-[var(--status-info-fg)]" },
-  PROJECT_ASSIGNED: { label: "Assigned", color: "bg-[var(--status-info-fg)]" },
-  MESSAGE_RECEIVED: { label: "New Message", color: "bg-[var(--status-warning-fg)]" },
+  BID_RECEIVED: { label: "New Proposal", color: "bg-[var(--status-info)]" },
+  BID_ACCEPTED: { label: "Proposal Accepted", color: "bg-[var(--status-success)]" },
+  BID_REJECTED: { label: "Proposal Rejected", color: "bg-[var(--status-danger)]" },
+  MILESTONE_SUBMITTED: { label: "Work Submitted", color: "bg-[var(--status-warning)]" },
+  MILESTONE_RELEASED: { label: "Funds Released", color: "bg-[var(--status-success)]" },
+  MILESTONE_CHANGES_REQUESTED: { label: "Changes Requested", color: "bg-[var(--status-danger)]" },
+  PROJECT_COMPLETED: { label: "Project Complete", color: "bg-[var(--status-success)]" },
+  REVIEW_RECEIVED: { label: "New Review", color: "bg-[var(--status-info)]" },
+  PROJECT_ASSIGNED: { label: "Assigned", color: "bg-[var(--status-info)]" },
+  MESSAGE_RECEIVED: { label: "New Message", color: "bg-[var(--status-warning)]" },
 };
 
 function NotificationBell({ token, setPage }) {
@@ -43,18 +43,16 @@ function NotificationBell({ token, setPage }) {
       setNotifications(data.notifications || []);
       setUnreadCount(data.unreadCount || 0);
     } catch {
-      // Silently fail - notifications are non-critical
+      // Silently fail - non-critical
     } finally {
       setLoading(false);
     }
   }, [token]);
 
-  // Fetch on mount and when bell is opened
   useEffect(() => {
     if (token) fetchNotifications();
   }, [token, fetchNotifications]);
 
-  // Poll every 60 seconds for new notifications
   useEffect(() => {
     if (!token) return;
     const interval = setInterval(fetchNotifications, 60000);
@@ -68,7 +66,7 @@ function NotificationBell({ token, setPage }) {
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       setUnreadCount(0);
     } catch {
-      // silently fail
+      // ignore
     }
   };
 
@@ -80,13 +78,13 @@ function NotificationBell({ token, setPage }) {
       );
       setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch {
-      // silently fail
+      // ignore
     }
   };
 
   if (!token) {
     return (
-      <Button variant="ghost" size="icon" aria-label="Notifications" className="relative">
+      <Button variant="ghost" size="icon" aria-label="Notifications" className="relative rounded-[5px]">
         <Bell className="size-4" />
       </Button>
     );
@@ -95,23 +93,22 @@ function NotificationBell({ token, setPage }) {
   return (
     <DropdownMenu open={open} onOpenChange={(o) => { setOpen(o); if (o) fetchNotifications(); }}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label="Notifications" className="relative">
+        <Button variant="ghost" size="icon" aria-label="Notifications" className="relative rounded-[5px]">
           <Bell className="size-4" />
           {unreadCount > 0 && (
-            <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 px-0.5 rounded-full bg-[var(--brand-gold)] text-[var(--brand-deep)] text-[10px] font-bold flex items-center justify-center leading-none">
+            <span className="absolute top-2 right-2 min-w-[16px] h-4 px-1 rounded-full bg-[var(--brand-accent)] text-white text-[10px] font-medium flex items-center justify-center leading-none">
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80 max-h-[440px] overflow-hidden flex flex-col p-0">
-        {/* Header */}
+      <DropdownMenuContent align="end" className="w-80 max-h-[440px] overflow-hidden flex flex-col p-0 rounded-[8px] bg-popover border-border shadow-lg">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
-          <span className="text-sm font-semibold">Notifications</span>
+          <span className="text-sm font-medium text-foreground">Notifications</span>
           {unreadCount > 0 && (
             <button
               onClick={handleMarkAllRead}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             >
               <CheckCheck className="size-3" />
               Mark all read
@@ -119,19 +116,18 @@ function NotificationBell({ token, setPage }) {
           )}
         </div>
 
-        {/* Notification list */}
         <div className="overflow-y-auto flex-1">
           {loading && notifications.length === 0 ? (
-            <div className="px-4 py-8 text-center text-xs text-muted-foreground">Loading…</div>
+            <div className="px-4 py-8 text-center text-xs text-muted-foreground">Loading notifications…</div>
           ) : notifications.length === 0 ? (
             <div className="px-4 py-10 text-center">
-              <Bell className="size-8 mx-auto text-muted-foreground/30 mb-2" />
-              <p className="text-sm text-muted-foreground">All caught up!</p>
-              <p className="text-xs text-muted-foreground mt-1">No notifications yet.</p>
+              <Bell className="size-6 mx-auto text-muted-foreground/40 mb-2" />
+              <p className="text-sm font-medium text-foreground">All caught up</p>
+              <p className="text-xs text-muted-foreground mt-0.5">No unread notifications.</p>
             </div>
           ) : (
             notifications.map((n) => {
-              const meta = notifMeta[n.type] || { label: "Update", color: "bg-gray-400" };
+              const meta = notifMeta[n.type] || { label: "Update", color: "bg-muted-foreground" };
               return (
                 <button
                   key={n._id}
@@ -144,27 +140,26 @@ function NotificationBell({ token, setPage }) {
                     }
                   }}
                   className={cn(
-                    "w-full text-left px-4 py-3 flex gap-3 hover:bg-secondary/50 transition-colors border-b border-border/50 last:border-0",
-                    !n.read && "bg-secondary/20"
+                    "w-full text-left px-4 py-3 flex gap-3 hover:bg-secondary/60 transition-colors border-b border-border/60 last:border-0 cursor-pointer",
+                    !n.read && "bg-secondary/30"
                   )}
                 >
-                  {/* Type dot */}
                   <div className="mt-1 shrink-0">
                     <span className={cn("block size-2 rounded-full", meta.color, n.read && "opacity-30")} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                       {meta.label}
                     </p>
-                    <p className="text-xs leading-relaxed mt-0.5 line-clamp-2">{n.message}</p>
-                    <p className="text-[10px] text-muted-foreground mt-1">
+                    <p className="text-xs leading-relaxed mt-0.5 line-clamp-2 text-foreground">{n.message}</p>
+                    <p className="text-[11px] text-muted-foreground mt-1">
                       {new Date(n.createdAt).toLocaleDateString("en-IN", {
                         day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
                       })}
                     </p>
                   </div>
                   {!n.read && (
-                    <span className="mt-1.5 shrink-0 size-1.5 rounded-full bg-[var(--brand-gold)]" />
+                    <span className="mt-1.5 shrink-0 size-1.5 rounded-full bg-[var(--brand-accent)]" />
                   )}
                 </button>
               );
@@ -178,117 +173,192 @@ function NotificationBell({ token, setPage }) {
 
 export function Nav({ page, setPage, role, setRole, theme, toggleTheme, onOpenEscrow, currentUser, onLogout, token }) {
   const [open, setOpen] = useState(false);
+  const [navSearch, setNavSearch] = useState("");
+
   const filteredLinks = links.filter(l => {
     if (l.page === "post") {
       return currentUser && currentUser.role === "client";
     }
     return true;
   });
+
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    if (navSearch.trim()) {
+      localStorage.setItem("bidhub_search_query", navSearch.trim());
+      setPage("browse");
+    }
+  };
+
   return (
-    <header className="sticky top-0 z-40 bg-background border-b border-border">
-      <div className="mx-auto max-w-7xl 2xl:max-w-[1440px] min-[1920px]:max-w-[1680px] min-[2560px]:max-w-[2200px] min-[3400px]:max-w-[2800px] px-5 lg:px-8 h-16 flex items-center gap-4">
-        <button onClick={() => setPage("landing")} className="flex items-center gap-2 group">
-          <img src="/bidhublogo.png" alt="Bid·Hub Logo" className="size-8 object-contain rounded-md" />
-          <span className="font-serif text-xl tracking-tight flex items-center gap-2">
-            Bid<span className="text-[var(--brand-gold)]">·</span>Hub
-          </span>
-        </button>
+    <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-xs border-b border-border">
+      <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 h-[72px] flex items-center justify-between gap-4">
+        <div className="flex items-center gap-6">
+          <button
+            onClick={() => setPage("landing")}
+            className="flex items-center gap-2 cursor-pointer focus-visible:outline-2 focus-visible:outline-[var(--brand-accent)] rounded-[4px]"
+            aria-label="Bid·Hub Home"
+          >
+            <BrandLogo width={138} decorative />
+          </button>
 
-        <nav className="hidden md:flex items-center gap-1 ml-4">
-          {filteredLinks.map(l => (
-            <button key={l.page}
-              onClick={() => setPage(l.page === "student" ? (currentUser ? currentUser.role : (role === "client" ? "client" : "student")) : l.page)}
-              className={cn(
-                "px-3 py-1.5 rounded-md text-sm transition-colors",
-                page === l.page || (l.page === "student" && (page === "student" || page === "client"))
-                  ? "text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}>
-              {l.label}
-            </button>
-          ))}
-        </nav>
-
-        <div className="flex-1 max-w-md hidden lg:block">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <Input aria-label="Search projects, students, and skills" placeholder="Search projects, students, skills…"
-              className="pl-9 bg-input-background border-transparent focus-visible:ring-1" />
-          </div>
+          <nav className="hidden md:flex items-center gap-1">
+            {filteredLinks.map(l => {
+              const isActive = page === l.page || (l.page === "student" && (page === "student" || page === "client"));
+              return (
+                <button
+                  key={l.page}
+                  onClick={() => setPage(l.page === "student" ? (currentUser ? currentUser.role : (role === "client" ? "client" : "student")) : l.page)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-[4px] text-sm font-medium transition-colors cursor-pointer relative",
+                    isActive
+                      ? "text-foreground after:absolute after:bottom-[-20px] after:left-3 after:right-3 after:h-[2px] after:bg-[var(--brand-accent)]"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {l.label}
+                </button>
+              );
+            })}
+          </nav>
         </div>
-        <div className="ml-auto flex items-center gap-1">
+
+        <div className="flex-1 max-w-sm hidden lg:block">
+          <form onSubmit={handleSearchSubmit} className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <Input
+              value={navSearch}
+              onChange={(e) => setNavSearch(e.target.value)}
+              aria-label="Search project index"
+              placeholder="Search project index by title, skill…"
+              className="pl-9 h-9 text-xs bg-card border-input focus:border-[var(--brand-accent)]"
+            />
+          </form>
+        </div>
+
+        <div className="flex items-center gap-2">
           {!currentUser && (
-            <div className="hidden md:flex items-center gap-1 rounded-full bg-secondary p-1 text-xs">
-              {["student","client"].map(r => (
-                <button key={r} onClick={() => { setRole(r); if (page==="student"||page==="client") setPage(r); }}
-                  className={cn("px-3 py-1 rounded-full transition-colors capitalize",
-                    role===r ? "bg-background text-foreground shadow-sm" : "text-muted-foreground")}>
+            <div className="hidden md:flex items-center gap-0.5 rounded-[5px] bg-secondary p-0.5 text-xs border border-border">
+              {["student", "client"].map(r => (
+                <button
+                  key={r}
+                  onClick={() => { setRole(r); if (page === "student" || page === "client") setPage(r); }}
+                  className={cn(
+                    "px-2.5 py-1 rounded-[4px] font-medium transition-colors capitalize cursor-pointer",
+                    role === r ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
                   {r}
                 </button>
               ))}
             </div>
           )}
 
-          <Button variant="ghost" size="icon" onClick={onOpenEscrow} aria-label="Escrow">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onOpenEscrow}
+            aria-label="Trust & Escrow Ledger"
+            className="rounded-[5px]"
+            title="Escrow Overview"
+          >
             <Wallet className="size-4" />
           </Button>
 
-          {/* Live notification bell */}
           <NotificationBell token={token} setPage={setPage} />
 
-          <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Theme">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleTheme}
+            aria-label="Toggle theme appearance"
+            className="rounded-[5px]"
+          >
             {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
           </Button>
 
           {currentUser ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 pl-2 pr-1 py-1 rounded-full hover:bg-secondary">
-                  <Avatar className="size-7">
+                <button className="flex items-center gap-2 pl-2 pr-1.5 py-1 rounded-[5px] hover:bg-secondary cursor-pointer">
+                  <Avatar className="size-7 rounded-[4px]">
                     {currentUser.avatarUrl ? (
-                      <img src={currentUser.avatarUrl} alt={currentUser.name} className="rounded-full object-cover size-full" />
+                      <img src={currentUser.avatarUrl} alt={currentUser.name} className="rounded-[4px] object-cover size-full" />
                     ) : (
-                      <AvatarFallback className="bg-[var(--brand-espresso)] text-[var(--brand-gold)] text-xs">
-                        {currentUser.name.split(" ").map(x => x[0]).join("")}
+                      <AvatarFallback className="bg-secondary text-foreground text-xs font-medium rounded-[4px]">
+                        {currentUser.name ? currentUser.name.split(" ").map(x => x[0]).slice(0, 2).join("") : "U"}
                       </AvatarFallback>
                     )}
                   </Avatar>
-                  <ChevronDown className="size-3.5 text-muted-foreground" />
+                  <ChevronDown className="size-3 text-muted-foreground" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52">
-                <div className="px-2 py-2">
-                  <p className="text-sm font-medium">{currentUser.name}</p>
-                  <p className="text-xs text-muted-foreground">{currentUser.college || "No College"} · {currentUser.role}</p>
+              <DropdownMenuContent align="end" className="w-56 rounded-[8px] bg-popover border-border p-1 shadow-lg">
+                <div className="px-3 py-2">
+                  <p className="text-sm font-medium text-foreground truncate">{currentUser.name}</p>
+                  <p className="text-xs text-muted-foreground capitalize">{currentUser.college || currentUser.role}</p>
                 </div>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setPage("profile")}>View profile</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setPage(currentUser.role)}>Dashboard</DropdownMenuItem>
-                <DropdownMenuItem onClick={onOpenEscrow}>Escrow & payouts</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setPage("profile")} className="cursor-pointer">
+                  Profile & Evidence
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setPage(currentUser.role)} className="cursor-pointer">
+                  Workspace Dashboard
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onOpenEscrow} className="cursor-pointer">
+                  Escrow & Milestone Funds
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={onLogout}>Sign out</DropdownMenuItem>
+                <DropdownMenuItem onClick={onLogout} className="cursor-pointer text-destructive focus:text-destructive">
+                  Sign out
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
             <Button
+              variant="default"
+              size="sm"
               onClick={() => setPage("auth")}
-              className="rounded-full bg-[var(--brand-gold)] text-[var(--brand-deep)] hover:bg-[var(--brand-gold)]/90 text-xs px-4 h-8"
+              className="rounded-[5px] text-xs px-3.5 h-9 font-medium"
             >
               Sign in
             </Button>
           )}
 
-          <button type="button" className="md:hidden min-h-11 min-w-11 inline-grid place-items-center" onClick={() => setOpen(!open)} aria-label={open ? "Close navigation" : "Open navigation"} aria-expanded={open} aria-controls="mobile-navigation">
+          <button
+            type="button"
+            className="md:hidden size-11 inline-grid place-items-center rounded-[5px] text-muted-foreground hover:text-foreground cursor-pointer"
+            onClick={() => setOpen(!open)}
+            aria-label={open ? "Close navigation" : "Open navigation"}
+            aria-expanded={open}
+            aria-controls="mobile-navigation"
+          >
             <Menu aria-hidden="true" className="size-5" />
           </button>
         </div>
       </div>
 
       {open && (
-        <div id="mobile-navigation" className="md:hidden border-t border-border px-5 py-3 space-y-1 bg-background">
+        <div id="mobile-navigation" className="md:hidden border-t border-border px-4 py-3 space-y-2 bg-card">
+          <form onSubmit={handleSearchSubmit} className="mb-3">
+            <Input
+              value={navSearch}
+              onChange={(e) => setNavSearch(e.target.value)}
+              placeholder="Search projects…"
+              className="h-10 text-xs"
+            />
+          </form>
           {filteredLinks.map(l => (
-            <button key={l.page} onClick={() => { setPage(l.page === "student" ? (currentUser ? currentUser.role : role) : l.page); setOpen(false); }}
-              className="block w-full text-left py-2 text-sm">{l.label}</button>
+            <button
+              key={l.page}
+              onClick={() => {
+                setPage(l.page === "student" ? (currentUser ? currentUser.role : role) : l.page);
+                setOpen(false);
+              }}
+              className="block w-full text-left py-2 px-2 rounded-[4px] text-sm text-foreground hover:bg-secondary"
+            >
+              {l.label}
+            </button>
           ))}
         </div>
       )}

@@ -2,16 +2,18 @@ import { ArrowRight, Sparkles, Briefcase, Quote } from "lucide-react";
 import { Button } from "../ui/button";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { StatusBadge } from "../StatusBadge";
+import { BrandLogo } from "../../brand/BrandLogo";
+import { BrandIcon } from "../../brand/BrandIcon";
 import { useState, useEffect } from "react";
 
 const steps = [
-  { n: "01", t: "Post or browse", d: "Clients write a short brief. Students browse a curated wall of real, paid work." },
-  { n: "02", t: "Bid with intent", d: "Send a short proposal — your timeline, your price, why you're the one." },
-  { n: "03", t: "Lock in escrow", d: "Money sits in trust until milestones are signed off by both sides." },
-  { n: "04", t: "Ship, get paid", d: "Release on completion. Reviews build a portfolio you actually own." },
+  { n: "01", t: "Publish or explore", d: "Clients publish clear, milestone-driven briefs. Students compare scope, deadlines, and budgets along a consistent index." },
+  { n: "02", t: "Propose with intent", d: "Submit a focused proposal outlining your delivery approach, schedule, and relevant portfolio evidence." },
+  { n: "03", t: "Fund in escrow", d: "Agreed milestones are funded and held securely in trust before students begin development work." },
+  { n: "04", t: "Deliver and release", d: "Submit checkpoints for client review. Approved deliverables unlock escrow funds and record verified feedback." },
 ];
 
-const categories = ["Product Design", "Frontend", "Backend", "Writing", "Video", "Branding", "Research", "Data", "Marketing", "Illustration"];
+const categories = ["Product Design", "Web Development", "Backend & APIs", "Writing & Editing", "Video & Motion", "Brand Identity", "Research", "Data & AI", "Growth & Marketing", "Graphic Design"];
 
 export function Landing({ setPage }) {
   const [statsData, setStatsData] = useState(null);
@@ -22,23 +24,20 @@ export function Landing({ setPage }) {
   useEffect(() => {
     const fetchLandingData = async () => {
       try {
-        // 1. Fetch public stats
         const statsRes = await fetch("/api/projects/public/stats");
         if (statsRes.ok) {
           const sData = await statsRes.json();
           setStatsData(sData);
         }
 
-        // 2. Fetch latest open project for featured card
         const projectsRes = await fetch("/api/projects?status=OPEN");
         if (projectsRes.ok) {
           const pData = await projectsRes.json();
           if (pData && pData.length > 0) {
-            setFeaturedProject(pData[0]); // Most recent open project
+            setFeaturedProject(pData[0]);
           }
         }
 
-        // 3. Fetch latest public reviews
         const reviewsRes = await fetch("/api/reviews/public");
         if (reviewsRes.ok) {
           const rData = await reviewsRes.json();
@@ -55,91 +54,127 @@ export function Landing({ setPage }) {
   }, []);
 
   const displayStats = [
-    { k: "Registered Students", v: statsData ? statsData.studentsCount.toLocaleString() : "0" },
-    { k: "Open Briefs", v: statsData ? statsData.projectsCount.toLocaleString() : "0" },
-    { k: "Completed Gigs", v: statsData ? statsData.completedCount.toLocaleString() : "0" },
-    { k: "Escrow Secured", v: statsData ? `₹${statsData.totalEscrow.toLocaleString("en-IN")}` : "₹0" },
+    { k: "Active Student Profiles", v: statsData ? statsData.studentsCount.toLocaleString() : "—" },
+    { k: "Open Project Briefs", v: statsData ? statsData.projectsCount.toLocaleString() : "—" },
+    { k: "Completed Checkpoints", v: statsData ? statsData.completedCount.toLocaleString() : "—" },
+    { k: "Milestone Escrow Processed", v: statsData ? `₹${statsData.totalEscrow.toLocaleString("en-IN")}` : "₹0" },
   ];
 
   return (
     <div>
       {/* Hero */}
       <section className="relative overflow-hidden">
-        <div className="mx-auto max-w-7xl 2xl:max-w-[1440px] min-[1920px]:max-w-[1680px] min-[2560px]:max-w-[2200px] min-[3400px]:max-w-[2800px] px-5 lg:px-8 pt-16 lg:pt-24 pb-20 lg:pb-28 grid lg:grid-cols-12 gap-10">
+        <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 pt-12 lg:pt-20 pb-16 lg:pb-24 grid lg:grid-cols-12 gap-8 lg:gap-12 items-start">
           <div className={featuredProject ? "lg:col-span-7" : "lg:col-span-12"}>
-            <div className="flex items-center gap-2 mb-6">
-              <span className="eyebrow">Summer term marketplace</span>
-              <span className="h-px w-12 bg-border" />
-              <span className="eyebrow">For college students who freelance</span>
+            <div className="flex items-center gap-2 mb-4">
+              <span className="eyebrow text-xs">An independent student work exchange</span>
+              <span className="h-px w-8 bg-border" />
+              <span className="eyebrow text-xs">Verified Milestones</span>
             </div>
-            <h1 className="display text-4xl md:text-5xl lg:text-6xl max-w-4xl">
-              A trusted place for campus freelance work.
+
+            <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl text-foreground font-normal tracking-tight leading-[1.08]">
+              Good work shouldn’t wait for graduation.
             </h1>
-            <p className={`mt-6 text-muted-foreground text-lg ${featuredProject ? "max-w-xl" : "max-w-3xl lg:max-w-4xl"}`}>
-              Bid·Hub is where college students take on real, paid briefs — design, code, writing, video — with escrow, milestones, and reviews that travel with them after graduation.
+
+            <p className="mt-5 text-muted-foreground text-base sm:text-lg leading-relaxed max-w-2xl">
+              Bid·Hub bridges ambitious college students with clients who value craftsmanship. Compare structured project briefs, propose directly, and collaborate with transparent escrow milestones.
             </p>
+
             <div className="mt-8 flex flex-wrap gap-3">
-              <Button onClick={() => setPage("browse")}
-                className="rounded-full px-6 h-11 bg-[var(--brand-gold)] text-[var(--brand-deep)] hover:bg-[var(--brand-gold)]/90">
-                Browse open briefs <ArrowRight className="ml-1 size-4" />
+              <Button
+                variant="default"
+                onClick={() => setPage("browse")}
+                className="rounded-[5px] px-6 h-11 text-sm font-medium"
+              >
+                Find a project <ArrowRight className="ml-1 size-4" />
               </Button>
-              <Button onClick={() => setPage("post")} variant="outline" className="rounded-full px-6 h-11">
+              <Button
+                onClick={() => setPage("post")}
+                variant="outline"
+                className="rounded-[5px] px-6 h-11 text-sm font-medium"
+              >
                 Post a project
               </Button>
             </div>
-            <div className="mt-8 flex items-center gap-4 text-sm text-muted-foreground">
-              <p>Trusted on campuses in <span className="text-foreground font-semibold">Bengaluru, Delhi, Mumbai, Ahmedabad</span> and beyond.</p>
+
+            <div className="mt-8 pt-6 border-t border-border flex items-center gap-4 text-xs text-muted-foreground">
+              <p>Designed for student engineers, designers, researchers, and writers delivering real work.</p>
             </div>
           </div>
 
-          {/* Featured project card */}
+          {/* Featured / Latest project card */}
           {featuredProject && (
             <div className="lg:col-span-5 relative">
-              <div className="paper hairline rounded-xl p-6 relative overflow-hidden">
-                <div className="flex items-center justify-between">
-                  <StatusBadge tone="gold">Featured this week</StatusBadge>
-                  <span className="text-xs text-muted-foreground num">#OPEN</span>
+              <div className="bg-card border border-border rounded-[8px] p-6 shadow-xs relative">
+                <div className="flex items-center justify-between pb-3 border-b border-border/70">
+                  <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--brand-accent)]">
+                    Latest project
+                  </span>
+                  <span className="text-xs text-muted-foreground font-mono">#OPEN</span>
                 </div>
-                <h3 className="font-serif text-2xl mt-4 leading-tight">
+
+                <h3 className="text-xl font-medium mt-4 leading-snug text-foreground">
                   {featuredProject.title}
                 </h3>
-                <p className="text-sm text-muted-foreground mt-3 line-clamp-3">
+
+                <p className="text-xs text-muted-foreground mt-2 line-clamp-3 leading-relaxed">
                   {featuredProject.description}
                 </p>
-                <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
+
+                <div className="mt-5 grid grid-cols-2 gap-3 text-sm p-3 bg-secondary/40 rounded-[5px] border border-border/50">
                   <div>
-                    <p className="eyebrow">Budget</p>
-                    <p className="font-serif text-lg num mt-1">₹{featuredProject.budget?.toLocaleString("en-IN") || featuredProject.budget}</p>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Budget</p>
+                    <p className="text-base font-medium num mt-0.5 text-foreground">
+                      ₹{featuredProject.budget?.toLocaleString("en-IN") || featuredProject.budget}
+                    </p>
                   </div>
                   <div>
-                    <p className="eyebrow">Category</p>
-                    <p className="font-serif text-lg mt-1 truncate">{featuredProject.category}</p>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Category</p>
+                    <p className="text-sm font-medium mt-0.5 truncate text-foreground">
+                      {featuredProject.category}
+                    </p>
                   </div>
                 </div>
-                <div className="mt-5 flex flex-wrap gap-1.5">
-                  {featuredProject.skillsRequired?.slice(0, 3).map(s =>
-                    <span key={s} className="text-xs px-2 py-1 rounded-full bg-secondary">{s}</span>)}
-                </div>
-                <div className="mt-5 pt-5 border-t border-border flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Avatar className="size-8">
+
+                {featuredProject.skillsRequired?.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-1.5">
+                    {featuredProject.skillsRequired.slice(0, 4).map((s) => (
+                      <span key={s} className="text-[11px] px-2 py-0.5 rounded-[3px] bg-secondary text-foreground font-mono">
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-5 pt-4 border-t border-border flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <Avatar className="size-8 rounded-[4px] border border-border">
                       {featuredProject.clientId?.avatarUrl ? (
-                        <img src={featuredProject.clientId.avatarUrl} alt="" className="size-full object-cover rounded-full" />
+                        <img src={featuredProject.clientId.avatarUrl} alt="" className="size-full object-cover rounded-[4px]" />
                       ) : (
-                        <AvatarFallback className="bg-[var(--brand-espresso)] text-[var(--brand-gold)] text-xs">
+                        <AvatarFallback className="bg-secondary text-foreground text-xs font-medium rounded-[4px]">
                           {featuredProject.clientId?.name?.charAt(0).toUpperCase() || "C"}
                         </AvatarFallback>
                       )}
                     </Avatar>
-                    <div className="leading-tight">
-                      <p className="text-sm font-semibold truncate max-w-[150px]">{featuredProject.clientId?.name || "Client"}</p>
-                      <p className="text-xs text-muted-foreground">{featuredProject.clientId?.college || "Verified Client"}</p>
+                    <div className="leading-tight text-xs">
+                      <p className="font-medium text-foreground truncate max-w-[140px]">
+                        {featuredProject.clientId?.name || "Client"}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {featuredProject.clientId?.college || "Client"}
+                      </p>
                     </div>
                   </div>
-                  <Button size="sm" onClick={() => {
-                    localStorage.setItem("currentProjectId", featuredProject._id);
-                    setPage("detail");
-                  }} className="rounded-full bg-foreground text-background hover:bg-foreground/85">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      localStorage.setItem("currentProjectId", featuredProject._id);
+                      setPage("detail");
+                    }}
+                    className="rounded-[5px] text-xs h-8 px-3"
+                  >
                     View brief
                   </Button>
                 </div>
@@ -148,12 +183,12 @@ export function Landing({ setPage }) {
           )}
         </div>
 
-        {/* Trust strip */}
-        <div className="border-y border-border bg-card/40">
-          <div className="mx-auto max-w-7xl 2xl:max-w-[1440px] min-[1920px]:max-w-[1680px] min-[2560px]:max-w-[2200px] min-[3400px]:max-w-[2800px] px-5 lg:px-8 grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-border">
-            {displayStats.map(s => (
-              <div key={s.k} className="py-6 px-4 text-center md:text-left">
-                <p className="font-serif text-xl font-semibold num">{s.v}</p>
+        {/* Directory Stats Strip */}
+        <div className="border-y border-border bg-card/60">
+          <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-border">
+            {displayStats.map((s) => (
+              <div key={s.k} className="py-5 px-4 text-left">
+                <p className="text-xl sm:text-2xl font-medium num text-foreground">{s.v}</p>
                 <p className="text-xs text-muted-foreground mt-1">{s.k}</p>
               </div>
             ))}
@@ -162,21 +197,25 @@ export function Landing({ setPage }) {
       </section>
 
       {/* How it works */}
-      <section className="mx-auto max-w-7xl 2xl:max-w-[1440px] min-[1920px]:max-w-[1680px] min-[2560px]:max-w-[2200px] min-[3400px]:max-w-[2800px] px-5 lg:px-8 py-20">
+      <section className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 py-16 lg:py-20">
         <div className="grid lg:grid-cols-12 gap-10">
-          <div className="lg:col-span-4">
-            <span className="eyebrow">Method</span>
-            <h2 className="font-serif text-4xl mt-2 leading-tight">A short, calm process from brief to payout.</h2>
-            <p className="mt-4 text-muted-foreground">No clutter, no hustle theatre. Just a clean loop students and clients both understand.</p>
+          <div className="lg:col-span-4 space-y-3">
+            <span className="eyebrow text-xs">Process</span>
+            <h2 className="text-2xl sm:text-3xl font-medium tracking-tight text-foreground leading-tight">
+              A straightforward process from brief to release.
+            </h2>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Every assignment is anchored by agreed deliverables and escrow checkpoints, so students and clients stay aligned.
+            </p>
           </div>
-          <ol className="lg:col-span-8 grid sm:grid-cols-2 gap-x-10">
-            {steps.map(s => (
-              <li key={s.n} className="flex gap-4 border-t border-border py-5">
-                <span className="text-sm font-semibold text-primary num">{s.n}</span>
-                <div>
-                  <h3 className="font-serif text-lg">{s.t}</h3>
-                  <p className="text-sm text-muted-foreground mt-1">{s.d}</p>
+          <ol className="lg:col-span-8 grid sm:grid-cols-2 gap-x-8 gap-y-6">
+            {steps.map((s) => (
+              <li key={s.n} className="bg-card border border-border rounded-[8px] p-5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-mono font-medium text-[var(--brand-accent)]">{s.n}</span>
                 </div>
+                <h3 className="text-base font-medium text-foreground">{s.t}</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">{s.d}</p>
               </li>
             ))}
           </ol>
@@ -184,43 +223,68 @@ export function Landing({ setPage }) {
       </section>
 
       {/* Categories */}
-      <section className="mx-auto max-w-7xl 2xl:max-w-[1440px] min-[1920px]:max-w-[1680px] min-[2560px]:max-w-[2200px] min-[3400px]:max-w-[2800px] px-5 lg:px-8 pb-16">
-        <div className="flex items-end justify-between mb-6">
+      <section className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 pb-16">
+        <div className="flex items-end justify-between mb-6 pb-2 border-b border-border">
           <div>
-            <span className="eyebrow">Where students earn</span>
-            <h2 className="font-serif text-3xl mt-1">Skills in motion this term</h2>
+            <span className="eyebrow text-xs">Project Directory</span>
+            <h2 className="text-2xl font-medium tracking-tight mt-1 text-foreground">Explore by Discipline</h2>
           </div>
-          <button onClick={() => setPage("browse")} className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
-            See all categories <ArrowRight className="size-3.5" />
+          <button
+            onClick={() => setPage("browse")}
+            className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1 cursor-pointer font-medium"
+          >
+            All categories <ArrowRight className="size-3" />
           </button>
         </div>
         <div className="flex flex-wrap gap-2">
-          {categories.map(c => (
-            <button key={c} onClick={() => setPage("browse")} className="px-4 py-2 rounded-full hairline bg-card hover:bg-secondary text-sm transition-colors">
+          {categories.map((c) => (
+            <button
+              key={c}
+              onClick={() => {
+                localStorage.setItem("bidhub_category_filter", c);
+                setPage("browse");
+              }}
+              className="px-3.5 py-2 rounded-[5px] border border-border bg-card hover:bg-secondary text-xs font-medium text-foreground transition-colors cursor-pointer"
+            >
               {c}
             </button>
           ))}
         </div>
       </section>
 
-      {/* Journey cards */}
-      <section className="mx-auto max-w-7xl 2xl:max-w-[1440px] min-[1920px]:max-w-[1680px] min-[2560px]:max-w-[2200px] min-[3400px]:max-w-[2800px] px-5 lg:px-8 py-16 grid lg:grid-cols-2 gap-6">
+      {/* Role Workspaces */}
+      <section className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 py-12 grid lg:grid-cols-2 gap-6">
         {[
-          { icon: <Sparkles className="size-4" />, eyebrow: "For students", title: "Earn while you study, on your own terms.",
-            body: "Browse curated briefs, bid with a short proposal, and ship work that builds a portfolio you actually own.",
-            cta: "Explore as a student", page: "student" },
-          { icon: <Briefcase className="size-4" />, eyebrow: "For clients", title: "Hire campus talent, without the cold-mail chase.",
-            body: "Post a brief in ten minutes. Bids arrive within hours. Pay only when milestones land.",
-            cta: "Post your first brief", page: "post" },
-        ].map((j,i) => (
-          <div key={i} className="paper hairline rounded-xl p-8 relative overflow-hidden">
-            <div className="flex items-center gap-2 text-[var(--brand-gold)]">
-              {j.icon}<span className="eyebrow">{j.eyebrow}</span>
+          {
+            icon: <BrandIcon name="project-brief" size={20} className="text-[var(--brand-accent)]" />,
+            eyebrow: "For Students",
+            title: "Build verified experience while studying.",
+            body: "Review technical and creative briefs, propose your terms, and complete projects that produce demonstrable work evidence.",
+            cta: "View student workspace",
+            page: "student",
+          },
+          {
+            icon: <BrandIcon name="contract" size={20} className="text-[var(--brand-accent)]" />,
+            eyebrow: "For Clients",
+            title: "Delegate scoped work to campus talent.",
+            body: "Define deliverables and milestones in minutes. Proposals arrive with student portfolios; escrow funds release only on approval.",
+            cta: "Post a project brief",
+            page: "post",
+          },
+        ].map((j, i) => (
+          <div key={i} className="bg-card border border-border rounded-[8px] p-6 lg:p-8 space-y-4">
+            <div className="flex items-center gap-2">
+              {j.icon}
+              <span className="eyebrow text-xs">{j.eyebrow}</span>
             </div>
-            <h3 className="font-serif text-3xl mt-4 leading-tight">{j.title}</h3>
-            <p className="mt-3 text-muted-foreground">{j.body}</p>
-            <Button onClick={() => setPage(j.page)} variant="outline" className="mt-6 rounded-full">
-              {j.cta} <ArrowRight className="ml-1 size-4" />
+            <h3 className="text-xl font-medium text-foreground">{j.title}</h3>
+            <p className="text-sm text-muted-foreground leading-relaxed">{j.body}</p>
+            <Button
+              onClick={() => setPage(j.page)}
+              variant="outline"
+              className="mt-2 rounded-[5px] text-xs h-9 px-4 font-medium"
+            >
+              {j.cta} <ArrowRight className="ml-1 size-3.5" />
             </Button>
           </div>
         ))}
@@ -228,28 +292,28 @@ export function Landing({ setPage }) {
 
       {/* Dynamic Testimonials */}
       {reviewsList.length > 0 && (
-        <section className="mx-auto max-w-5xl 2xl:max-w-[1100px] min-[1920px]:max-w-[1280px] px-5 lg:px-8 py-20 text-center">
-          <Quote className="mx-auto text-[var(--brand-gold)] size-8" />
-          <div className="mt-6 space-y-8">
+        <section className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16 text-center border-t border-border">
+          <Quote className="mx-auto text-[var(--brand-accent)] size-6" />
+          <div className="mt-5 space-y-6">
             {reviewsList.slice(0, 1).map((r, i) => (
-              <div key={i} className="max-w-2xl 2xl:max-w-4xl mx-auto">
-                <p className="font-serif text-2xl md:text-3xl leading-snug">
-                  "{r.comment || "Excellent collaboration. Milestones delivered on schedule with premium quality."}"
+              <div key={i} className="max-w-2xl mx-auto space-y-4">
+                <p className="font-serif text-xl sm:text-2xl leading-relaxed text-foreground">
+                  "{r.comment || "Milestones were delivered on schedule with rigorous attention to requirements."}"
                 </p>
-                <div className="mt-6 flex items-center justify-center gap-3">
-                  <Avatar className="size-9">
+                <div className="flex items-center justify-center gap-3">
+                  <Avatar className="size-8 rounded-[4px] border border-border">
                     {r.reviewerId?.avatarUrl ? (
-                    <img src={r.reviewerId.avatarUrl} alt="" loading="lazy" className="size-full object-cover rounded-full" />
+                      <img src={r.reviewerId.avatarUrl} alt="" loading="lazy" className="size-full object-cover rounded-[4px]" />
                     ) : (
-                      <AvatarFallback className="bg-[var(--brand-bronze)] text-[var(--brand-gold)] text-xs">
+                      <AvatarFallback className="bg-secondary text-foreground text-xs font-medium rounded-[4px]">
                         {r.reviewerId?.name?.charAt(0).toUpperCase() || "R"}
                       </AvatarFallback>
                     )}
                   </Avatar>
-                  <div className="text-left">
-                    <p className="text-sm font-semibold">{r.reviewerId?.name || "Verified Client"}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {r.reviewerId?.college || "Client"} · {"★".repeat(r.rating)}
+                  <div className="text-left text-xs">
+                    <p className="font-medium text-foreground">{r.reviewerId?.name || "Client"}</p>
+                    <p className="text-muted-foreground text-[11px]">
+                      {r.reviewerId?.college || "Client"} · {r.rating} / 5 Rating
                     </p>
                   </div>
                 </div>
@@ -259,17 +323,19 @@ export function Landing({ setPage }) {
         </section>
       )}
 
-      <footer className="border-t border-border">
-        <div className="mx-auto max-w-7xl 2xl:max-w-[1440px] min-[1920px]:max-w-[1680px] min-[2560px]:max-w-[2200px] min-[3400px]:max-w-[2800px] px-5 lg:px-8 py-10 flex flex-col md:flex-row gap-6 items-start md:items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src="/bidhublogo.png" alt="Bid·Hub Logo" className="size-10 object-contain rounded-md" />
-            <div>
-              <p className="font-serif text-xl leading-none">Bid<span className="text-[var(--brand-gold)]">·</span>Hub</p>
-              <p className="text-xs text-muted-foreground mt-1.5">A handmade marketplace for student work. Made in Bengaluru.</p>
-            </div>
+      {/* Footer */}
+      <footer className="border-t border-border bg-card/40">
+        <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 py-10 flex flex-col md:flex-row gap-6 items-start md:items-center justify-between">
+          <div className="space-y-2">
+            <BrandLogo width={132} decorative />
+            <p className="text-xs text-muted-foreground">
+              An independent student work exchange. Built in Bengaluru.
+            </p>
           </div>
-          <div className="flex gap-6 text-xs text-muted-foreground">
-            <a>About</a><a>Trust & safety</a><a>Pricing</a><a>For colleges</a><a>Contact</a>
+          <div className="flex flex-wrap gap-6 text-xs text-muted-foreground">
+            <button onClick={() => setPage("browse")} className="hover:text-foreground cursor-pointer">Find projects</button>
+            <button onClick={() => setPage("post")} className="hover:text-foreground cursor-pointer">Post a project</button>
+            <button onClick={() => setPage("auth")} className="hover:text-foreground cursor-pointer">Account</button>
           </div>
         </div>
       </footer>

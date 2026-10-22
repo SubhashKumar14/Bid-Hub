@@ -5,40 +5,35 @@ import { CheckCircle2 } from "lucide-react";
 export function PaymentSuccessModal({ open, onClose }) {
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="bg-card border-border max-w-sm p-6 text-card-foreground rounded-xl">
-        <DialogHeader className="flex flex-col items-center text-center gap-3">
-          <div className="size-14 rounded-full bg-[var(--status-success-bg)] flex items-center justify-center text-[var(--status-success-fg)] mb-1">
-            <CheckCircle2 className="size-8" />
+      <DialogContent className="bg-popover border-border max-w-sm p-6 text-foreground rounded-[12px] shadow-lg">
+        <DialogHeader className="flex flex-col items-center text-center gap-2">
+          <div className="size-12 rounded-[5px] bg-[var(--status-success-bg)] border border-[var(--status-success-border)] flex items-center justify-center text-[var(--status-success)] mb-1">
+            <CheckCircle2 className="size-6" />
           </div>
-          <DialogTitle className="font-serif text-2xl tracking-tight text-foreground">
-            Payment Verified Successfully
+          <DialogTitle className="text-xl font-medium tracking-tight text-foreground">
+            Payment Verified
           </DialogTitle>
-          <DialogDescription className="text-[var(--brand-gold)] text-sm font-semibold tracking-wide uppercase select-none">
-            Escrow Deposit Locked
+          <DialogDescription className="text-muted-foreground text-xs leading-relaxed text-center">
+            Escrow deposit confirmed and locked for milestone delivery.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="my-3 text-xs space-y-3 leading-relaxed text-muted-foreground text-center px-2">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--status-success-bg)] border border-[var(--status-success-border)] text-[var(--status-success-fg)] font-semibold uppercase tracking-wider text-[10px]">
-            Status: Verified
+        <div className="my-3 text-xs space-y-2 leading-relaxed text-muted-foreground text-center px-1">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-[4px] bg-[var(--status-success-bg)] border border-[var(--status-success-border)] text-[var(--status-success)] font-medium text-xs">
+            Status: Confirmed & Assigned
           </div>
-          <p className="mt-4 text-muted-foreground text-xs leading-relaxed">
-            This transaction was processed using a payment testing environment.
-          </p>
-          <p className="text-muted-foreground text-xs leading-relaxed">
-            No real funds were transferred.
-          </p>
-          <p className="text-muted-foreground text-[11px] leading-relaxed">
-            The payment workflow, verification process, escrow locking, and project assignment were executed successfully.
+          <p className="mt-2 text-xs text-muted-foreground">
+            The project assignment has been locked. Development can begin immediately according to the project brief.
           </p>
         </div>
 
         <DialogFooter className="mt-4">
           <Button
-            className="w-full rounded-full bg-[var(--status-success-fg)] hover:opacity-90 text-[var(--primary-foreground)] text-xs font-semibold py-2"
+            variant="default"
+            className="w-full rounded-[5px] text-xs font-medium"
             onClick={onClose}
           >
-            Go to Dashboard
+            Go to Project Workspace
           </Button>
         </DialogFooter>
       </DialogContent>

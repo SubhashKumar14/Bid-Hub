@@ -1,1 +1,16 @@
-/* Use platform fonts so the interface stays fast and independent of remote font loading. */
+/* Self-hosted production fonts: IBM Plex Sans and Newsreader */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  src: url('/brand/bidhub/fonts/ibm-plex-sans-variable.woff2') format('woff2');
+  font-weight: 100 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Newsreader';
+  src: url('/brand/bidhub/fonts/newsreader-variable.woff2') format('woff2');
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}

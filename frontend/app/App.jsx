@@ -11,6 +11,8 @@ import { Profile } from "./components/pages/Profile";
 import { Auth } from "./components/pages/Auth";
 import { Toaster } from "./components/ui/sonner";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { BrandLogo } from "./brand/BrandLogo";
+import { Button } from "./components/ui/button";
 
 export default function App() {
   const readInitialPage = () => {
@@ -174,16 +176,28 @@ export default function App() {
   };
 
   if (token && !currentUser && authError) {
-    return <div role="alert" className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center gap-4 p-6">
-      <p>We could not restore your session. Please try again.</p>
-      <button type="button" onClick={() => setAuthRetry(n => n + 1)}>Retry</button>
-      <button type="button" onClick={handleLogout}>Sign out</button>
-    </div>;
+    return (
+      <div role="alert" className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center gap-4 p-6">
+        <BrandLogo width={140} />
+        <p className="text-sm text-muted-foreground mt-2">We could not restore your workspace session.</p>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setAuthRetry(n => n + 1)} className="rounded-[5px]">
+            Retry
+          </Button>
+          <Button size="sm" onClick={handleLogout} className="rounded-[5px]">
+            Sign out
+          </Button>
+        </div>
+      </div>
+    );
   }
   if (token && !currentUser) {
     return (
-      <div className="min-h-screen bg-background text-foreground flex items-center justify-center font-medium text-base animate-pulse">
-        Initializing secure marketplace session...
+      <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center gap-4 p-6">
+        <BrandLogo width={140} />
+        <p className="text-sm text-muted-foreground animate-pulse">
+          Opening workspace…
+        </p>
       </div>
     );
   }

@@ -1,0 +1,20 @@
+/* Import after your existing theme while migrating. These variables apply only to brand components. */
+:root {
+  --bh-brand-ink: #24231f;
+  --bh-brand-accent: #a6422b;
+  --bh-brand-muted: #625e56;
+}
+.dark {
+  --bh-brand-ink: #f1ede5;
+  --bh-brand-accent: #eaa88c;
+  --bh-brand-muted: #bbb5aa;
+}
+.bh-brand { display: inline-block; vertical-align: middle; flex: none; }
+.bh-brand__ink { fill: var(--bh-brand-ink); }
+.bh-brand__accent { fill: var(--bh-brand-accent); }
+.bh-icon { display: inline-block; vertical-align: middle; flex: none; }
+.bh-icon-button { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+.bh-brand-link { display: inline-flex; align-items: center; text-decoration: none; }
+.bh-brand-link:focus-visible, .bh-icon-button:focus-visible { outline: 2px solid var(--bh-brand-accent); outline-offset: 4px; }
+/* Logo animation is deliberately omitted. Preserve reduced motion for shared UI effects. */
+@media (prefers-reduced-motion: reduce) { .bh-icon--loading { animation: none !important; } }

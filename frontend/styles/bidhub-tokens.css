@@ -1,0 +1,38 @@
+/* Reference tokens for the approved direction. Migrate all old --brand-* uses before adopting across the app. */
+@font-face { font-family: 'IBM Plex Sans'; src: url('/brand/bidhub/fonts/ibm-plex-sans-variable.woff2') format('woff2'); font-weight: 100 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Newsreader'; src: url('/brand/bidhub/fonts/newsreader-variable.woff2') format('woff2'); font-weight: 200 800; font-style: normal; font-display: swap; }
+:root {
+  --bh-font-body: 'IBM Plex Sans', system-ui, sans-serif;
+  --bh-font-editorial: 'Newsreader', Georgia, serif;
+  --background: #f5f3ee; --foreground: #24231f;
+  --card: #fffdf8; --card-foreground: #24231f;
+  --popover: #fffdf8; --popover-foreground: #24231f;
+  --secondary: #eae6dd; --secondary-foreground: #24231f;
+  --muted: #eae6dd; --muted-foreground: #625e56;
+  --border: #d4cec3; --input: #8a8377; --input-background: #fffdf8;
+  --primary: #24231f; --primary-foreground: #fffdf8;
+  --primary-hover: #3d3a34; --primary-pressed: #151412;
+  --brand-accent: #a6422b; --accent: #f2e1d8; --accent-foreground: #a6422b;
+  --ring: #a6422b; --destructive: #af2638; --destructive-foreground: #fffdf8;
+  --status-success: #216447; --status-success-bg: #e3eee5;
+  --status-info: #284f8d; --status-info-bg: #e5ecf6;
+  --status-warning: #805500; --status-warning-bg: #f4eacd;
+  --status-error: #af2638; --status-error-bg: #fae7e8;
+  --bh-radius-control: 5px; --bh-radius-panel: 8px; --bh-radius-dialog: 12px;
+}
+.dark {
+  --background: #1a1917; --foreground: #f1ede5;
+  --card: #22211e; --card-foreground: #f1ede5;
+  --popover: #2d2b27; --popover-foreground: #f1ede5;
+  --secondary: #2d2b27; --secondary-foreground: #f1ede5;
+  --muted: #2d2b27; --muted-foreground: #bbb5aa;
+  --border: #47433d; --input: #91897c; --input-background: #22211e;
+  --primary: #f1ede5; --primary-foreground: #24231f;
+  --primary-hover: #fff; --primary-pressed: #dbd4c8;
+  --brand-accent: #eaa88c; --accent: #3c2a22; --accent-foreground: #eaa88c;
+  --ring: #eaa88c; --destructive: #ffa8b1; --destructive-foreground: #24231f;
+  --status-success: #9dd7b6; --status-success-bg: #23372b;
+  --status-info: #abc7f5; --status-info-bg: #243146;
+  --status-warning: #e7c977; --status-warning-bg: #3b311f;
+  --status-error: #ffa8b1; --status-error-bg: #41262b;
+}

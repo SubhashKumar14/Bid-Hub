@@ -1,7 +1,8 @@
 import { Button } from "../ui/button";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { StatusBadge } from "../StatusBadge";
-import { Sparkles, TrendingUp, Wallet, Eye } from "lucide-react";
+import { Sparkles, TrendingUp, Wallet, Eye, ArrowRight, MessageSquare } from "lucide-react";
+import { BrandIcon } from "../../brand/BrandIcon";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { ChatDrawer } from "../ChatDrawer";
@@ -53,16 +54,12 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
     if (!token || !currentUser) return;
     setLoading(true);
     try {
-      // 1. Fetch Payment Ledger & Stats
       const paymentsRes = await fetch("/api/payments", {
         headers: { Authorization: `Bearer ${token}` },
       });
       const paymentsData = await paymentsRes.json();
-      
-      // Calculate earnings from payments statistics
       const releasedAmount = paymentsData.stats?.releasedAmount || 0;
 
-      // 2. Fetch User Profile & Views & Reviews
       const profileRes = await fetch(`/api/users/${currentUser._id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -70,7 +67,6 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
       const views = profileData.user?.profileViews || 0;
       setReviews(profileData.reviews || []);
 
-      // 3. Fetch Contracts & Bids using optimized dashboard endpoint
       const dashRes = await fetch("/api/projects/student/dashboard", {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -80,7 +76,7 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
       setContracts(dashData.contracts || []);
       setBids(dashData.bids || []);
 
-      const openBidsCount = (dashData.bids || []).filter(b => b.status === "pending").length;
+      const openBidsCount = (dashData.bids || []).filter((b) => b.status === "pending" || b.status === "PENDING").length;
 
       setStats({
         earnings: releasedAmount,
@@ -97,157 +93,240 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
 
   useEffect(() => {
     fetchDashboardData();
-    const interval = setInterval(async () => {
-      if (!token || !currentUser) return;
-      try {
-        const paymentsRes = await fetch("/api/payments", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const paymentsData = await paymentsRes.json();
-        const releasedAmount = paymentsData.stats?.releasedAmount || 0;
-
-        const profileRes = await fetch(`/api/users/${currentUser._id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const profileData = await profileRes.json();
-        const views = profileData.user?.profileViews || 0;
-        setReviews(profileData.reviews || []);
-
-        const dashRes = await fetch("/api/projects/student/dashboard", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const dashData = await dashRes.json();
-        if (dashRes.ok) {
-          setContracts(dashData.contracts || []);
-          setBids(dashData.bids || []);
-          const openBidsCount = (dashData.bids || []).filter(b => b.status === "pending").length;
-          setStats({
-            earnings: releasedAmount,
-            activeContractsCount: (dashData.contracts || []).length,
-            openBidsCount,
-            profileViews: views,
-          });
-        }
-      } catch (err) {
-        console.error("Student dashboard polling error:", err);
-      }
-    }, 8000);
-
-    return () => clearInterval(interval);
   }, [token, currentUser]);
 
-  const handleSubmitMilestone = (milestoneId, milestoneTitle) => {
-    // Open the MilestoneSubmitModal which collects GitHub URL, demo URL, description, and attachments
-    // This replaces the old direct PATCH (which sent no body and used a mock GitHub URL)
-    openSubmitModal(milestoneId, milestoneTitle);
-  };
+  // Derive items requiring immediate student attention (Revisions requested or Pending deliverables)
+  const attentionItems = [];
+  contracts.forEach((c) => {
+    (c.milestones || []).forEach((m) => {
+      if (m.status === "CHANGES_REQUESTED") {
+        attentionItems.push({
+          type: "revision",
+          projectTitle: c.title,
+          milestoneId: m._id,
+          milestoneTitle: m.title,
+          amount: m.amount,
+        });
+      } else if (m.status === "PENDING" && ["ASSIGNED", "IN_PROGRESS"].includes(c.projectStatus)) {
+        attentionItems.push({
+          type: "pending",
+          projectTitle: c.title,
+          milestoneId: m._id,
+          milestoneTitle: m.title,
+          amount: m.amount,
+        });
+      }
+    });
+  });
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-7xl px-5 lg:px-8 py-20 text-center animate-pulse">
-        <p className="font-serif text-xl">Syncing student workspace dashboard...</p>
+      <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 py-20 text-center animate-pulse">
+        <p className="text-sm text-muted-foreground">Syncing student workspace…</p>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-5 lg:px-8 py-12 space-y-10">
-      {/* Hero */}
-      <header className="paper hairline rounded-3xl p-8 lg:p-10 relative overflow-hidden">
-        <div className="absolute -bottom-20 -right-10 size-72 rounded-full bg-[var(--brand-gold)]/15 blur-3xl" />
-        <span className="eyebrow">Student workspace · verified profile</span>
-        <h1 className="display text-4xl md:text-5xl mt-2 max-w-2xl">
-          Good morning, {currentUser?.name}. <span className="italic text-[var(--brand-gold)]">Build trust</span> and track escrow.
-        </h1>
-        <p className="mt-3 text-muted-foreground max-w-xl">
-          You have {stats.activeContractsCount} active freelance contracts and {stats.openBidsCount} open proposals on the project wall.
-        </p>
-        <div className="mt-6 flex flex-wrap gap-2">
-          <Button onClick={() => setPage("browse")} className="rounded-full bg-[var(--brand-gold)] text-[var(--brand-deep)] hover:bg-[var(--brand-gold)]/90">Find work</Button>
-          <Button onClick={onOpenEscrow} variant="outline" className="rounded-full">Open escrow</Button>
+    <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+      {/* Workspace Header */}
+      <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 border-b border-border">
+        <div>
+          <span className="eyebrow text-xs text-muted-foreground">
+            Student Freelance Workspace · {currentUser?.college || "Verified Student"}
+          </span>
+          <h1 className="text-3xl font-medium tracking-tight text-foreground mt-1">
+            Workspace: {currentUser?.name}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Track active milestone submissions, pending client feedback, and verified escrow payouts.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2.5">
+          <Button
+            onClick={() => setPage("browse")}
+            variant="default"
+            className="rounded-[5px] text-xs h-9 px-4 font-medium"
+          >
+            Find a project <ArrowRight className="ml-1 size-3.5" />
+          </Button>
+          <Button
+            onClick={onOpenEscrow}
+            variant="outline"
+            className="rounded-[5px] text-xs h-9 px-4 font-medium"
+          >
+            Escrow ledger
+          </Button>
         </div>
       </header>
 
-      <section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { k: "Earnings · this term", v: `₹${stats.earnings.toLocaleString()}`, d: "Direct payout to bank", icon: <Wallet className="size-4" /> },
-          { k: "Active contracts", v: stats.activeContractsCount, d: "Milestone-tracked briefs", icon: <Sparkles className="size-4" /> },
-          { k: "Open bids", v: stats.openBidsCount, d: "Proposals sent", icon: <TrendingUp className="size-4" /> },
-          { k: "Profile views", v: stats.profileViews, d: "Quiet background searches", icon: <Eye className="size-4" /> },
-        ].map((s) => (
-          <div key={s.k} className="paper hairline rounded-2xl p-5">
-            <div className="flex items-center justify-between text-muted-foreground">
-              <span className="eyebrow">{s.k}</span>{s.icon}
+      {/* Priority: Needs Your Attention Banner */}
+      {attentionItems.length > 0 && (
+        <section className="bg-card border-l-4 border-l-[var(--brand-accent)] border border-border rounded-[8px] p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <BrandIcon name="submission" size={18} className="text-[var(--brand-accent)]" />
+              <h2 className="text-sm font-medium text-foreground">
+                Needs Your Attention ({attentionItems.length})
+              </h2>
             </div>
-            <p className="font-serif text-3xl mt-3 num">{s.v}</p>
-            <p className="text-xs text-muted-foreground mt-1">{s.d}</p>
+            <span className="text-[11px] text-muted-foreground">Pending Checkpoints</span>
+          </div>
+
+          <div className="space-y-2 pt-1">
+            {attentionItems.slice(0, 4).map((item, idx) => (
+              <div
+                key={idx}
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-[5px] bg-secondary/40 border border-border/60"
+              >
+                <div className="text-xs min-w-0">
+                  <div className="flex items-center gap-2">
+                    {item.type === "revision" ? (
+                      <StatusBadge tone="danger" className="text-[10px] py-0">Changes Requested</StatusBadge>
+                    ) : (
+                      <StatusBadge tone="warning" className="text-[10px] py-0">Ready to Submit</StatusBadge>
+                    )}
+                    <span className="font-medium text-foreground truncate">{item.milestoneTitle}</span>
+                  </div>
+                  <p className="text-muted-foreground text-[11px] mt-0.5 truncate">
+                    {item.projectTitle} · <span className="num font-mono">{formatCurrency(item.amount)}</span>
+                  </p>
+                </div>
+
+                <Button
+                  size="sm"
+                  variant={item.type === "revision" ? "destructive" : "default"}
+                  onClick={() => openSubmitModal(item.milestoneId, item.milestoneTitle)}
+                  className="rounded-[5px] text-xs h-8 px-3 shrink-0"
+                >
+                  {item.type === "revision" ? "Resubmit Deliverable" : "Submit Deliverable"}
+                </Button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Compact Financial & Stats Summary */}
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { k: "Released Earnings", v: formatCurrency(stats.earnings), d: "Direct escrow payout", icon: <Wallet className="size-4" /> },
+          { k: "Active Contracts", v: stats.activeContractsCount, d: "In delivery pipeline", icon: <Sparkles className="size-4" /> },
+          { k: "Proposals Pending", v: stats.openBidsCount, d: "Under client review", icon: <TrendingUp className="size-4" /> },
+          { k: "Profile Views", v: stats.profileViews, d: "Direct directory discovery", icon: <Eye className="size-4" /> },
+        ].map((s) => (
+          <div key={s.k} className="bg-card border border-border rounded-[8px] p-4 space-y-1">
+            <div className="flex items-center justify-between text-muted-foreground text-xs">
+              <span className="uppercase tracking-wider text-[10px] font-medium">{s.k}</span>
+              {s.icon}
+            </div>
+            <p className="text-2xl font-medium num text-foreground pt-1">{s.v}</p>
+            <p className="text-[11px] text-muted-foreground">{s.d}</p>
           </div>
         ))}
       </section>
 
-      <section className="grid lg:grid-cols-3 gap-6">
-        {/* Active contracts */}
-        <div className="lg:col-span-2 paper hairline rounded-2xl p-6 space-y-4">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-serif text-xl">Ongoing contracts</h2>
+      {/* Workspaces Grid: Contracts and Proposals */}
+      <section className="grid lg:grid-cols-12 gap-8 items-start">
+        {/* Active Contracts Column */}
+        <div className="lg:col-span-8 bg-card border border-border rounded-[8px] p-6 space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-border/60">
+            <div className="flex items-center gap-2">
+              <BrandIcon name="contract" size={18} className="text-[var(--brand-accent)]" />
+              <h2 className="text-base font-medium text-foreground">Active Contracts</h2>
+            </div>
+            <span className="text-xs text-muted-foreground">{contracts.length} active</span>
           </div>
+
           <div className="space-y-4">
             {contracts.length === 0 ? (
-              <div className="text-center py-10 text-muted-foreground text-sm">
-                No active contracts. Place bids to get hired!
+              <div className="text-center py-12 text-xs text-muted-foreground leading-relaxed">
+                No active contracts. Explore open project briefs and submit proposals to get started.
               </div>
             ) : (
               contracts.map((c, i) => (
-                <div key={i} className="hairline rounded-xl p-4 space-y-3 bg-card/45">
-                  <div className="flex items-center justify-between gap-3">
+                <div key={i} className="border border-border/80 rounded-[6px] p-4 space-y-3 bg-secondary/15">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
-                      <p className="text-sm font-semibold">{c.title}</p>
-                      <p className="text-xs text-muted-foreground">{c.statusText}</p>
+                      <h3 className="text-sm font-medium text-foreground">{c.title}</h3>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">{c.statusText}</p>
                     </div>
                     <div className="flex items-center gap-3">
                       {["ASSIGNED", "IN_PROGRESS", "COMPLETED"].includes(c.projectStatus) && (
-                        <Button size="xs" variant="outline" className="rounded-full px-3 text-xs" onClick={() => openChat(c.id, c.title)}>
-                          Chat
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-[4px] h-8 px-2.5 text-xs"
+                          onClick={() => openChat(c.id, c.title)}
+                        >
+                          <MessageSquare className="size-3.5 mr-1" /> Discussion
                         </Button>
                       )}
                       <div className="text-right">
-                        <p className="font-serif num">{formatCurrency(c.amount)}</p>
-                        <StatusBadge tone={c.status === "in-review" ? "gold" : "sand"}>{c.status}</StatusBadge>
+                        <p className="text-sm font-medium num text-foreground">{formatCurrency(c.amount)}</p>
+                        <StatusBadge
+                          tone={c.status === "in-review" ? "info" : c.status === "completed" ? "success" : "warning"}
+                          className="text-[10px] py-0"
+                        >
+                          {c.status}
+                        </StatusBadge>
                       </div>
                     </div>
                   </div>
-                  <div className="mt-3 h-1.5 rounded-full bg-muted overflow-hidden">
-                    <div className="h-full bg-[var(--brand-gold)]" style={{ width: `${c.progress}%` }} />
+
+                  {/* Progress Line */}
+                  <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-[var(--brand-accent)] transition-all duration-300"
+                      style={{ width: `${c.progress}%` }}
+                    />
                   </div>
-                  <div className="flex justify-between mt-1.5 text-[11px] text-muted-foreground">
-                    <span>{c.progress}% milestone released</span>
-                    <span>Next milestone pending submission</span>
+                  <div className="flex justify-between text-[11px] text-muted-foreground">
+                    <span>{c.progress}% escrow released</span>
+                    <span>{c.milestones?.filter((m) => m.status === "RELEASED").length || 0} of {c.milestones?.length || 0} milestones approved</span>
                   </div>
 
-                  {/* Submission buttons for pending milestones */}
-                  <div className="pt-2 flex flex-wrap gap-2 border-t border-border/40">
+                  {/* Checkpoints List */}
+                  <div className="pt-2 space-y-1.5 border-t border-border/60">
                     {c.milestones.map((m) => (
-                      <div key={m._id} className="w-full flex items-center justify-between bg-background/50 p-2.5 rounded-lg text-xs">
-                        <span>{m.title} ({formatCurrency(m.amount)})</span>
-                        {m.status === "PENDING" && (
-                          <Button size="xs" className="rounded-full py-1 px-3 bg-[var(--brand-gold)] text-[var(--brand-deep)]" onClick={() => openSubmitModal(m._id, m.title)}>
-                            Submit Work
-                          </Button>
-                        )}
-                        {m.status === "CHANGES_REQUESTED" && (
-                          <div className="flex items-center gap-2">
-                            <StatusBadge tone="danger" className="text-[10px]">Revision Needed</StatusBadge>
-                            <Button size="xs" variant="outline" className="rounded-full py-1 px-3 border-[var(--status-danger-border)] text-[var(--status-danger-fg)] hover:bg-[var(--status-danger-bg)] text-[10px]" onClick={() => openSubmitModal(m._id, m.title)}>
-                              Resubmit
+                      <div
+                        key={m._id}
+                        className="flex items-center justify-between p-2.5 rounded-[4px] bg-card border border-border/60 text-xs"
+                      >
+                        <span className="font-medium text-foreground truncate pr-2">
+                          {m.title} <span className="text-muted-foreground font-mono">({formatCurrency(m.amount)})</span>
+                        </span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {m.status === "PENDING" && (
+                            <Button
+                              size="xs"
+                              variant="default"
+                              className="rounded-[4px] text-[11px] h-7 px-2.5"
+                              onClick={() => openSubmitModal(m._id, m.title)}
+                            >
+                              Submit Checkpoint
                             </Button>
-                          </div>
-                        )}
-                        {m.status === "SUBMITTED" && (
-                          <StatusBadge tone="gold" className="text-[10px]">Under Review</StatusBadge>
-                        )}
-                        {m.status === "RELEASED" && (
-                          <StatusBadge tone="success" className="text-[10px]">Released</StatusBadge>
-                        )}
+                          )}
+                          {m.status === "CHANGES_REQUESTED" && (
+                            <div className="flex items-center gap-1.5">
+                              <StatusBadge tone="danger" className="text-[10px] py-0">Revisions</StatusBadge>
+                              <Button
+                                size="xs"
+                                variant="destructive"
+                                className="rounded-[4px] text-[11px] h-7 px-2.5"
+                                onClick={() => openSubmitModal(m._id, m.title)}
+                              >
+                                Resubmit
+                              </Button>
+                            </div>
+                          )}
+                          {m.status === "SUBMITTED" && (
+                            <StatusBadge tone="info" className="text-[10px] py-0">In Review</StatusBadge>
+                          )}
+                          {m.status === "RELEASED" && (
+                            <StatusBadge tone="success" className="text-[10px] py-0">Released</StatusBadge>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -257,29 +336,46 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
           </div>
         </div>
 
-        {/* Bids sent */}
-        <div className="paper hairline rounded-2xl p-6">
-          <h2 className="font-serif text-xl mb-4">Bids sent</h2>
+        {/* Proposals Sent Column */}
+        <div className="lg:col-span-4 bg-card border border-border rounded-[8px] p-6 space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-border/60">
+            <div className="flex items-center gap-2">
+              <BrandIcon name="proposal" size={18} className="text-[var(--brand-accent)]" />
+              <h2 className="text-base font-medium text-foreground">Proposals Sent</h2>
+            </div>
+            <span className="text-xs text-muted-foreground">{bids.length} total</span>
+          </div>
+
           <div className="space-y-3">
             {bids.length === 0 ? (
-              <div className="text-center py-10 text-muted-foreground text-sm">No bids sent yet.</div>
+              <div className="text-center py-10 text-xs text-muted-foreground leading-relaxed">
+                You haven't submitted any proposals yet. Check the project directory to bid on open briefs.
+              </div>
             ) : (
               bids.map((b) => (
                 <div
                   key={b.id}
-                  className="flex justify-between items-center text-sm py-3 border-b border-border/60 last:border-0 cursor-pointer"
+                  className="p-3 rounded-[6px] border border-border hover:bg-secondary/40 transition-colors cursor-pointer space-y-1.5"
                   onClick={() => {
                     localStorage.setItem("currentProjectId", b.projectId);
                     setPage("detail");
                   }}
                 >
-                  <div>
-                    <p className="hover:underline font-serif">{b.title}</p>
-                    <p className="text-xs text-muted-foreground num">{formatCurrency(b.amount)}</p>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-xs font-medium text-foreground line-clamp-1 hover:text-[var(--brand-accent)]">
+                      {b.title}
+                    </p>
+                    <StatusBadge
+                      tone={b.status === "accepted" ? "success" : b.status === "rejected" ? "danger" : "info"}
+                      className="text-[10px] py-0 shrink-0"
+                    >
+                      {b.status}
+                    </StatusBadge>
                   </div>
-                  <StatusBadge tone={b.status === "accepted" ? "success" : b.status === "rejected" ? "danger" : "gold"}>
-                    {b.status}
-                  </StatusBadge>
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span className="num font-mono font-medium text-foreground">{formatCurrency(b.amount)}</span>
+                    <span>{b.timeline || "Proposed deadline"}</span>
+                  </div>
                 </div>
               ))
             )}
@@ -287,41 +383,38 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
         </div>
       </section>
 
-      <section className="grid lg:grid-cols-2 gap-6">
-        {/* Recent reviews */}
-        <div className="paper hairline rounded-2xl p-6">
-          <h2 className="font-serif text-xl mb-4">Recent client reviews</h2>
-          <div className="space-y-4">
-            {reviews.length === 0 ? (
-              <div className="text-center py-10 text-muted-foreground text-sm">No reviews received yet. Reviews appear on project completion.</div>
-            ) : (
-              reviews.map((r, i) => (
-                <div key={i} className="border-b border-border/40 pb-4 last:border-0 last:pb-0">
-                  <div className="flex items-center gap-2">
-                    <Avatar className="size-7">
-                      {r.reviewerId?.avatarUrl ? (
-                        <img src={r.reviewerId.avatarUrl} alt={r.reviewerId.name} className="size-full rounded-full object-cover" />
-                      ) : (
-                        <AvatarFallback className="text-[10px] bg-[var(--brand-bronze)] text-[var(--brand-gold)]">
-                          {(r.reviewerId?.name || "C").split(" ").map((x) => x[0]).join("")}
-                        </AvatarFallback>
-                      )}
-                    </Avatar>
-                    <div>
-                      <p className="text-sm font-semibold">{r.reviewerId?.name || "Client"}</p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {r.projectId?.title} · {"★".repeat(r.rating)}
-                      </p>
-                    </div>
-                  </div>
-                  <p className="text-sm text-muted-foreground italic font-serif mt-2">"{r.comment}"</p>
-                </div>
-              ))
-            )}
+      {/* Review Evidence Section */}
+      {reviews.length > 0 && (
+        <section className="bg-card border border-border rounded-[8px] p-6 space-y-4">
+          <div className="flex items-center gap-2 pb-3 border-b border-border/60">
+            <BrandIcon name="work-record" size={18} className="text-[var(--brand-accent)]" />
+            <h2 className="text-base font-medium text-foreground">Client Feedback & Ratings</h2>
           </div>
-        </div>
-      </section>
 
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {reviews.map((r, i) => (
+              <div key={i} className="p-4 rounded-[6px] border border-border bg-secondary/20 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Avatar className="size-7 rounded-[4px] border border-border">
+                    <AvatarFallback className="text-[10px] bg-secondary text-foreground font-medium rounded-[4px]">
+                      {(r.reviewerId?.name || "C").split(" ").map((x) => x[0]).slice(0, 2).join("")}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="text-xs leading-tight">
+                    <p className="font-medium text-foreground">{r.reviewerId?.name || "Client"}</p>
+                    <p className="text-[11px] text-[var(--brand-accent)]">{"★".repeat(r.rating || 5)}</p>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed italic line-clamp-3">
+                  "{r.comment}"
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Overlay Drawers & Modals */}
       <ChatDrawer
         open={chatOpen}
         onClose={() => setChatOpen(false)}

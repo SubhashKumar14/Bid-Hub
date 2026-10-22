@@ -1,4 +1,5 @@
 import React from "react";
+import { BrandLogo } from "../brand/BrandLogo";
 
 export class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -23,11 +24,14 @@ export class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 text-center text-foreground selection:bg-accent">
-          <div className="max-w-md space-y-6 rounded-2xl border border-border bg-card p-8 shadow-xl">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[var(--status-danger-bg)] border border-[var(--status-danger-border)] text-[var(--status-danger-fg)]">
+        <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 text-center text-foreground selection:bg-secondary">
+          <div className="max-w-md w-full space-y-6 rounded-[12px] border border-border bg-card p-8 shadow-sm">
+            <div className="flex justify-center mb-2">
+              <BrandLogo variant="mark" width={32} decorative />
+            </div>
+            <div className="mx-auto flex size-12 items-center justify-center rounded-[5px] bg-[var(--status-danger-bg)] border border-[var(--status-danger-border)] text-[var(--status-danger)]">
               <svg
-                className="h-8 w-8"
+                className="size-6"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -41,19 +45,19 @@ export class ErrorBoundary extends React.Component {
               </svg>
             </div>
             <div className="space-y-2">
-              <h1 className="text-2xl font-bold tracking-tight text-foreground">Something went wrong</h1>
-              <p className="text-sm text-muted-foreground">
-                An unexpected error occurred in the application. We've logged the details and are working to resolve it.
+              <h1 className="text-xl font-medium tracking-tight text-foreground">Something went wrong</h1>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                An unexpected error occurred while rendering this interface. Reloading will restore your workspace.
               </p>
             </div>
-            {this.state.error && (
-              <div className="max-h-32 overflow-auto rounded-lg bg-muted p-3 text-left text-xs font-mono text-[var(--status-danger-fg)] border border-border">
+            {this.state.error && process.env.NODE_ENV !== "production" && (
+              <div className="max-h-32 overflow-auto rounded-[5px] bg-secondary p-3 text-left text-xs font-mono text-[var(--status-danger)] border border-border">
                 {this.state.error.toString()}
               </div>
             )}
             <button
               onClick={this.handleReset}
-              className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 font-medium transition-colors shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="inline-flex min-h-[44px] w-full items-center justify-center rounded-[5px] bg-primary text-primary-foreground hover:bg-[var(--primary-hover)] active:bg-[var(--primary-pressed)] text-sm font-medium transition-colors cursor-pointer"
             >
               Reload Application
             </button>

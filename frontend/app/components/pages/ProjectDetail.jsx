@@ -1,5 +1,5 @@
 import { downloadAttachment } from "../../../api/fileApi";
-import { ShieldCheck, Calendar, Paperclip, Star, ArrowLeft, MapPin, Clock } from "lucide-react";
+import { ShieldCheck, ArrowLeft, MapPin, Clock, Paperclip, Star } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
@@ -97,7 +97,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
         if (bidsRes.ok) {
           setBids(bidsData);
           // Check if current user already placed a bid
-          const myBid = bidsData.find(b => b.studentId?._id === currentUser?._id || b.studentId === currentUser?._id);
+          const myBid = bidsData.find(b => (b.studentId?._id || b.studentId) === currentUser?._id);
           if (myBid) {
             setHasAlreadyBid(true);
             setBidAmount(myBid.amount);
@@ -109,10 +109,10 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
 
       // 3. Fetch reviews if project is completed
       if (token && projectData.project.status === "COMPLETED" && currentUser) {
-        const isClient = projectData.project.clientId?._id === currentUser._id || projectData.project.clientId === currentUser._id;
+        const isClient = (projectData.project.clientId?._id || projectData.project.clientId) === currentUser._id;
         const acceptedBid = bidsData.find(b => b.status === "ACCEPTED");
         const hiredStudentId = acceptedBid?.studentId?._id || acceptedBid?.studentId;
-        const revieweeId = isClient ? hiredStudentId : projectData.project.clientId?._id || projectData.project.clientId;
+        const revieweeId = isClient ? hiredStudentId : (projectData.project.clientId?._id || projectData.project.clientId);
 
         if (revieweeId) {
           const reviewsRes = await fetch(`/api/reviews/users/${revieweeId}/reviews`);
@@ -159,7 +159,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
           const bidsData = await bidsRes.json();
           if (bidsRes.ok) {
             setBids(bidsData);
-            const myBid = bidsData.find(b => b.studentId?._id === currentUser?._id || b.studentId === currentUser?._id);
+            const myBid = bidsData.find(b => (b.studentId?._id || b.studentId) === currentUser?._id);
             if (myBid) {
               setHasAlreadyBid(true);
             } else {
@@ -177,13 +177,13 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
 
   const handlePlaceBid = async () => {
     if (!token) {
-      toast.error("Please log in to place a bid");
+      toast.error("Please sign in to submit a proposal");
       setPage("auth");
       return;
     }
 
     if (!bidAmount || !bidTimeline || !bidProposal) {
-      toast.error("Please fill in all bid parameters");
+      toast.error("Please fill in price, timeline, and proposal");
       return;
     }
 
@@ -203,7 +203,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to place bid");
-      toast.success("Your bid has been placed successfully!");
+      toast.success("Proposal submitted successfully");
       setHasAlreadyBid(true);
       fetchProjectData();
     } catch (err) {
@@ -213,19 +213,19 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
     }
   };
 
-const loadRazorpay = () => {
-  return new Promise((resolve) => {
-    if (window.Razorpay) {
-      resolve(true);
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
-  });
-};
+  const loadRazorpay = () => {
+    return new Promise((resolve) => {
+      if (window.Razorpay) {
+        resolve(true);
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
 
   const handleAcceptBid = (bidId) => {
     setSelectedBidId(bidId);
@@ -248,8 +248,8 @@ const loadRazorpay = () => {
       if (!res.ok) throw new Error(data.message || "Failed to initiate escrow checkout");
 
       if (data.provider === "razorpay") {
-        toast.info("Opening Razorpay checkout.");
-        if (!(await loadRazorpay())) throw new Error("Razorpay checkout could not be loaded. Check your connection and try again.");
+        toast.info("Opening payment provider…");
+        if (!(await loadRazorpay())) throw new Error("Payment checkout could not be loaded. Please check your connection.");
         const options = {
           key: data.keyId,
           amount: data.amount,
@@ -283,7 +283,7 @@ const loadRazorpay = () => {
           },
           modal: {
             ondismiss: async function () {
-              toast.warning("Payment modal closed.");
+              toast.warning("Payment window closed.");
               await fetch("/api/payments/cancel", {
                 method: "POST",
                 headers: {
@@ -299,7 +299,7 @@ const loadRazorpay = () => {
             name: currentUser ? currentUser.name : "",
             email: currentUser ? currentUser.email : "",
           },
-          theme: { color: getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() },
+          theme: { color: "#24231F" },
         };
         const rzp = new window.Razorpay(options);
         rzp.open();
@@ -310,7 +310,7 @@ const loadRazorpay = () => {
           body: JSON.stringify({ sessionId: data.sessionId }),
         });
         const result = await simulation.json();
-        if (!simulation.ok) throw new Error(result.message || "Demo checkout failed");
+        if (!simulation.ok) throw new Error(result.message || "Checkout simulation failed");
         setSuccessOpen(true);
         fetchProjectData();
       } else {
@@ -331,12 +331,12 @@ const loadRazorpay = () => {
         },
         body: JSON.stringify({
           sessionId: pendingPayment ? pendingPayment.stripeSessionId : undefined,
-          projectId: project ? project._id : undefined
+          projectId: project ? project._id : undefined,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to cancel checkout");
-      toast.success("Project reopened for bidding!");
+      toast.success("Project reopened for proposals");
       fetchProjectData();
     } catch (err) {
       toast.error(err.message);
@@ -350,28 +350,28 @@ const loadRazorpay = () => {
       setSelectedBidId(selectedBid._id);
       setDisclaimerOpen(true);
     } else {
-      toast.error("Selected bid not found in bids list.");
+      toast.error("Selected proposal not found in proposals list.");
     }
   };
 
   const handleSubmitReview = async () => {
     if (!token) {
-      toast.error("Please log in to leave a review");
+      toast.error("Please sign in to submit feedback");
       return;
     }
 
     if (!reviewComment.trim()) {
-      toast.error("Please enter a review comment");
+      toast.error("Please write your feedback comment");
       return;
     }
 
-    const isClient = currentUser && (project.clientId?._id === currentUser._id || project.clientId === currentUser._id);
+    const isClient = currentUser && ((project.clientId?._id || project.clientId) === currentUser._id);
     const acceptedBid = bids.find(b => b.status === "ACCEPTED");
     const hiredStudentId = acceptedBid?.studentId?._id || acceptedBid?.studentId;
-    const revieweeId = isClient ? hiredStudentId : project.clientId?._id || project.clientId;
+    const revieweeId = isClient ? hiredStudentId : (project.clientId?._id || project.clientId);
 
     if (!revieweeId) {
-      toast.error("Reviewee not found");
+      toast.error("Recipient not found for review");
       return;
     }
 
@@ -392,7 +392,7 @@ const loadRazorpay = () => {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to submit review");
-      toast.success("Feedback submitted successfully!");
+      toast.success("Feedback submitted successfully");
       fetchProjectData();
     } catch (err) {
       toast.error(err.message);
@@ -404,7 +404,7 @@ const loadRazorpay = () => {
   if (loading) {
     return (
       <div className="mx-auto max-w-7xl px-5 lg:px-8 py-20 text-center">
-        <p className="font-serif text-xl animate-pulse">Loading brief details...</p>
+        <p className="text-base text-muted-foreground animate-pulse">Loading project brief…</p>
       </div>
     );
   }
@@ -412,172 +412,201 @@ const loadRazorpay = () => {
   if (!project) {
     return (
       <div className="mx-auto max-w-7xl px-5 lg:px-8 py-20 text-center">
-        <h2 className="font-serif text-2xl">Brief not found</h2>
-        <Button onClick={() => setPage("browse")} className="mt-4 rounded-full">
-          Back to project wall
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground">Project brief not found</h2>
+        <Button onClick={() => setPage("browse")} className="mt-4 rounded-[5px] bg-primary text-primary-foreground">
+          Return to directory
         </Button>
       </div>
     );
   }
 
-  const isOwner = currentUser && project.clientId?._id === currentUser._id;
+  const isOwner = currentUser && (project.clientId?._id || project.clientId) === currentUser._id;
   const isStudent = currentUser && currentUser.role === "student";
 
   return (
-    <div className="mx-auto max-w-7xl px-5 lg:px-8 py-10">
-      <button type="button" onClick={() => setPage("browse")} className="text-sm text-muted-foreground hover:text-foreground inline-flex min-h-11 items-center gap-1.5 mb-6">
-        <ArrowLeft className="size-4" /> Back to wall
+    <div className="mx-auto max-w-7xl px-5 lg:px-8 py-8">
+      <button
+        type="button"
+        onClick={() => setPage("browse")}
+        className="text-xs font-medium text-muted-foreground hover:text-foreground inline-flex min-h-11 items-center gap-1.5 mb-6 transition-colors"
+      >
+        <ArrowLeft className="size-3.5" /> Back to directory
       </button>
 
+      {/* Owner Escrow Action Callout */}
       {project.status === "PENDING_FUNDING" && isOwner && pendingPayment && (
-        <div className="mb-6 p-5 paper hairline rounded-2xl bg-[var(--status-warning-bg)] border border-[var(--status-warning-border)] flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="mb-6 p-5 rounded-[8px] bg-[var(--status-warning-bg)] border border-[var(--status-warning-border)] flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
-            <h3 className="font-serif text-lg text-[var(--status-warning-fg)] flex items-center gap-2">
-              <ShieldCheck className="size-5" /> Escrow Deposit Pending
+            <h3 className="text-sm font-semibold text-[var(--status-warning-fg)] flex items-center gap-2">
+              <ShieldCheck className="size-4" /> Escrow Deposit Required
             </h3>
-            <p className="text-sm text-muted-foreground">
-              You selected a student bid for this project. To assign this contract and start development, please complete the escrow deposit of <span className="font-bold text-foreground font-serif">{formatCurrency(pendingPayment.amount)}</span>.
+            <p className="text-xs text-muted-foreground">
+              You selected a proposal. To begin the contract and lock milestones in escrow, deposit{" "}
+              <span className="font-semibold text-foreground font-mono tabular-nums">{formatCurrency(pendingPayment.amount)}</span>.
             </p>
           </div>
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-2.5 shrink-0">
             <Button
-              className="rounded-full bg-[var(--brand-gold)] text-[var(--brand-deep)] hover:bg-[var(--brand-gold)]/90 text-sm px-6 h-10 font-semibold"
+              className="rounded-[5px] bg-primary text-primary-foreground hover:bg-primary/90 text-xs px-5 h-9 font-medium"
               onClick={handleResumeCheckout}
             >
-              Pay Escrow
+              Deposit Escrow
             </Button>
             <Button
               variant="outline"
-              className="rounded-full text-sm px-6 h-10 border-border/60 hover:bg-secondary/40 text-muted-foreground hover:text-foreground"
+              className="rounded-[5px] text-xs px-4 h-9 border-border hover:bg-secondary text-muted-foreground hover:text-foreground"
               onClick={handleCancelCheckout}
             >
-              Cancel Acceptance
+              Cancel Selection
             </Button>
           </div>
         </div>
       )}
 
       {project.status === "PENDING_FUNDING" && isOwner && !pendingPayment && (
-        <div className="mb-6 p-5 paper hairline rounded-2xl bg-destructive/10 border border-destructive/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="mb-6 p-5 rounded-[8px] bg-[var(--status-danger-bg)] border border-[var(--status-danger-border)] flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
-            <h3 className="font-serif text-lg text-destructive flex items-center gap-2">
-              <ShieldCheck className="size-5" /> Escrow Checkout Session Missing
+            <h3 className="text-sm font-semibold text-[var(--status-danger-fg)] flex items-center gap-2">
+              <ShieldCheck className="size-4" /> Escrow Session Expired
             </h3>
-            <p className="text-sm text-muted-foreground">
-              This project is pending escrow funding, but the payment session could not be retrieved. Click below to reset the project status to Open.
+            <p className="text-xs text-muted-foreground">
+              The pending deposit session could not be retrieved. Reset this brief to open status to select again.
             </p>
           </div>
-          <div className="flex items-center gap-3 shrink-0">
-            <Button
-              variant="destructive"
-              className="rounded-full text-sm px-6 h-10 font-semibold"
-              onClick={handleCancelCheckout}
-            >
-              Reset Project to Open
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            className="rounded-[5px] text-xs px-4 h-9 text-[var(--status-danger-fg)] border-[var(--status-danger-border)]"
+            onClick={handleCancelCheckout}
+          >
+            Reset to Open
+          </Button>
         </div>
       )}
 
       {project.status === "PENDING_FUNDING" && isStudent && pendingPayment && pendingPayment.studentId === currentUser._id && (
-        <div className="mb-6 p-5 paper hairline rounded-2xl bg-[var(--status-warning-bg)] border border-[var(--status-warning-border)]">
-          <h3 className="font-serif text-lg text-[var(--brand-gold)] flex items-center gap-2">
-            <ShieldCheck className="size-5" /> Bid Accepted (Escrow Pending)
+        <div className="mb-6 p-5 rounded-[8px] bg-[var(--status-warning-bg)] border border-[var(--status-warning-border)]">
+          <h3 className="text-sm font-semibold text-[var(--status-warning-fg)] flex items-center gap-2">
+            <ShieldCheck className="size-4" /> Proposal Selected (Awaiting Client Escrow Deposit)
           </h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            The client has accepted your bid! The contract will start automatically as soon as they complete the escrow payment.
+          <p className="text-xs text-muted-foreground mt-1">
+            The client has selected your proposal. Work begins once they fund the milestone escrow deposit.
           </p>
         </div>
       )}
 
       <div className="grid lg:grid-cols-12 gap-8">
-        {/* Left */}
-        <article className="lg:col-span-8 space-y-8">
-          <header>
+        {/* Main Column */}
+        <article className="lg:col-span-8 space-y-6">
+          <header className="space-y-3">
             <div className="flex items-center gap-2">
-              <span className="eyebrow">{project.category} · #{project._id.substring(18)}</span>
-              <StatusBadge tone={project.status === "OPEN" ? "gold" : "success"}>{project.status}</StatusBadge>
+              <span className="text-xs uppercase tracking-wider font-mono text-muted-foreground">
+                {project.category} · #{project._id.substring(18)}
+              </span>
+              <StatusBadge tone={project.status === "OPEN" ? "success" : project.status === "IN_PROGRESS" ? "info" : project.status === "COMPLETED" ? "success" : "muted"}>
+                {project.status}
+              </StatusBadge>
             </div>
-            <h1 className="display text-4xl lg:text-5xl mt-3">
+            <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight text-foreground">
               {project.title}
             </h1>
-            <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
-              <span className="inline-flex items-center gap-1.5"><Clock className="size-3.5" /> {project.deadline}</span>
+            <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground pt-1">
+              <span className="inline-flex items-center gap-1.5"><Clock className="size-3.5" /> Deadline: {project.deadline}</span>
               <span className="inline-flex items-center gap-1.5"><MapPin className="size-3.5" /> Remote</span>
-              <span className="inline-flex items-center gap-1.5"><ShieldCheck className="size-3.5 text-[var(--brand-gold)]" /> Escrow protected</span>
+              <span className="inline-flex items-center gap-1.5 text-foreground"><ShieldCheck className="size-3.5 text-brand-accent" /> Milestone Escrow Protected</span>
             </div>
           </header>
 
-          <section className="paper hairline rounded-2xl p-6 lg:p-8">
-            <h2 className="eyebrow">The brief</h2>
-            <p className="mt-3 text-lg leading-relaxed whitespace-pre-line">
-              {project.description}
-            </p>
-
-            <h3 className="mt-6 font-serif">Skills required</h3>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {project.skillsRequired.map(s => (
-                <span key={s} className="text-xs px-2 py-1 rounded-full bg-secondary">{s}</span>
-              ))}
+          {/* Project Brief Section */}
+          <section className="rounded-[8px] bg-card border border-border p-6 space-y-5">
+            <div>
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">The Brief</h2>
+              <p className="mt-3 text-base leading-relaxed text-foreground whitespace-pre-line">
+                {project.description}
+              </p>
             </div>
 
+            {project.skillsRequired && project.skillsRequired.length > 0 && (
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Skills Required</h3>
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  {project.skillsRequired.map(s => (
+                    <span key={s} className="text-xs px-2.5 py-1 rounded-[4px] bg-secondary text-foreground font-medium">
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {project.files && project.files.length > 0 && (
-              <>
-                <h3 className="mt-6 font-serif">Attachments</h3>
-                <div className="mt-2 flex flex-wrap gap-2">
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Attachments</h3>
+                <div className="mt-2.5 flex flex-wrap gap-2">
                   {project.files.map(f => (
-                    <a key={f.url} href={f.url} onClick={event => downloadAttachment(event, f.url, f.name, token).catch(error => toast.error(error.message))} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm hairline rounded-md bg-card px-3 py-1.5 hover:bg-secondary">
-                      <Paperclip className="size-3.5" /> {f.name}
+                    <a
+                      key={f.url}
+                      href={f.url}
+                      onClick={event => downloadAttachment(event, f.url, f.name, token).catch(error => toast.error(error.message))}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs rounded-[5px] bg-card border border-border px-3 py-1.5 hover:bg-secondary text-foreground transition-colors"
+                    >
+                      <Paperclip className="size-3 text-muted-foreground" /> {f.name}
                     </a>
                   ))}
                 </div>
-              </>
+              </div>
             )}
 
             {project.fileManifest && project.fileManifest.length > 0 && (
-              <>
-                <h3 className="mt-6 font-serif">Imported File Manifest ({project.importSource})</h3>
-                <div className="mt-2 paper hairline rounded-xl p-3 bg-secondary/20 max-h-60 overflow-y-auto space-y-1.5 text-xs text-muted-foreground">
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Imported File Manifest ({project.importSource || "Local"})
+                </h3>
+                <div className="mt-2.5 rounded-[6px] border border-border p-3 bg-secondary/30 max-h-48 overflow-y-auto space-y-1 text-xs text-muted-foreground font-mono">
                   {project.fileManifest.map((item, idx) => (
-                    <div key={idx} className="flex justify-between font-mono">
-                      <span>{item.path}</span>
+                    <div key={idx} className="flex justify-between">
+                      <span className="truncate max-w-[80%]">{item.path}</span>
                       <span>{(item.size / 1024).toFixed(1)} KB</span>
                     </div>
                   ))}
                 </div>
-              </>
+              </div>
             )}
           </section>
 
-          {/* Milestones */}
-          <section>
-            <h2 className="eyebrow mb-3">Milestone timeline</h2>
-            <div className="paper hairline rounded-2xl p-2">
+          {/* Milestone Timeline */}
+          <section className="space-y-3">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Milestones & Checkpoints</h2>
+            <div className="rounded-[8px] bg-card border border-border divide-y divide-border overflow-hidden">
               {milestones.length === 0 ? (
-                <div className="text-center p-4 text-sm text-muted-foreground">No milestones configured for this project.</div>
+                <div className="text-center p-6 text-xs text-muted-foreground">No milestones configured for this project.</div>
               ) : (
                 milestones.map((m, i) => (
-                  <div key={m._id} className="flex items-center justify-between px-4 py-3 border-b border-border/60 last:border-0">
-                    <div className="flex items-center gap-3">
-                      <span className={`grid place-items-center size-7 rounded-full text-xs num
-                        ${m.status === "RELEASED" ? "bg-[var(--brand-gold)] text-[var(--brand-deep)]" :
-                          m.status === "SUBMITTED" ? "bg-[var(--brand-espresso)] text-[var(--brand-gold)]" : "bg-muted text-muted-foreground"}`}>
+                  <div key={m._id} className="flex items-center justify-between px-5 py-3.5">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="size-6 rounded-[4px] bg-secondary text-foreground text-xs font-mono font-medium flex items-center justify-center shrink-0">
                         {i + 1}
                       </span>
-                      <span className="text-sm">{m.title}</span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{m.title}</p>
+                        <p className="text-xs text-muted-foreground">Checkpoint {i + 1}</p>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <span className="text-sm num text-muted-foreground">{formatCurrency(m.amount)}</span>
+                    <div className="flex items-center gap-4 shrink-0">
+                      <span className="text-sm font-mono tabular-nums font-medium text-foreground">{formatCurrency(m.amount)}</span>
                       {m.status === "SUBMITTED" && isOwner ? (
                         <Button
                           size="xs"
-                          className="rounded-full bg-[var(--brand-gold)] text-[var(--brand-deep)] hover:bg-[var(--brand-gold)]/90 px-3 text-xs"
+                          className="rounded-[5px] bg-primary text-primary-foreground hover:bg-primary/90 px-3 text-xs font-medium"
                           onClick={() => openReviewModal(m._id, m.title)}
                         >
-                          Review Checkpoint
+                          Review Work
                         </Button>
                       ) : (
-                        <StatusBadge tone={m.status === "RELEASED" ? "success" : m.status === "SUBMITTED" ? "gold" : "muted"}>{m.status}</StatusBadge>
+                        <StatusBadge tone={m.status === "RELEASED" ? "success" : m.status === "SUBMITTED" ? "info" : "muted"}>
+                          {m.status}
+                        </StatusBadge>
                       )}
                     </div>
                   </div>
@@ -586,25 +615,25 @@ const loadRazorpay = () => {
             </div>
           </section>
 
-          {/* Project Review Section */}
+          {/* Project Feedback Section */}
           {project.status === "COMPLETED" && currentUser && (
             (() => {
-              const isClient = project.clientId?._id === currentUser._id || project.clientId === currentUser._id;
+              const isClient = (project.clientId?._id || project.clientId) === currentUser._id;
               const acceptedBid = bids.find(b => b.status === "ACCEPTED");
               const hiredStudentId = acceptedBid?.studentId?._id || acceptedBid?.studentId;
-              const isStudent = hiredStudentId === currentUser._id;
+              const isHiredStudent = hiredStudentId === currentUser._id;
 
-              if (!isClient && !isStudent) return null;
+              if (!isClient && !isHiredStudent) return null;
 
               return (
-                <section className="space-y-4">
-                  <h2 className="eyebrow">Project Feedback & Rating</h2>
-                  <div className="paper hairline rounded-2xl p-6 lg:p-8 space-y-4">
+                <section className="space-y-3">
+                  <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Project Evidence & Review</h2>
+                  <div className="rounded-[8px] bg-card border border-border p-6 space-y-4">
                     {hasAlreadyReviewed ? (
-                      <div className="space-y-3">
+                      <div className="space-y-2.5">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm font-semibold text-[var(--status-success-fg)] inline-flex items-center gap-1.5">
-                            ✓ You submitted feedback
+                          <span className="text-xs font-semibold text-[var(--status-success-fg)] inline-flex items-center gap-1.5">
+                            ✓ Your review was submitted
                           </span>
                           <span className="text-xs text-muted-foreground">
                             {existingReviewData?.createdAt && new Date(existingReviewData.createdAt).toLocaleDateString()}
@@ -614,29 +643,29 @@ const loadRazorpay = () => {
                           {[1, 2, 3, 4, 5].map((star) => (
                             <Star
                               key={star}
-                              className={`size-5 ${
+                              className={`size-4 ${
                                 star <= existingReviewData?.rating
-                                  ? "fill-[var(--brand-gold)] text-[var(--brand-gold)]"
-                                  : "text-muted-foreground/40"
+                                  ? "fill-brand-accent text-brand-accent"
+                                  : "text-muted-foreground/30"
                               }`}
                             />
                           ))}
                         </div>
-                        <p className="font-serif italic text-sm text-muted-foreground mt-2">
+                        <p className="text-sm text-foreground/90 leading-relaxed italic">
                           "{existingReviewData?.comment}"
                         </p>
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-xs text-muted-foreground">
                           {isClient
-                            ? `This contract is complete. Leave a review for ${acceptedBid?.studentId?.name || "the student"} to build their campus reputation.`
-                            : `This contract is complete. Leave a review for ${project.clientId?.name || "the client"} to help other students.`}
+                            ? `Contract complete. Leave factual feedback for ${acceptedBid?.studentId?.name || "the student"} to build their verified record.`
+                            : `Contract complete. Leave factual feedback for ${project.clientId?.name || "the client"}.`}
                         </p>
 
-                        <div className="space-y-2">
-                          <span id="review-rating-label" className="text-xs text-muted-foreground">Select Rating</span>
-                          <div className="flex gap-1.5" role="group" aria-label="Select a rating">
+                        <div className="space-y-1.5">
+                          <span className="text-xs font-medium text-muted-foreground">Rating</span>
+                          <div className="flex gap-1" role="group" aria-label="Select rating">
                             {[1, 2, 3, 4, 5].map((star) => (
                               <button
                                 key={star}
@@ -644,13 +673,13 @@ const loadRazorpay = () => {
                                 onClick={() => setReviewRating(star)}
                                 aria-label={`${star} star${star === 1 ? "" : "s"}`}
                                 aria-pressed={reviewRating === star}
-                                className="text-[var(--brand-gold)] hover:scale-110 transition-transform"
+                                className="min-h-11 min-w-11 inline-flex items-center justify-center hover:scale-105 transition-transform"
                               >
                                 <Star
-                                  className={`size-6 ${
+                                  className={`size-5 ${
                                     star <= reviewRating
-                                      ? "fill-[var(--brand-gold)] text-[var(--brand-gold)]"
-                                      : "text-muted-foreground/50"
+                                      ? "fill-brand-accent text-brand-accent"
+                                      : "text-muted-foreground/30"
                                   }`}
                                 />
                               </button>
@@ -658,23 +687,24 @@ const loadRazorpay = () => {
                           </div>
                         </div>
 
-                        <div className="space-y-2">
-                          <label htmlFor="review-comment" className="text-xs text-muted-foreground">Comment / Feedback</label>
+                        <div className="space-y-1.5">
+                          <label htmlFor="review-comment" className="text-xs font-medium text-muted-foreground">Feedback</label>
                           <Textarea
                             id="review-comment"
                             rows={3}
-                            placeholder="Write your honest experience working on this project..."
+                            placeholder="Write your direct, factual experience completing this project…"
                             value={reviewComment}
                             onChange={(e) => setReviewComment(e.target.value)}
+                            className="rounded-[5px] bg-input-background border-input text-sm"
                           />
                         </div>
 
                         <Button
                           onClick={handleSubmitReview}
                           disabled={submittingReview}
-                          className="rounded-full bg-[var(--brand-gold)] text-[var(--brand-deep)] hover:bg-[var(--brand-gold)]/90 text-xs px-5 h-9"
+                          className="rounded-[5px] bg-primary text-primary-foreground hover:bg-primary/90 text-xs px-5 h-9 font-medium"
                         >
-                          {submittingReview ? "Submitting..." : "Submit Review"}
+                          {submittingReview ? "Submitting…" : "Submit Review"}
                         </Button>
                       </div>
                     )}
@@ -684,83 +714,85 @@ const loadRazorpay = () => {
             })()
           )}
 
-          {/* Bids List - Only visible to Owner of the project */}
+          {/* Proposals List - Owner Only */}
           {isOwner && (
-            <section>
-              <h2 className="eyebrow mb-3">Current bids — {bids.length} total</h2>
+            <section className="space-y-3">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Proposals Received ({bids.length})
+              </h2>
               <div className="space-y-3">
                 {bids.length === 0 ? (
-                  <div className="text-center paper hairline rounded-2xl p-8 text-sm text-muted-foreground">
-                    No bids received yet.
+                  <div className="text-center rounded-[8px] bg-card border border-border p-8 text-xs text-muted-foreground">
+                    No proposals submitted yet.
                   </div>
                 ) : (
                   bids.map(b => (
-                    <div key={b._id} className="paper hairline rounded-2xl p-5 flex items-start gap-4">
-                      <Avatar className="size-10">
-                        {b.studentId?.avatarUrl ? (
-                          <img src={b.studentId.avatarUrl} alt={b.studentId.name} className="size-full rounded-full object-cover" />
-                        ) : (
-                          <AvatarFallback className="bg-[var(--brand-bronze)] text-[var(--brand-gold)] text-xs">
-                            {(b.studentId?.name || "S").split(" ").map(n => n[0]).join("")}
-                          </AvatarFallback>
-                        )}
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="text-sm">{b.studentId?.name || "Student"} <span className="text-muted-foreground">· {b.studentId?.college || "College"}</span></p>
-                            <p className="text-xs text-muted-foreground inline-flex items-center gap-1 mt-0.5">
-                              <Star className="size-3 fill-[var(--brand-gold)] text-[var(--brand-gold)]" /> <span className="num">{b.studentId?.rating || 5.0}</span> · {b.studentId?.completedProjects || 0} completed
+                    <div key={b._id} className="rounded-[8px] bg-card border border-border p-5 space-y-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start gap-3 min-w-0">
+                          <Avatar className="size-10 rounded-[4px] border border-border shrink-0">
+                            {b.studentId?.avatarUrl ? (
+                              <img src={b.studentId.avatarUrl} alt={b.studentId.name} className="size-full object-cover" />
+                            ) : (
+                              <AvatarFallback className="rounded-[4px] bg-secondary text-foreground text-xs font-medium">
+                                {(b.studentId?.name || "S").split(" ").map(n => n[0]).join("")}
+                              </AvatarFallback>
+                            )}
+                          </Avatar>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">{b.studentId?.name || "Student"}</p>
+                            <p className="text-xs text-muted-foreground truncate">{b.studentId?.college || "College"}</p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              {b.studentId?.completedProjects || 0} completed projects
                             </p>
                           </div>
-                          <div className="text-right">
-                            <p className="font-serif text-lg num">{formatCurrency(b.amount)}</p>
-                            <p className="text-xs text-muted-foreground">{b.timeline}</p>
-                          </div>
                         </div>
-                        <p className="text-sm text-muted-foreground mt-3">{b.proposal}</p>
-                        
+                        <div className="text-right shrink-0">
+                          <p className="text-lg font-mono tabular-nums font-semibold text-foreground">{formatCurrency(b.amount)}</p>
+                          <p className="text-xs text-muted-foreground">{b.timeline}</p>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-foreground/80 leading-relaxed bg-secondary/30 p-3 rounded-[6px]">
+                        {b.proposal}
+                      </p>
+
+                      <div className="flex items-center justify-between pt-1">
+                        <div>
+                          {b.status === "ACCEPTED" ? (
+                            <StatusBadge tone="success">Selected & Contracted</StatusBadge>
+                          ) : (
+                            <StatusBadge tone="muted">{b.status}</StatusBadge>
+                          )}
+                        </div>
+
                         {project.status === "OPEN" && b.status === "PENDING" && (
-                          <div className="mt-3 flex gap-2">
-                            <Button
-                              size="sm"
-                              className="rounded-full bg-[var(--brand-gold)] text-[var(--brand-deep)] hover:bg-[var(--brand-gold)]/90"
-                              onClick={() => handleAcceptBid(b._id)}
-                            >
-                              Accept bid
-                            </Button>
-                          </div>
+                          <Button
+                            size="sm"
+                            className="rounded-[5px] bg-primary text-primary-foreground hover:bg-primary/90 text-xs px-4"
+                            onClick={() => handleAcceptBid(b._id)}
+                          >
+                            Accept Proposal
+                          </Button>
                         )}
 
                         {project.status === "PENDING_FUNDING" && b.status === "PENDING" && pendingPayment && (b.studentId?._id || b.studentId) === pendingPayment.studentId && (
-                          <div className="mt-3 flex gap-2">
+                          <div className="flex gap-2">
                             <Button
                               size="sm"
-                              className="rounded-full bg-[var(--brand-gold)] text-[var(--brand-deep)] hover:bg-[var(--brand-gold)]/90"
+                              className="rounded-[5px] bg-primary text-primary-foreground hover:bg-primary/90 text-xs px-4"
                               onClick={handleResumeCheckout}
                             >
-                              Resume Payment
+                              Fund Escrow
                             </Button>
                             <Button
                               size="sm"
                               variant="outline"
-                              className="rounded-full border-border/60 hover:bg-secondary/40 text-muted-foreground hover:text-foreground"
+                              className="rounded-[5px] border-border text-xs px-3"
                               onClick={handleCancelCheckout}
                             >
-                              Cancel Acceptance
+                              Cancel
                             </Button>
-                          </div>
-                        )}
-
-                        {project.status === "PENDING_FUNDING" && b.status === "PENDING" && pendingPayment && (b.studentId?._id || b.studentId) !== pendingPayment.studentId && (
-                          <div className="mt-3">
-                            <span className="text-xs text-muted-foreground italic">Another bid selection is currently pending escrow.</span>
-                          </div>
-                        )}
-
-                        {b.status === "ACCEPTED" && (
-                          <div className="mt-2">
-                            <StatusBadge tone="success">Hired / Accepted</StatusBadge>
                           </div>
                         )}
                       </div>
@@ -772,116 +804,128 @@ const loadRazorpay = () => {
           )}
         </article>
 
-        {/* Right sticky panel */}
+        {/* Right Sticky Column */}
         <aside className="lg:col-span-4">
-          <div className="sticky top-24 space-y-5">
-            {/* Bid Form (For Students) */}
+          <div className="sticky top-20 space-y-4">
+            {/* Student Proposal Submission Box */}
             {isStudent && project.status === "OPEN" && (
-              <div className="paper hairline rounded-2xl p-6 relative overflow-hidden">
-                <div className="absolute -top-10 -right-10 size-32 rounded-full bg-[var(--brand-gold)]/15 blur-2xl" />
-                <p className="eyebrow">Estimate</p>
-                <p className="font-serif text-4xl mt-1 num">{formatCurrency(project.budget)}</p>
-                <p className="text-xs text-muted-foreground mt-1">Funds released per milestone</p>
+              <div className="rounded-[8px] bg-card border border-border p-6 space-y-5">
+                <div>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Project Budget</span>
+                  <p className="text-3xl font-mono tabular-nums font-semibold text-foreground mt-1">{formatCurrency(project.budget)}</p>
+                  <p className="text-[11px] text-muted-foreground mt-1">Paid through verified milestones upon signoff.</p>
+                </div>
 
-                <Separator className="my-5" />
+                <Separator />
 
-                <p className="eyebrow mb-3">Place a bid</p>
-                {hasAlreadyBid ? (
-                  <div className="space-y-3 bg-secondary/20 p-4 rounded-xl text-center">
-                    <p className="text-sm font-serif">Your bid of <span className="font-bold text-[var(--brand-gold)]">{formatCurrency(bidAmount)}</span> is active</p>
-                    <p className="text-xs text-muted-foreground">Timeline: {bidTimeline}</p>
-                    <p className="text-xs text-muted-foreground text-left italic">"{bidProposal}"</p>
-                    <StatusBadge tone="gold" className="mt-2 mx-auto">Active Bid</StatusBadge>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div>
-                      <label htmlFor="bid-price" className="text-xs text-muted-foreground">Your price</label>
-                      <Input
-                        id="bid-price"
-                        placeholder="₹40,000"
-                        className="mt-1"
-                        value={bidAmount}
-                        onChange={(e) => setBidAmount(e.target.value)}
-                      />
+                <div>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Submit Proposal</h3>
+                  {hasAlreadyBid ? (
+                    <div className="space-y-3 bg-secondary/30 p-4 rounded-[6px] text-left">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-foreground">Your Active Proposal</span>
+                        <StatusBadge tone="info">Active</StatusBadge>
+                      </div>
+                      <p className="text-lg font-mono tabular-nums font-semibold text-foreground">{formatCurrency(bidAmount)}</p>
+                      <p className="text-xs text-muted-foreground">Estimated timeline: {bidTimeline}</p>
+                      <p className="text-xs text-foreground/80 italic">"{bidProposal}"</p>
                     </div>
-                    <div>
-                      <label htmlFor="bid-timeline" className="text-xs text-muted-foreground">Timeline</label>
-                      <Input
-                        id="bid-timeline"
-                        placeholder="3 weeks"
-                        className="mt-1"
-                        value={bidTimeline}
-                        onChange={(e) => setBidTimeline(e.target.value)}
-                      />
+                  ) : (
+                    <div className="space-y-3">
+                      <div>
+                        <label htmlFor="bid-price" className="text-xs font-medium text-muted-foreground">Proposed Price (₹)</label>
+                        <Input
+                          id="bid-price"
+                          placeholder="₹40,000"
+                          className="mt-1 rounded-[5px] bg-input-background border-input text-sm"
+                          value={bidAmount}
+                          onChange={(e) => setBidAmount(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="bid-timeline" className="text-xs font-medium text-muted-foreground">Timeline</label>
+                        <Input
+                          id="bid-timeline"
+                          placeholder="3 weeks"
+                          className="mt-1 rounded-[5px] bg-input-background border-input text-sm"
+                          value={bidTimeline}
+                          onChange={(e) => setBidTimeline(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="bid-proposal" className="text-xs font-medium text-muted-foreground">Proposal</label>
+                        <Textarea
+                          id="bid-proposal"
+                          rows={4}
+                          placeholder="State your approach, past project experience, and deliverable commitments."
+                          className="mt-1 rounded-[5px] bg-input-background border-input text-sm"
+                          value={bidProposal}
+                          onChange={(e) => setBidProposal(e.target.value)}
+                        />
+                      </div>
+                      <Button
+                        onClick={handlePlaceBid}
+                        disabled={submittingBid}
+                        className="w-full rounded-[5px] bg-primary text-primary-foreground hover:bg-primary/90 h-10 font-medium text-xs"
+                      >
+                        {submittingBid ? "Submitting…" : "Submit Proposal"}
+                      </Button>
+                      <p className="text-[11px] text-muted-foreground text-center">Funds released on milestone approvals.</p>
                     </div>
-                    <div>
-                      <label htmlFor="bid-proposal" className="text-xs text-muted-foreground">A short proposal</label>
-                      <Textarea
-                        id="bid-proposal"
-                        rows={4}
-                        placeholder="Why you, in five honest sentences."
-                        className="mt-1"
-                        value={bidProposal}
-                        onChange={(e) => setBidProposal(e.target.value)}
-                      />
-                    </div>
-                    <Button
-                      onClick={handlePlaceBid}
-                      disabled={submittingBid}
-                      className="w-full rounded-full bg-[var(--brand-gold)] text-[var(--brand-deep)] hover:bg-[var(--brand-gold)]/90"
-                    >
-                      {submittingBid ? "Sending..." : "Send bid"}
-                    </Button>
-                    <p className="text-[11px] text-muted-foreground text-center">No fees until you're hired.</p>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             )}
 
             {!currentUser && (
-              <div className="paper hairline rounded-2xl p-6 text-center">
-                <p className="font-serif text-lg">Interested in this brief?</p>
-                <p className="text-xs text-muted-foreground mt-2">Log in with your college email to place a bid.</p>
-                <Button onClick={() => setPage("auth")} className="w-full rounded-full bg-[var(--brand-gold)] text-[var(--brand-deep)] hover:bg-[var(--brand-gold)]/90 mt-4">
-                  Log in / Sign up
+              <div className="rounded-[8px] bg-card border border-border p-6 text-center space-y-3">
+                <h3 className="text-sm font-semibold text-foreground">Interested in this project?</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">Sign in to review requirements and submit your proposal.</p>
+                <Button
+                  onClick={() => setPage("auth")}
+                  className="w-full rounded-[5px] bg-primary text-primary-foreground hover:bg-primary/90 text-xs h-9 font-medium"
+                >
+                  Sign in to Bid
                 </Button>
               </div>
             )}
 
-            {/* Client Info Card */}
-            <div className="paper hairline rounded-2xl p-5">
-              <p className="eyebrow mb-3">About the client</p>
+            {/* Client Context Card */}
+            <div className="rounded-[8px] bg-card border border-border p-5 space-y-4">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Client Directory Record</span>
               <div className="flex items-center gap-3">
-                <Avatar className="size-10">
+                <Avatar className="size-10 rounded-[4px] border border-border shrink-0">
                   {project.clientId?.avatarUrl ? (
-                    <img src={project.clientId.avatarUrl} alt={project.clientId.name} className="size-full rounded-full object-cover" />
+                    <img src={project.clientId.avatarUrl} alt={project.clientId.name} className="size-full object-cover" />
                   ) : (
-                    <AvatarFallback className="bg-[var(--brand-espresso)] text-[var(--brand-gold)] text-xs">
+                    <AvatarFallback className="rounded-[4px] bg-secondary text-foreground text-xs font-medium">
                       {(project.clientId?.name || "C").split(" ").map(x => x[0]).join("")}
                     </AvatarFallback>
                   )}
                 </Avatar>
-                <div>
-                  <p className="text-sm font-medium">{project.clientId?.name || "Client"}</p>
-                  <p className="text-xs text-muted-foreground">{project.clientId?.college || "Institution"}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground truncate">{project.clientId?.name || "Client"}</p>
+                  <p className="text-xs text-muted-foreground truncate">{project.clientId?.college || "Client Organization"}</p>
                 </div>
-                <StatusBadge tone="success" className="ml-auto">Verified</StatusBadge>
               </div>
-              <div className="grid grid-cols-2 gap-3 mt-4 text-center">
-                <div>
-                  <p className="font-serif text-lg num">{project.clientId?.completedProjects || 0}</p>
-                  <p className="text-[11px] text-muted-foreground">Projects</p>
+
+              <div className="grid grid-cols-2 gap-3 pt-2 text-center border-t border-border">
+                <div className="p-2 rounded-[4px] bg-secondary/30">
+                  <p className="text-base font-mono tabular-nums font-semibold text-foreground">{project.clientId?.completedProjects || 0}</p>
+                  <p className="text-[11px] text-muted-foreground">Completed</p>
                 </div>
-                <div>
-                  <p className="font-serif text-lg num">{project.clientId?.rating || 5.0}</p>
-                  <p className="text-[11px] text-muted-foreground">Reviews</p>
+                <div className="p-2 rounded-[4px] bg-secondary/30">
+                  <p className="text-base font-mono tabular-nums font-semibold text-foreground">
+                    {typeof project.clientId?.rating === "number" && project.clientId.rating > 0 ? project.clientId.rating.toFixed(1) : "—"}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">Rating</p>
                 </div>
               </div>
             </div>
           </div>
         </aside>
       </div>
+
       <PaymentDisclaimerModal
         open={disclaimerOpen}
         onConfirm={confirmCheckout}

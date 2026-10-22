@@ -5,53 +5,49 @@ import { ShieldAlert } from "lucide-react";
 export function PaymentDisclaimerModal({ open, onConfirm, onCancel }) {
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onCancel()}>
-      <DialogContent className="bg-card border-border max-w-md p-6 text-card-foreground rounded-xl">
-        <DialogHeader className="flex flex-col items-center text-center gap-3">
-          <div className="size-12 rounded-full bg-[var(--status-warning-bg)] flex items-center justify-center text-[var(--status-warning-fg)] mb-1">
-            <ShieldAlert className="size-6" />
+      <DialogContent className="bg-popover border-border max-w-md p-6 text-foreground rounded-[12px] shadow-lg">
+        <DialogHeader className="flex flex-col items-center text-center gap-2">
+          <div className="size-11 rounded-[5px] bg-[var(--status-warning-bg)] border border-[var(--status-warning-border)] flex items-center justify-center text-[var(--status-warning)] mb-1">
+            <ShieldAlert className="size-5" />
           </div>
-          <DialogTitle className="font-serif text-2xl tracking-tight text-foreground">
+          <DialogTitle className="text-xl font-medium tracking-tight text-foreground">
             Payment Demonstration
           </DialogTitle>
-          <DialogDescription className="text-muted-foreground text-xs leading-relaxed text-center px-2">
-            This application uses Razorpay's official Test Mode environment for demonstration and evaluation purposes.
+          <DialogDescription className="text-muted-foreground text-xs leading-relaxed text-center">
+            This workspace utilizes Razorpay's Test Mode environment for workflow validation.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="my-4 text-xs space-y-3 leading-relaxed text-muted-foreground bg-secondary/25 border border-border/30 rounded-xl p-4">
-          <p className="font-semibold text-foreground">Please Note:</p>
-          <ul className="list-disc pl-4 space-y-1.5">
-            <li>No real money will be charged.</li>
-            <li>No actual fund transfer will occur.</li>
-            <li>No debit card, credit card, UPI account, or bank account will be charged.</li>
+        <div className="my-3 text-xs space-y-3 leading-relaxed text-muted-foreground bg-secondary/50 border border-border rounded-[8px] p-4">
+          <p className="font-medium text-foreground">Demonstration Environment:</p>
+          <ul className="list-disc pl-4 space-y-1 text-muted-foreground">
+            <li>No real money or bank accounts will be charged.</li>
+            <li>No actual fund transfer or legal escrow settlement will occur.</li>
+            <li>Test orders simulate real-world escrow funding and verification.</li>
           </ul>
           
-          <div className="mt-3 pt-3 text-[11px] space-y-1.5 bg-[var(--status-warning-bg)] p-2 rounded-lg border border-[var(--status-warning-border)]">
-            <p className="font-semibold text-[var(--status-warning-fg)]">Official Razorpay Test Credentials:</p>
-            <p>• <span className="font-medium text-foreground">Card Number:</span> <code className="bg-background px-1 py-0.5 rounded text-[var(--brand-gold)] font-mono">4111 1111 1111 1111</code></p>
-            <p>• <span className="font-medium text-foreground">Expiry Date:</span> <code className="bg-background px-1 py-0.5 rounded text-[var(--brand-gold)] font-mono">12/30</code> (any future date)</p>
-            <p>• <span className="font-medium text-foreground">CVV:</span> <code className="bg-background px-1 py-0.5 rounded text-[var(--brand-gold)] font-mono">111</code> (any 3 digits)</p>
-            <p>• <span className="font-medium text-foreground">OTP:</span> <code className="bg-background px-1 py-0.5 rounded text-[var(--brand-gold)] font-mono">123456</code></p>
+          <div className="mt-3 pt-3 text-[12px] space-y-1.5 bg-[var(--status-warning-bg)] p-3 rounded-[5px] border border-[var(--status-warning-border)] text-foreground">
+            <p className="font-semibold text-[var(--status-warning)] text-[11px] uppercase tracking-wider">Test Card Details:</p>
+            <p>• <span className="text-muted-foreground">Card:</span> <code className="bg-card px-1.5 py-0.5 rounded border border-border font-mono text-xs">4111 1111 1111 1111</code></p>
+            <p>• <span className="text-muted-foreground">Expiry / CVV:</span> <code className="bg-card px-1.5 py-0.5 rounded border border-border font-mono text-xs">12/30</code> · <code className="bg-card px-1.5 py-0.5 rounded border border-border font-mono text-xs">111</code></p>
+            <p>• <span className="text-muted-foreground">OTP:</span> <code className="bg-card px-1.5 py-0.5 rounded border border-border font-mono text-xs">123456</code></p>
           </div>
-
-          <p className="mt-2 text-[11px]">
-            This checkout demonstrates how escrow funding, payment verification, project assignment, and milestone workflows operate in a production payment system.
-          </p>
         </div>
 
         <DialogFooter className="flex flex-row justify-end gap-2.5 mt-2">
           <Button
             variant="outline"
-            className="flex-1 rounded-full text-xs font-medium border-border/60 hover:bg-secondary/40 text-muted-foreground hover:text-foreground"
+            className="flex-1 rounded-[5px] text-xs font-medium"
             onClick={onCancel}
           >
             Cancel
           </Button>
           <Button
-            className="flex-1 rounded-full bg-[var(--brand-gold)] text-[var(--brand-deep)] hover:bg-[var(--brand-gold)]/95 text-xs font-semibold"
+            variant="default"
+            className="flex-1 rounded-[5px] text-xs font-medium"
             onClick={onConfirm}
           >
-            Continue
+            Continue to Checkout
           </Button>
         </DialogFooter>
       </DialogContent>
