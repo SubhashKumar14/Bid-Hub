@@ -1,4 +1,6 @@
+import { httpErrorStatus } from "../lib/validation.js";
 import express from "express";
+import { createRouter } from "../lib/router.js";
 import { Bid } from "../models/Bid.js";
 import { Project } from "../models/Project.js";
 import { Milestone } from "../models/Milestone.js";
@@ -6,8 +8,9 @@ import { PaymentLedger } from "../models/PaymentLedger.js";
 import { Activity } from "../models/Activity.js";
 import { Notification } from "../models/Notification.js";
 import { protect, requireRole } from "../middleware/auth.js";
+import { amountToPaise } from "../lib/validation.js";
 
-const router = express.Router({ mergeParams: true });
+const router = createRouter({ mergeParams: true });
 
 // @desc    Submit a bid on a project
 // @route   POST /api/projects/:id/bids
@@ -20,7 +23,7 @@ router.post("/projects/:id/bids", protect, requireRole("student"), async (req, r
     return res.status(400).json({ message: "Please fill in all fields: bid amount, timeline, and proposal." });
   }
 
-  if (Number(amount) <= 0) {
+  try { amountToPaise(amount); } catch {
     return res.status(400).json({ message: "Bid amount must be a positive number." });
   }
 
@@ -76,7 +79,7 @@ router.post("/projects/:id/bids", protect, requireRole("student"), async (req, r
     res.status(201).json(bid);
   } catch (error) {
     console.error("Submit bid error:", error);
-    res.status(500).json({ message: "Failed to submit bid. Please try again." });
+    res.status(httpErrorStatus(error)).json({ message: "Failed to submit bid. Please try again." });
   }
 });
 
@@ -112,7 +115,7 @@ router.get("/projects/:id/bids", protect, async (req, res) => {
     res.json(bids);
   } catch (error) {
     console.error("Get bids error:", error);
-    res.status(500).json({ message: "Failed to fetch bids. Please try again." });
+    res.status(httpErrorStatus(error)).json({ message: "Failed to fetch bids. Please try again." });
   }
 });
 
@@ -150,8 +153,10 @@ router.patch("/bids/:id/reject", protect, requireRole("client"), async (req, res
       return res.status(403).json({ message: "You are not authorized to reject bids for this project." });
     }
 
+    if (project.status !== "OPEN" || bid.status !== "PENDING") return res.status(409).json({ message: "Only pending bids on open projects can be rejected." });
+    const rejected = await Bid.updateOne({ _id: bid._id, status: "PENDING" }, { status: "REJECTED" });
+    if (rejected.modifiedCount !== 1) return res.status(409).json({ message: "Bid status changed. Refresh and retry." });
     bid.status = "REJECTED";
-    await bid.save();
 
     // Notify rejected student
     await Notification.create({
@@ -164,7 +169,7 @@ router.patch("/bids/:id/reject", protect, requireRole("client"), async (req, res
     res.json({ message: "Bid rejected.", bid });
   } catch (error) {
     console.error("Reject bid error:", error);
-    res.status(500).json({ message: "Failed to reject bid. Please try again." });
+    res.status(httpErrorStatus(error)).json({ message: "Failed to reject bid. Please try again." });
   }
 });
 

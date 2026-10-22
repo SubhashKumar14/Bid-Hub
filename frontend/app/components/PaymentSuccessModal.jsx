@@ -5,9 +5,9 @@ import { CheckCircle2 } from "lucide-react";
 export function PaymentSuccessModal({ open, onClose }) {
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="bg-[#0f0c0b] border-border/80 max-w-sm p-6 text-foreground rounded-2xl">
+      <DialogContent className="bg-card border-border max-w-sm p-6 text-card-foreground rounded-xl">
         <DialogHeader className="flex flex-col items-center text-center gap-3">
-          <div className="size-14 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 mb-1">
+          <div className="size-14 rounded-full bg-[var(--status-success-bg)] flex items-center justify-center text-[var(--status-success-fg)] mb-1">
             <CheckCircle2 className="size-8" />
           </div>
           <DialogTitle className="font-serif text-2xl tracking-tight text-foreground">
@@ -19,7 +19,7 @@ export function PaymentSuccessModal({ open, onClose }) {
         </DialogHeader>
 
         <div className="my-3 text-xs space-y-3 leading-relaxed text-muted-foreground text-center px-2">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 font-semibold uppercase tracking-wider text-[10px]">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--status-success-bg)] border border-[var(--status-success-border)] text-[var(--status-success-fg)] font-semibold uppercase tracking-wider text-[10px]">
             Status: Verified
           </div>
           <p className="mt-4 text-muted-foreground text-xs leading-relaxed">
@@ -35,7 +35,7 @@ export function PaymentSuccessModal({ open, onClose }) {
 
         <DialogFooter className="mt-4">
           <Button
-            className="w-full rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold py-2"
+            className="w-full rounded-full bg-[var(--status-success-fg)] hover:opacity-90 text-[var(--primary-foreground)] text-xs font-semibold py-2"
             onClick={onClose}
           >
             Go to Dashboard

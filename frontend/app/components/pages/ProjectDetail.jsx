@@ -1,3 +1,4 @@
+import { downloadAttachment } from "../../../api/fileApi";
 import { ShieldCheck, Calendar, Paperclip, Star, ArrowLeft, MapPin, Clock } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -298,7 +299,7 @@ const loadRazorpay = () => {
             name: currentUser ? currentUser.name : "",
             email: currentUser ? currentUser.email : "",
           },
-          theme: { color: "#2C221E" },
+          theme: { color: getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() },
         };
         const rzp = new window.Razorpay(options);
         rzp.open();
@@ -424,14 +425,14 @@ const loadRazorpay = () => {
 
   return (
     <div className="mx-auto max-w-7xl px-5 lg:px-8 py-10">
-      <button onClick={() => setPage("browse")} className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 mb-6">
+      <button type="button" onClick={() => setPage("browse")} className="text-sm text-muted-foreground hover:text-foreground inline-flex min-h-11 items-center gap-1.5 mb-6">
         <ArrowLeft className="size-4" /> Back to wall
       </button>
 
       {project.status === "PENDING_FUNDING" && isOwner && pendingPayment && (
-        <div className="mb-6 p-5 paper hairline rounded-2xl bg-amber-500/5 border border-amber-500/20 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="mb-6 p-5 paper hairline rounded-2xl bg-[var(--status-warning-bg)] border border-[var(--status-warning-border)] flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
-            <h3 className="font-serif text-lg text-amber-500 flex items-center gap-2">
+            <h3 className="font-serif text-lg text-[var(--status-warning-fg)] flex items-center gap-2">
               <ShieldCheck className="size-5" /> Escrow Deposit Pending
             </h3>
             <p className="text-sm text-muted-foreground">
@@ -479,7 +480,7 @@ const loadRazorpay = () => {
       )}
 
       {project.status === "PENDING_FUNDING" && isStudent && pendingPayment && pendingPayment.studentId === currentUser._id && (
-        <div className="mb-6 p-5 paper hairline rounded-2xl bg-amber-500/5 border border-amber-500/20">
+        <div className="mb-6 p-5 paper hairline rounded-2xl bg-[var(--status-warning-bg)] border border-[var(--status-warning-border)]">
           <h3 className="font-serif text-lg text-[var(--brand-gold)] flex items-center gap-2">
             <ShieldCheck className="size-5" /> Bid Accepted (Escrow Pending)
           </h3>
@@ -525,7 +526,7 @@ const loadRazorpay = () => {
                 <h3 className="mt-6 font-serif">Attachments</h3>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {project.files.map(f => (
-                    <a key={f.url} href={f.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm hairline rounded-md bg-card px-3 py-1.5 hover:bg-secondary">
+                    <a key={f.url} href={f.url} onClick={event => downloadAttachment(event, f.url, f.name, token).catch(error => toast.error(error.message))} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm hairline rounded-md bg-card px-3 py-1.5 hover:bg-secondary">
                       <Paperclip className="size-3.5" /> {f.name}
                     </a>
                   ))}
@@ -602,7 +603,7 @@ const loadRazorpay = () => {
                     {hasAlreadyReviewed ? (
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm font-semibold text-green-600 dark:text-green-400 inline-flex items-center gap-1.5">
+                          <span className="text-sm font-semibold text-[var(--status-success-fg)] inline-flex items-center gap-1.5">
                             ✓ You submitted feedback
                           </span>
                           <span className="text-xs text-muted-foreground">
@@ -634,13 +635,15 @@ const loadRazorpay = () => {
                         </p>
 
                         <div className="space-y-2">
-                          <label className="text-xs text-muted-foreground">Select Rating</label>
-                          <div className="flex gap-1.5">
+                          <span id="review-rating-label" className="text-xs text-muted-foreground">Select Rating</span>
+                          <div className="flex gap-1.5" role="group" aria-label="Select a rating">
                             {[1, 2, 3, 4, 5].map((star) => (
                               <button
                                 key={star}
                                 type="button"
                                 onClick={() => setReviewRating(star)}
+                                aria-label={`${star} star${star === 1 ? "" : "s"}`}
+                                aria-pressed={reviewRating === star}
                                 className="text-[var(--brand-gold)] hover:scale-110 transition-transform"
                               >
                                 <Star
@@ -656,8 +659,9 @@ const loadRazorpay = () => {
                         </div>
 
                         <div className="space-y-2">
-                          <label className="text-xs text-muted-foreground">Comment / Feedback</label>
+                          <label htmlFor="review-comment" className="text-xs text-muted-foreground">Comment / Feedback</label>
                           <Textarea
+                            id="review-comment"
                             rows={3}
                             placeholder="Write your honest experience working on this project..."
                             value={reviewComment}
@@ -792,8 +796,9 @@ const loadRazorpay = () => {
                 ) : (
                   <div className="space-y-3">
                     <div>
-                      <label className="text-xs text-muted-foreground">Your price</label>
+                      <label htmlFor="bid-price" className="text-xs text-muted-foreground">Your price</label>
                       <Input
+                        id="bid-price"
                         placeholder="₹40,000"
                         className="mt-1"
                         value={bidAmount}
@@ -801,8 +806,9 @@ const loadRazorpay = () => {
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground">Timeline</label>
+                      <label htmlFor="bid-timeline" className="text-xs text-muted-foreground">Timeline</label>
                       <Input
+                        id="bid-timeline"
                         placeholder="3 weeks"
                         className="mt-1"
                         value={bidTimeline}
@@ -810,8 +816,9 @@ const loadRazorpay = () => {
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground">A short proposal</label>
+                      <label htmlFor="bid-proposal" className="text-xs text-muted-foreground">A short proposal</label>
                       <Textarea
+                        id="bid-proposal"
                         rows={4}
                         placeholder="Why you, in five honest sentences."
                         className="mt-1"

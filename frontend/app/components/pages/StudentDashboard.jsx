@@ -237,7 +237,7 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
                         {m.status === "CHANGES_REQUESTED" && (
                           <div className="flex items-center gap-2">
                             <StatusBadge tone="danger" className="text-[10px]">Revision Needed</StatusBadge>
-                            <Button size="xs" variant="outline" className="rounded-full py-1 px-3 border-red-500 text-red-500 hover:bg-red-500/10 text-[10px]" onClick={() => openSubmitModal(m._id, m.title)}>
+                            <Button size="xs" variant="outline" className="rounded-full py-1 px-3 border-[var(--status-danger-border)] text-[var(--status-danger-fg)] hover:bg-[var(--status-danger-bg)] text-[10px]" onClick={() => openSubmitModal(m._id, m.title)}>
                               Resubmit
                             </Button>
                           </div>

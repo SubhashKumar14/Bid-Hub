@@ -14,6 +14,10 @@ dotenv.config();
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/bidhub";
 
 const seed = async () => {
+  const target = new URL(MONGODB_URI);
+  if (process.env.NODE_ENV === "production" || process.env.ALLOW_LOCAL_SEED !== "yes" || !["localhost", "127.0.0.1", "[::1]"].includes(target.hostname)) {
+    throw new Error("Seeding requires ALLOW_LOCAL_SEED=yes and a local non-production database.");
+  }
   try {
     console.log("Connecting to MongoDB for seeding...");
     await mongoose.connect(MONGODB_URI);
@@ -155,7 +159,7 @@ const seed = async () => {
         clientId: siddharth._id,
         studentId: rohan._id,
         amount: 7500,
-        status: "PENDING", // PENDING release since milestone status is SUBMITTED
+        status: "PENDING_REVIEW", // The student submitted this milestone for client review
         transactionRef: "TXN-MOCKASSIGNED1",
       },
       {

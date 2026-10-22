@@ -1,3 +1,4 @@
+import { amountToPaise } from "../lib/validation.js";
 import mongoose from "mongoose";
 
 const paymentLedgerSchema = new mongoose.Schema(
@@ -6,7 +7,11 @@ const paymentLedgerSchema = new mongoose.Schema(
     milestoneId: { type: mongoose.Schema.Types.ObjectId, ref: "Milestone", default: null }, // optional for full project deposits
     clientId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     studentId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    amount: { type: Number, required: true }, // Store as Number for precise math
+    amount: { type: Number, required: true, validate: value => { try { amountToPaise(value); return true; } catch { return false; } } }, // Store as Number for precise math
+    amountPaise: { type: Number, min: 1, validate: Number.isSafeInteger },
+    bidId: { type: mongoose.Schema.Types.ObjectId, ref: "Bid" },
+    provider: { type: String, enum: ["mock", "razorpay"] },
+    allocationSchedule: [{ milestoneId: mongoose.Schema.Types.ObjectId, amountPaise: Number }],
     status: {
       type: String,
       enum: ["PENDING_CHECKOUT", "LOCKED", "PENDING_REVIEW", "RELEASED", "FAILED", "REFUNDED"],

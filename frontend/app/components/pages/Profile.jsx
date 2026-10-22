@@ -127,15 +127,15 @@ export function Profile({ token, currentUser }) {
             {/* Avatar block with upload trigger */}
             <div className="relative group size-20 rounded-full border border-border overflow-hidden bg-secondary">
               {profile.avatarUrl ? (
-                <img src={profile.avatarUrl} alt={profile.name} className="size-full object-cover rounded-full" />
+                <img src={profile.avatarUrl} alt={profile.name} loading="lazy" className="size-full object-cover rounded-full" />
               ) : (
                 <div className="size-full grid place-items-center bg-[var(--brand-espresso)] text-[var(--brand-gold)] font-serif text-2xl">
                   {profile.name.split(" ").map(n => n[0]).join("")}
                 </div>
               )}
-              <label className="absolute inset-0 bg-black/40 grid place-items-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
-                <Camera className="size-5 text-white" />
-                <input type="file" className="hidden" onChange={handleAvatarChange} disabled={uploadingAvatar} />
+              <label aria-label="Update profile photo" className="absolute inset-0 bg-foreground/40 text-background grid place-items-center opacity-0 group-hover:opacity-100 focus-within:opacity-100 cursor-pointer transition-opacity">
+                <Camera aria-hidden="true" className="size-5" />
+                <input type="file" className="hidden" aria-label="Update profile photo" onChange={handleAvatarChange} disabled={uploadingAvatar} />
               </label>
             </div>
             <div>
@@ -150,12 +150,12 @@ export function Profile({ token, currentUser }) {
           {isEditing ? (
             <div className="space-y-3 pt-2 max-w-xl">
               <div>
-                <label className="text-xs text-muted-foreground">College / Organization</label>
-                <Input value={college} onChange={(e) => setCollege(e.target.value)} />
+                <label htmlFor="profile-college" className="text-xs text-muted-foreground">College / Organization</label>
+                <Input id="profile-college" value={college} onChange={(e) => setCollege(e.target.value)} />
               </div>
               <div>
-                <label className="text-xs text-muted-foreground">About / Biography</label>
-                <Textarea rows={3} value={bio} onChange={(e) => setBio(e.target.value)} />
+                <label htmlFor="profile-bio" className="text-xs text-muted-foreground">About / Biography</label>
+                <Textarea id="profile-bio" rows={3} value={bio} onChange={(e) => setBio(e.target.value)} />
               </div>
               <div className="flex gap-2">
                 <Button onClick={handleSaveProfile} className="rounded-full bg-[var(--brand-gold)] text-[var(--brand-deep)]">Save</Button>
@@ -205,7 +205,7 @@ export function Profile({ token, currentUser }) {
                 <span key={s} className="text-sm px-3 py-1 rounded-full hairline bg-card flex items-center gap-1.5">
                   {s}
                   {isEditing && (
-                    <button onClick={() => removeSkill(s)} className="text-muted-foreground hover:text-red-500">
+                    <button type="button" aria-label={`Remove ${s}`} onClick={() => removeSkill(s)} className="text-muted-foreground hover:text-[var(--status-danger-fg)] min-w-11 min-h-11 inline-grid place-items-center">
                       ×
                     </button>
                   )}
@@ -216,13 +216,14 @@ export function Profile({ token, currentUser }) {
           {isEditing && (
             <div className="mt-4 flex gap-1.5 max-w-xs">
               <Input
+                aria-label="Add skill tag"
                 placeholder="Add skill tag..."
                 className="h-8 text-xs"
                 value={newSkill}
                 onChange={(e) => setNewSkill(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && addSkill()}
               />
-              <Button size="sm" onClick={addSkill} className="h-8">
+              <Button size="sm" aria-label="Add skill" onClick={addSkill} className="min-h-11 min-w-11">
                 <Plus className="size-4.5" />
               </Button>
             </div>
@@ -248,7 +249,7 @@ export function Profile({ token, currentUser }) {
                   <div className="flex items-center gap-2">
                     <Avatar className="size-7">
                       {r.reviewerId?.avatarUrl ? (
-                        <img src={r.reviewerId.avatarUrl} alt={r.reviewerId.name} className="size-full rounded-full object-cover" />
+                        <img src={r.reviewerId.avatarUrl} alt={r.reviewerId.name} loading="lazy" className="size-full rounded-full object-cover" />
                       ) : (
                         <AvatarFallback className="text-[10px] bg-[var(--brand-bronze)] text-[var(--brand-gold)]">
                           {(r.reviewerId?.name || "R").split(" ").map(x => x[0]).join("")}

@@ -1,4 +1,6 @@
+import { httpErrorStatus } from "../lib/validation.js";
 import express from "express";
+import { createRouter } from "../lib/router.js";
 import { Review } from "../models/Review.js";
 import { Project } from "../models/Project.js";
 import { Bid } from "../models/Bid.js";
@@ -7,13 +9,16 @@ import { Activity } from "../models/Activity.js";
 import { Notification } from "../models/Notification.js";
 import { protect } from "../middleware/auth.js";
 
-const router = express.Router();
+const router = createRouter();
 
 // @desc    Submit a review after project completion
 // @route   POST /api/reviews
 // @access  Private
 router.post("/", protect, async (req, res) => {
   const { projectId, revieweeId, rating, comment } = req.body;
+  if (typeof comment !== "string" || !comment.trim() || comment.length > 5000) {
+    return res.status(400).json({ message: "A review comment of 1 to 5000 characters is required." });
+  }
 
   if (!projectId || !revieweeId || !rating) {
     return res.status(400).json({ message: "Project, reviewee, and rating are required." });
@@ -108,7 +113,7 @@ router.post("/", protect, async (req, res) => {
     res.status(201).json(review);
   } catch (error) {
     console.error("Submit review error:", error);
-    res.status(500).json({ message: "Failed to submit review. Please try again." });
+    res.status(httpErrorStatus(error)).json({ message: "Failed to submit review. Please try again." });
   }
 });
 
@@ -126,7 +131,7 @@ router.get("/public", async (req, res) => {
     res.json(reviews);
   } catch (error) {
     console.error("Get public reviews error:", error);
-    res.status(500).json({ message: "Failed to fetch public reviews." });
+    res.status(httpErrorStatus(error)).json({ message: "Failed to fetch public reviews." });
   }
 });
 
@@ -142,7 +147,7 @@ router.get("/users/:id/reviews", async (req, res) => {
     res.json(reviews);
   } catch (error) {
     console.error("Get reviews error:", error);
-    res.status(500).json({ message: "Failed to fetch reviews. Please try again." });
+    res.status(httpErrorStatus(error)).json({ message: "Failed to fetch reviews. Please try again." });
   }
 });
 

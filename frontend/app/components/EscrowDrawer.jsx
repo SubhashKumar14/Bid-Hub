@@ -66,11 +66,11 @@ export function EscrowDrawer({ open, onClose, token, currentUser }) {
               <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <p className="text-muted-foreground text-xs">Released to Date</p>
-                  <p className="num font-semibold text-green-600 dark:text-green-400">₹{stats.releasedAmount.toLocaleString()}</p>
+                  <p className="num font-semibold text-[var(--status-success-fg)]">₹{stats.releasedAmount.toLocaleString()}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground text-xs">Pending Review</p>
-                  <p className="num font-semibold text-yellow-600 dark:text-yellow-400">₹{stats.pendingAmount.toLocaleString()}</p>
+                  <p className="num font-semibold text-[var(--status-warning-fg)]">₹{stats.pendingAmount.toLocaleString()}</p>
                 </div>
               </div>
             </div>
@@ -113,8 +113,10 @@ export function EscrowDrawer({ open, onClose, token, currentUser }) {
                       <div>
                         <p className="text-xs truncate max-w-[180px]">{tx.projectId?.title}</p>
                         <button
+                          type="button"
+                          aria-label={`Copy transaction reference ${tx.transactionRef}`}
                           onClick={() => copyRef(tx.transactionRef)}
-                          className="text-[10px] text-muted-foreground flex items-center gap-1 hover:underline"
+                          className="min-h-11 min-w-11 text-[10px] text-muted-foreground flex items-center gap-1 hover:underline"
                         >
                           {tx.transactionRef} <Copy className="size-2.5 opacity-60" />
                         </button>

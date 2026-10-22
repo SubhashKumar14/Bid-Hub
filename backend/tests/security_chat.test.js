@@ -17,9 +17,9 @@ async function runTests() {
 
   // 1. Spawning backend server process on PORT 5001
   console.log(`Starting backend server process on port ${PORT}...`);
-  const serverProcess = spawn("node", ["backend/index.js"], {
-    env: { ...process.env, PORT, NODE_ENV: "test" },
-    shell: true,
+  const serverProcess = spawn(process.execPath, ["index.js"], {
+    env: { ...process.env, PORT, NODE_ENV: "test", PAYMENT_PROVIDER: "mock" },
+    cwd: path.resolve(__dirname, ".."),
   });
 
   serverProcess.stdout.on("data", (data) => {
@@ -83,11 +83,11 @@ async function runTests() {
         title: "Security & Chat Test Project",
         description: "Testing messaging system and helmet security configuration.",
         category: "Web Development",
-        budget: "₹15,000",
+        budget: "15000",
         deadline: "2026-12-31",
         skillsRequired: ["React", "Express"],
         milestones: [
-          { title: "Milestone Chat Demo Checkpoint", amount: "₹15,000", dueDate: "2026-06-30" }
+          { title: "Milestone Chat Demo Checkpoint", amount: "15000", dueDate: "2026-06-30" }
         ],
       },
       {
@@ -119,10 +119,19 @@ async function runTests() {
       { headers: { Authorization: `Bearer ${clientAToken}` } }
     );
     const sessionId = checkoutRes.data.sessionId || checkoutRes.data.orderId;
+
+    const studentSimulationAttempt = await axios.post(
+      `${BASE_URL}/api/payments/simulate-payment`,
+      { sessionId },
+      { headers: { Authorization: `Bearer ${studentAToken}` }, validateStatus: (status) => status === 403 }
+    );
+    if (studentSimulationAttempt.status !== 403) throw new Error("Student role unexpectedly accessed the client payment simulator.");
+    console.log("✔ Student role is blocked from simulating client checkout.");
     
     await axios.post(
       `${BASE_URL}/api/payments/simulate-payment`,
-      { sessionId }
+      { sessionId },
+      { headers: { Authorization: `Bearer ${clientAToken}` } }
     );
     console.log("✔ Project assigned to Student A successfully!");
 

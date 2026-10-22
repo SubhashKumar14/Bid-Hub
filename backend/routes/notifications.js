@@ -1,8 +1,10 @@
+import { httpErrorStatus } from "../lib/validation.js";
 import express from "express";
+import { createRouter } from "../lib/router.js";
 import { Notification } from "../models/Notification.js";
 import { protect } from "../middleware/auth.js";
 
-const router = express.Router();
+const router = createRouter();
 
 // @desc    Get all notifications for current user (newest first)
 // @route   GET /api/notifications
@@ -14,12 +16,12 @@ router.get("/", protect, async (req, res) => {
       .limit(30)
       .lean();
 
-    const unreadCount = notifications.filter((n) => !n.read).length;
+    const unreadCount = await Notification.countDocuments({ recipientId: req.user._id, read: false });
 
     res.json({ notifications, unreadCount });
   } catch (error) {
     console.error("Get notifications error:", error);
-    res.status(500).json({ message: "Failed to fetch notifications." });
+    res.status(httpErrorStatus(error)).json({ message: "Failed to fetch notifications." });
   }
 });
 
@@ -41,7 +43,7 @@ router.patch("/:id/read", protect, async (req, res) => {
     res.json({ message: "Notification marked as read.", notification });
   } catch (error) {
     console.error("Mark notification read error:", error);
-    res.status(500).json({ message: "Failed to update notification." });
+    res.status(httpErrorStatus(error)).json({ message: "Failed to update notification." });
   }
 });
 
@@ -58,7 +60,7 @@ router.patch("/read-all", protect, async (req, res) => {
     res.json({ message: `${result.modifiedCount} notifications marked as read.` });
   } catch (error) {
     console.error("Mark all notifications read error:", error);
-    res.status(500).json({ message: "Failed to update notifications." });
+    res.status(httpErrorStatus(error)).json({ message: "Failed to update notifications." });
   }
 });
 

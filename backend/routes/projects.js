@@ -1,4 +1,7 @@
+import { httpErrorStatus } from "../lib/validation.js";
+import mongoose from "mongoose";
 import express from "express";
+import { createRouter } from "../lib/router.js";
 import { Project } from "../models/Project.js";
 import { Milestone } from "../models/Milestone.js";
 import { Bid } from "../models/Bid.js";
@@ -6,8 +9,9 @@ import { Activity } from "../models/Activity.js";
 import { User } from "../models/User.js";
 import { PaymentLedger } from "../models/PaymentLedger.js";
 import { protect, requireRole } from "../middleware/auth.js";
+import { amountToPaise } from "../lib/validation.js";
 
-const router = express.Router();
+const router = createRouter();
 
 // Helper: escape special regex characters to prevent ReDoS
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -26,6 +30,9 @@ const parseAmount = (val) => {
 // @access  Public
 router.get("/", async (req, res) => {
   const { search, category, status, skills } = req.query;
+  if ([search, category, status, skills].some(value => value !== undefined && (typeof value !== "string" || value.length > 1000))) {
+    return res.status(400).json({ message: "Search and filter values must be bounded strings." });
+  }
 
   let query = {};
 
@@ -57,7 +64,7 @@ router.get("/", async (req, res) => {
     res.json(projects);
   } catch (error) {
     console.error("Get projects error:", error);
-    res.status(500).json({ message: "Failed to load projects. Please try again." });
+    res.status(httpErrorStatus(error)).json({ message: "Failed to load projects. Please try again." });
   }
 });
 
@@ -133,7 +140,7 @@ router.get("/student/dashboard", protect, requireRole("student"), async (req, re
     });
   } catch (error) {
     console.error("Student dashboard projects error:", error);
-    res.status(500).json({ message: "Failed to load dashboard data." });
+    res.status(httpErrorStatus(error)).json({ message: "Failed to load dashboard data." });
   }
 });
 
@@ -215,7 +222,7 @@ router.get("/client/dashboard", protect, requireRole("client"), async (req, res)
     });
   } catch (error) {
     console.error("Client dashboard projects error:", error);
-    res.status(500).json({ message: "Failed to load dashboard data." });
+    res.status(httpErrorStatus(error)).json({ message: "Failed to load dashboard data." });
   }
 });
 
@@ -230,7 +237,7 @@ router.get("/public/stats", async (req, res) => {
     const completedCount = await Project.countDocuments({ status: "COMPLETED" });
 
     // Calculate total escrow: Sum of amounts in ledger
-    const ledgers = await PaymentLedger.find({ status: { $in: ["LOCKED", "PENDING_REVIEW", "RELEASED"] } });
+    const ledgers = await PaymentLedger.find({ milestoneId: { $ne: null }, status: { $in: ["LOCKED", "PENDING_REVIEW", "RELEASED"] } });
     const totalEscrow = ledgers.reduce((acc, curr) => acc + (curr.amount || 0), 0);
 
     res.json({
@@ -242,7 +249,7 @@ router.get("/public/stats", async (req, res) => {
     });
   } catch (error) {
     console.error("Get public stats error:", error);
-    res.status(500).json({ message: "Failed to load stats." });
+    res.status(httpErrorStatus(error)).json({ message: "Failed to load stats." });
   }
 });
 
@@ -271,7 +278,7 @@ router.get("/:id/checkout", protect, requireRole("client"), async (req, res) => 
     } : null });
   } catch (error) {
     console.error("Get checkout error:", error);
-    res.status(500).json({ message: "Failed to load checkout details." });
+    res.status(httpErrorStatus(error)).json({ message: "Failed to load checkout details." });
   }
 });
 
@@ -294,7 +301,7 @@ router.get("/:id", async (req, res) => {
     res.json({ project, milestones });
   } catch (error) {
     console.error("Get project error:", error);
-    res.status(500).json({ message: "Failed to load project details. Please try again." });
+    res.status(httpErrorStatus(error)).json({ message: "Failed to load project details. Please try again." });
   }
 });
 
@@ -309,7 +316,17 @@ router.post("/", protect, requireRole("client"), async (req, res) => {
   }
 
   try {
-    const project = await Project.create({
+    if ([title, description, category, deadline].some(v => typeof v !== "string" || !v.trim() || v.length > 10000)) return res.status(400).json({ message: "Project fields must be bounded strings." });
+    try {
+      amountToPaise(budget);
+      if (!Array.isArray(milestones) || !milestones.length || milestones.length > 50) throw new Error();
+      for (const m of milestones) {
+        if (!m || typeof m.title !== "string" || !m.title.trim()) throw new Error();
+        amountToPaise(m.amount);
+      }
+    } catch { return res.status(400).json({ message: "Positive budget and 1 to 50 valid milestone amounts are required." }); }
+    const project = await mongoose.connection.transaction(async session => {
+    const [project] = await Project.create([{
       title: title.trim(),
       description: description.trim(),
       category,
@@ -321,7 +338,7 @@ router.post("/", protect, requireRole("client"), async (req, res) => {
       files: files || [],
       fileManifest: fileManifest || [],
       importSource: importSource || "",
-    });
+    }], { session });
 
     // Create milestones if provided
     if (milestones && milestones.length > 0) {
@@ -332,21 +349,24 @@ router.post("/", protect, requireRole("client"), async (req, res) => {
         dueDate: m.dueDate || "",
         status: "PENDING",
       }));
-      await Milestone.insertMany(milestoneDocs);
+      await Milestone.insertMany(milestoneDocs, { session });
     }
 
     // Log Activity
-    await Activity.create({
+    await Activity.create([{
       actorId: req.user._id,
       type: "PROJECT_POSTED",
       message: `${req.user.name} posted a new brief: "${title}"`,
       targetId: project._id,
+    }], { session });
+
+      return project;
     });
 
     res.status(201).json(project);
   } catch (error) {
     console.error("Create project error:", error);
-    res.status(500).json({ message: "Failed to create project. Please try again." });
+    res.status(httpErrorStatus(error)).json({ message: "Failed to create project. Please try again." });
   }
 });
 
@@ -404,7 +424,7 @@ router.patch("/:id", protect, requireRole("client"), async (req, res) => {
     res.json(updatedProject);
   } catch (error) {
     console.error("Update project error:", error);
-    res.status(500).json({ message: "Failed to update project. Please try again." });
+    res.status(httpErrorStatus(error)).json({ message: "Failed to update project. Please try again." });
   }
 });
 
@@ -426,14 +446,13 @@ router.delete("/:id", protect, requireRole("client"), async (req, res) => {
       return res.status(400).json({ message: "Only open projects can be deleted. This project is already active or completed." });
     }
 
-    await project.deleteOne();
-    // Delete associated milestones
-    await Milestone.deleteMany({ projectId: project._id });
+    const changed = await Project.updateOne({ _id: project._id, clientId: req.user._id, status: "OPEN" }, { status: "CANCELLED" });
+    if (changed.modifiedCount !== 1) return res.status(409).json({ message: "Project state changed." });
 
     res.json({ message: "Project removed successfully." });
   } catch (error) {
     console.error("Delete project error:", error);
-    res.status(500).json({ message: "Failed to delete project. Please try again." });
+    res.status(httpErrorStatus(error)).json({ message: "Failed to delete project. Please try again." });
   }
 });
 

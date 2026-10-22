@@ -173,38 +173,8 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
       if (!res.ok) throw new Error(data.message || "Failed to initiate escrow checkout");
 
       if (data.provider === "razorpay") {
-        if (data.keyId === "rzp_test_placeholder") {
-          toast.info("Simulating Razorpay Test Mode checkout (using placeholder credentials)...");
-          setTimeout(async () => {
-            try {
-              const verifyRes = await fetch("/api/payments/verify", {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({
-                  razorpay_order_id: data.orderId,
-                  razorpay_payment_id: "pay_simulated_" + Math.random().toString(36).substring(2, 10),
-                  razorpay_signature: "signature_simulated",
-                }),
-              });
-              const verifyData = await verifyRes.json();
-              if (verifyRes.ok) {
-                setSuccessOpen(true);
-                fetchDashboardData();
-              } else {
-                throw new Error(verifyData.message || "Verification failed");
-              }
-            } catch (vErr) {
-              toast.error("Payment verification failed: " + vErr.message);
-            }
-          }, 1500);
-          return;
-        }
-
-        toast.info("Opening Razorpay test portal. Test Card: 4111 1111 1111 1111 | Expiry: 12/30 | CVV: 111", { duration: 10000 });
-        await loadRazorpay();
+        toast.info("Opening Razorpay checkout.");
+        if (!(await loadRazorpay())) throw new Error("Razorpay checkout could not be loaded. Check your connection and try again.");
         const options = {
           key: data.keyId,
           amount: data.amount,
@@ -255,13 +225,22 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
             name: currentUser ? currentUser.name : "",
             email: currentUser ? currentUser.email : "",
           },
-          theme: { color: "#2C221E" },
+          theme: { color: getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() },
         };
         const rzp = new window.Razorpay(options);
         rzp.open();
+      } else if (data.provider === "mock") {
+        const simulation = await fetch("/api/payments/simulate-payment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ sessionId: data.sessionId }),
+        });
+        const result = await simulation.json();
+        if (!simulation.ok) throw new Error(result.message || "Demo checkout failed");
+        setSuccessOpen(true);
+        fetchDashboardData();
       } else {
-        toast.success("Redirecting to payment checkout...");
-        window.location.href = data.url;
+        throw new Error("Unsupported payment provider response.");
       }
     } catch (err) {
       toast.error(err.message);
@@ -272,11 +251,12 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
     try {
       const res = await fetch(`/api/milestones/${milestoneId}/release`, {
         method: "PATCH",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: "APPROVED" }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to release milestone");
-      toast.success("Milestone approved! ESCROW amount released to student.");
+      toast.success(data.message);
       fetchDashboardData();
     } catch (err) {
       toast.error(err.message);

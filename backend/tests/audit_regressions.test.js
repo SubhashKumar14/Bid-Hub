@@ -20,6 +20,14 @@ process.env.RAZORPAY_KEY_SECRET = "local-test-secret";
 const { default: payments } = await import("../routes/payments.js");
 const { default: projects } = await import("../routes/projects.js");
 const { default: users } = await import("../routes/users.js");
+const { default: messages } = await import("../routes/messages.js");
+const { default: milestonesRouter } = await import("../routes/milestones.js");
+const { default: reviewsRouter } = await import("../routes/reviews.js");
+const { default: uploads } = await import("../routes/uploads.js");
+const { validFileContent } = await import("../lib/file-content.js");
+const { amountToPaise } = await import("../lib/validation.js");
+const { PaymentEvent } = await import("../models/PaymentEvent.js");
+const { getPaymentProvider } = await import("../payments/index.js");
 
 const query = (value) => ({
   select() { return this; },
@@ -43,9 +51,77 @@ before(async () => {
   app.use("/api/payments", payments);
   app.use("/api/projects", projects);
   app.use("/api/users", users);
+  app.use("/api/messages", messages);
+  app.use("/api/milestones", milestonesRouter);
+  app.use("/api/reviews", reviewsRouter);
+  app.use("/api/uploads", uploads);
+  app.get("/health", (req, res) => res.json({ alive: true }));
+  app.use((error, req, res, next) => res.status(error.status || 500).json({ message: error.message }));
   server = app.listen(0, "127.0.0.1");
   await new Promise(resolve => server.once("listening", resolve));
   base = `http://127.0.0.1:${server.address().port}`;
+});
+
+test("malformed search and chat return 400 and the same HTTP server survives", async t => {
+  auth(t);
+  for (const queryString of ["search[]=a", "search[x]=a", "skills[]=a", "category[x]=a"]) {
+    assert.equal((await request("/api/projects?" + queryString)).status, 400);
+  }
+  for (const content of [[], {}, null, 42, "x".repeat(5001)]) {
+    assert.equal((await request("/api/messages", "owner", { projectId: "project", content })).status, 400);
+  }
+  assert.equal((await request("/health")).status, 200);
+});
+
+test("message pagination and review comments reject malformed fields before database queries", async t => {
+  auth(t);
+  assert.equal((await request("/api/messages/project?limit=1000000000", "owner")).status, 400);
+  assert.equal((await request("/api/messages/project?page=-1", "owner")).status, 400);
+  for (const comment of [undefined, null, {}, ""]) {
+    assert.equal((await request("/api/reviews", "owner", { projectId: "p", revieweeId: "s", rating: 5, comment })).status, 400);
+  }
+});
+
+test("missing and misspelled release actions are rejected, and production approval cannot invent a payout", async t => {
+  auth(t);
+  for (const status of [undefined, "APROVED", "RELEASED"]) {
+    const response = await fetch(base + "/api/milestones/m/release", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${jwt.sign({ id: "owner" }, process.env.JWT_SECRET)}` }, body: JSON.stringify({ status }) });
+    assert.equal(response.status, 400);
+  }
+  process.env.NODE_ENV = "production";
+  try {
+    const response = await fetch(base + "/api/milestones/m/release", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${jwt.sign({ id: "owner" }, process.env.JWT_SECRET)}` }, body: JSON.stringify({ status: "APPROVED" }) });
+    assert.equal(response.status, 503);
+  } finally { process.env.NODE_ENV = "test"; }
+});
+
+test("upload query parameters cannot enable ZIP, and a disguised PNG is rejected", async t => {
+  auth(t);
+  for (const [filename, mime, url] of [["payload.zip", "application/zip", "/api/uploads/files?x=/import/"], ["payload.png", "image/png", "/api/uploads/files"]]) {
+    const form = new FormData(); form.append("files", new Blob(["inert text"], { type: mime }), filename);
+    const response = await fetch(base + url, { method: "POST", headers: { Authorization: `Bearer ${jwt.sign({ id: "owner" }, process.env.JWT_SECRET)}` }, body: form });
+    assert.ok(response.status >= 400);
+  }
+  assert.equal(validFileContent(Buffer.from("text"), ".png"), false);
+});
+
+test("money parser accepts exact paise and rejects ambiguous and nonfinite amounts", () => {
+  assert.equal(amountToPaise("10.01"), 1001);
+  for (const value of ["abc", "Infinity", Infinity, NaN, "1e2", "-1", "0", "1.001", [], {}, "₹100", "100junk"]) assert.throws(() => amountToPaise(value));
+});
+
+test("unknown captured webhook is durably marked for reconciliation before acknowledgement", async t => {
+  const provider = getPaymentProvider();
+  t.mock.method(provider, "verifyWebhook", async () => ({ success: true, sessionId: "order_late", paymentIntentId: "pay_late", amountPaise: 10000, amount: 100 }));
+  t.mock.method(PaymentLedger, "findOne", () => query(null));
+  const writes = [];
+  t.mock.method(PaymentEvent, "updateOne", async (...args) => { writes.push(args); });
+  const result = await request("/api/payments/webhook", undefined, { fixture: true });
+  assert.equal(result.status, 200);
+  assert.equal(result.body.outcome, "NEEDS_RECONCILIATION");
+  assert.equal(writes.length, 2);
+  assert.equal(writes[0][1].$setOnInsert.amountPaise, 10000);
+  assert.equal(writes[1][1].status, "NEEDS_RECONCILIATION");
 });
 after(() => new Promise(resolve => server.close(resolve)));
 afterEach(t => t.mock.restoreAll());

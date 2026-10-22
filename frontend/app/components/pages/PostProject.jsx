@@ -24,8 +24,8 @@ export function PostProject({ token, onDone }) {
   
   // Milestones state
   const [milestones, setMilestones] = useState([
-    { title: "Discovery & research", amount: "₹10,000" },
-    { title: "Hi-fi prototyping", amount: "₹15,000" },
+    { title: "Discovery & research", amount: "10000" },
+    { title: "Hi-fi prototyping", amount: "15000" },
   ]);
 
   // File uploads state
@@ -197,8 +197,9 @@ export function PostProject({ token, onDone }) {
             <CheckCircle2 className="size-4 text-[var(--brand-gold)]" />
           </div>
           <div>
-            <label className="text-sm text-muted-foreground">Project title</label>
+            <label htmlFor="project-title" className="text-sm text-muted-foreground">Project title</label>
             <Input
+              id="project-title"
               placeholder="e.g. Redesign the onboarding flow for a campus fintech app"
               className="mt-1.5"
               value={title}
@@ -207,9 +208,9 @@ export function PostProject({ token, onDone }) {
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-sm text-muted-foreground">Category</label>
+              <label htmlFor="project-category" className="text-sm text-muted-foreground">Category</label>
               <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger className="mt-1.5"><SelectValue placeholder="Choose a category" /></SelectTrigger>
+                <SelectTrigger id="project-category" className="mt-1.5"><SelectValue placeholder="Choose a category" /></SelectTrigger>
                 <SelectContent>
                   {categories.map((c) => (
                     <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
@@ -218,9 +219,9 @@ export function PostProject({ token, onDone }) {
               </Select>
             </div>
             <div>
-              <label className="text-sm text-muted-foreground">Skill level required</label>
+              <label htmlFor="project-skill-level" className="text-sm text-muted-foreground">Skill level required</label>
               <Select value={level} onValueChange={setLevel}>
-                <SelectTrigger className="mt-1.5"><SelectValue placeholder="Any level" /></SelectTrigger>
+                <SelectTrigger id="project-skill-level" className="mt-1.5"><SelectValue placeholder="Any level" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="beginner">Beginner</SelectItem>
                   <SelectItem value="intermediate">Intermediate</SelectItem>
@@ -234,8 +235,9 @@ export function PostProject({ token, onDone }) {
         <section id="scope" className="paper hairline rounded-2xl p-6 lg:p-8 space-y-5">
           <h2 className="font-serif text-xl">Scope & deliverables</h2>
           <div>
-            <label className="text-sm text-muted-foreground">Describe the project</label>
+            <label htmlFor="project-description" className="text-sm text-muted-foreground">Describe the project</label>
             <Textarea
+              id="project-description"
               rows={6}
               className="mt-1.5"
               placeholder="Write like you're talking to a quiet, careful student. What is this, who is it for, what does success look like?"
@@ -245,10 +247,12 @@ export function PostProject({ token, onDone }) {
           </div>
 
           <div>
-            <label className="text-sm text-muted-foreground">Attachments upload (Cloudinary/Local fallback)</label>
+            <label htmlFor="project-attachments" className="text-sm text-muted-foreground">Attachments upload</label>
             <div className="mt-1.5 hairline rounded-xl p-6 text-center bg-input-background/60 relative">
               <input
+                id="project-attachments"
                 type="file"
+                aria-label="Attach project files"
                 multiple
                 className="absolute inset-0 opacity-0 cursor-pointer"
                 onChange={handleFileUpload}
@@ -287,6 +291,7 @@ export function PostProject({ token, onDone }) {
                 </div>
                 <div className="mt-4 relative">
                   <input
+                    aria-label="Upload project ZIP archive"
                     type="file"
                     accept=".zip"
                     className="absolute inset-0 opacity-0 cursor-pointer"
@@ -307,6 +312,8 @@ export function PostProject({ token, onDone }) {
                 </div>
                 <div className="mt-3 flex gap-1.5">
                   <Input
+                    id="github-repository-url"
+                    aria-label="GitHub repository URL"
                     placeholder="github.com/user/repo"
                     className="text-xs h-8"
                     value={githubUrl}
@@ -342,8 +349,9 @@ export function PostProject({ token, onDone }) {
           <h2 className="font-serif text-xl">Budget & timeline</h2>
           <div className="grid sm:grid-cols-3 gap-4">
             <div>
-              <label className="text-sm text-muted-foreground">Budget (₹)</label>
+              <label htmlFor="project-budget" className="text-sm text-muted-foreground">Budget (₹)</label>
               <Input
+                id="project-budget"
                 placeholder="40,000"
                 className="mt-1.5"
                 value={budget}
@@ -351,8 +359,9 @@ export function PostProject({ token, onDone }) {
               />
             </div>
             <div>
-              <label className="text-sm text-muted-foreground">Duration</label>
+              <label htmlFor="project-duration" className="text-sm text-muted-foreground">Duration</label>
               <Input
+                id="project-duration"
                 placeholder="3 weeks"
                 className="mt-1.5"
                 value={duration}
@@ -360,8 +369,9 @@ export function PostProject({ token, onDone }) {
               />
             </div>
             <div>
-              <label className="text-sm text-muted-foreground">Deadline</label>
+              <label htmlFor="project-deadline" className="text-sm text-muted-foreground">Deadline</label>
               <Input
+                id="project-deadline"
                 type="date"
                 className="mt-1.5"
                 value={deadline}
@@ -377,8 +387,9 @@ export function PostProject({ token, onDone }) {
           {milestones.map((m, idx) => (
             <div key={idx} className="grid sm:grid-cols-[1fr_140px_44px] gap-3 items-end">
               <div>
-                <label className="text-xs text-muted-foreground">Milestone {idx + 1} Checkpoint Description</label>
+                <label htmlFor={`milestone-title-${idx}`} className="text-xs text-muted-foreground">Milestone {idx + 1} Checkpoint Description</label>
                 <Input
+                  id={`milestone-title-${idx}`}
                   placeholder={`e.g. ${idx === 0 ? "Discovery" : idx === 1 ? "Hi-fi Prototype" : "Hand-off"}`}
                   className="mt-1.5"
                   value={m.title}
@@ -386,15 +397,16 @@ export function PostProject({ token, onDone }) {
                 />
               </div>
               <div>
-                <label className="text-xs text-muted-foreground">Escrow Amount</label>
+                <label htmlFor={`milestone-amount-${idx}`} className="text-xs text-muted-foreground">Escrow Amount</label>
                 <Input
-                  placeholder="₹12,000"
+                  id={`milestone-amount-${idx}`}
+                  placeholder="12000"
                   className="mt-1.5"
                   value={m.amount}
                   onChange={(e) => handleMilestoneChange(idx, "amount", e.target.value)}
                 />
               </div>
-              <Button variant="ghost" className="h-10 text-muted-foreground hover:text-red-500" onClick={() => removeMilestone(idx)}>
+              <Button type="button" variant="ghost" className="h-11 min-w-11 text-muted-foreground hover:text-[var(--status-danger-fg)]" aria-label={`Remove milestone ${idx + 1}`} onClick={() => removeMilestone(idx)}>
                 −
               </Button>
             </div>

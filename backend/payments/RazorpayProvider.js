@@ -3,6 +3,7 @@ import Razorpay from "razorpay";
 import { PaymentLedger } from "../models/PaymentLedger.js";
 import { verifyRazorpaySignature } from "./razorpay-signature.js";
 import crypto from "crypto";
+import { amountToPaise } from "../lib/validation.js";
 
 export class RazorpayProvider extends PaymentProvider {
   constructor(keyId, keySecret, webhookSecret) {
@@ -19,7 +20,7 @@ export class RazorpayProvider extends PaymentProvider {
     this.webhookSecret = webhookSecret;
   }
 
-  async createCheckout(project, bid, numericAmount, clientUrl) {
+  async createCheckout(project, bid, numericAmount, clientUrl, schedule) {
     const studentId = bid.studentId._id || bid.studentId;
 
     const order = await this.razorpay.orders.create({
@@ -41,6 +42,10 @@ export class RazorpayProvider extends PaymentProvider {
       clientId: project.clientId,
       studentId: studentId,
       amount: numericAmount,
+      amountPaise: amountToPaise(numericAmount),
+      bidId: bid._id,
+      allocationSchedule: schedule.map(m => ({ milestoneId: m._id, amountPaise: amountToPaise(m.amount) })),
+      provider: "razorpay",
       status: "PENDING_CHECKOUT",
       stripeSessionId: order.id, // Reused field for generic payment ID
       transactionRef: "TXN-RAZOR-" + Math.random().toString(36).substring(2, 8).toUpperCase(),
@@ -66,6 +71,14 @@ export class RazorpayProvider extends PaymentProvider {
       signature,
       production: process.env.NODE_ENV === "production",
     });
+  }
+
+  async confirmCapturedPayment(orderId, paymentId, amountPaise) {
+    const payment = await this.razorpay.payments.fetch(paymentId);
+    return payment.id === paymentId && payment.order_id === orderId &&
+      payment.status === "captured" && payment.captured === true &&
+      payment.currency === "INR" && Number.isSafeInteger(payment.amount) &&
+      payment.amount > 0 && payment.amount === amountPaise;
   }
 
   async verifyWebhook(rawBody, headers) {
@@ -98,18 +111,20 @@ export class RazorpayProvider extends PaymentProvider {
         payment.order_id !== order.id ||
         payment.currency !== order.currency ||
         Number(payment.amount) !== Number(order.amount) ||
-        (payment.status !== "captured" && payment.captured !== true)
+        !Number.isSafeInteger(payment.amount) || payment.amount <= 0 ||
+        payment.status !== "captured" || payment.captured !== true
       ) {
         throw new Error("Razorpay order and payment details do not match a captured INR payment.");
       }
-      const { projectId, bidId, clientId, studentId, amount } = order.notes;
+      const { projectId, bidId, clientId, studentId } = order.notes || {};
 
       return {
         projectId,
         bidId,
         clientId,
         studentId,
-        amount: parseFloat(amount),
+        amount: payment.amount / 100,
+        amountPaise: payment.amount,
         sessionId: order.id,
         paymentIntentId: payment.id,
         success: true,

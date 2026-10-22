@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { Loader2, Github, Link, FileText, Upload, Trash2, X } from "lucide-react";
+import { Loader2, Github, Link, FileText, Upload, Trash2 } from "lucide-react";
 import { Button } from "./ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./ui/dialog";
 
 export function MilestoneSubmitModal({ open, onClose, milestoneId, milestoneTitle, token, onSuccess }) {
   const [githubUrl, setGithubUrl] = useState("");
@@ -133,28 +134,24 @@ export function MilestoneSubmitModal({ open, onClose, milestoneId, milestoneTitl
     }
   };
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-      <div className="w-full max-w-lg bg-card border border-border rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
+      <DialogContent aria-describedby="milestone-submit-description" className="w-full max-w-lg bg-card border-border rounded-2xl p-0 shadow-xl overflow-hidden flex flex-col max-h-[90dvh]">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-border">
           <div>
             <span className="eyebrow">Milestone Submit</span>
-            <h2 className="font-serif text-xl mt-1">{milestoneTitle}</h2>
+            <DialogTitle className="font-serif text-xl mt-1">{milestoneTitle}</DialogTitle>
+            <DialogDescription id="milestone-submit-description" className="sr-only">Submit deliverables for this milestone.</DialogDescription>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-muted rounded-full transition-colors text-muted-foreground">
-            <X className="size-5" />
-          </button>
         </div>
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {/* Changes Requested Callout */}
           {previousSubmission && previousSubmission.status === "CHANGES_REQUESTED" && (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-xs space-y-1.5">
-              <span className="font-bold text-red-500 uppercase tracking-wider text-[10px]">Changes Requested by Client</span>
+            <div className="bg-[var(--status-danger-bg)] border border-[var(--status-danger-border)] rounded-xl p-4 text-xs space-y-1.5">
+              <span className="font-bold text-[var(--status-danger-fg)] uppercase tracking-wider text-[10px]">Changes Requested by Client</span>
               <p className="font-serif text-sm italic text-foreground/90">"{previousSubmission.reviewComment}"</p>
             </div>
           )}
@@ -167,10 +164,11 @@ export function MilestoneSubmitModal({ open, onClose, milestoneId, milestoneTitl
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* GitHub URL */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                  <Github className="size-3.5" /> GitHub Repository URL <span className="text-red-500">*</span>
+                <label htmlFor="milestone-github-url" className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                  <Github className="size-3.5" /> GitHub Repository URL <span className="text-destructive">*</span>
                 </label>
                 <input
+                  id="milestone-github-url"
                   type="url"
                   placeholder="https://github.com/username/project-repo"
                   value={githubUrl}
@@ -183,10 +181,11 @@ export function MilestoneSubmitModal({ open, onClose, milestoneId, milestoneTitl
 
               {/* Demo URL */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                  <Link className="size-3.5" /> Live Demo URL <span className="text-red-500">*</span>
+                <label htmlFor="milestone-demo-url" className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                  <Link className="size-3.5" /> Live Demo URL <span className="text-destructive">*</span>
                 </label>
                 <input
+                  id="milestone-demo-url"
                   type="url"
                   placeholder="https://project.vercel.app"
                   value={demoUrl}
@@ -199,10 +198,11 @@ export function MilestoneSubmitModal({ open, onClose, milestoneId, milestoneTitl
 
               {/* Video URL */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                  <Link className="size-3.5" /> Demo Video URL (Loom/YouTube) <span className="text-red-500">*</span>
+                <label htmlFor="milestone-video-url" className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                  <Link className="size-3.5" /> Demo Video URL (Loom/YouTube) <span className="text-destructive">*</span>
                 </label>
                 <input
+                  id="milestone-video-url"
                   type="url"
                   placeholder="https://www.loom.com/share/..."
                   value={videoUrl}
@@ -215,10 +215,11 @@ export function MilestoneSubmitModal({ open, onClose, milestoneId, milestoneTitl
 
               {/* Description / Notes */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                  <FileText className="size-3.5" /> Notes to Client <span className="text-red-500">*</span>
+                <label htmlFor="milestone-notes" className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                  <FileText className="size-3.5" /> Notes to Client <span className="text-destructive">*</span>
                 </label>
                 <textarea
+                  id="milestone-notes"
                   placeholder="Describe your implementation details, verify completed features, or leave comments (min 10 characters)..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
@@ -237,6 +238,7 @@ export function MilestoneSubmitModal({ open, onClose, milestoneId, milestoneTitl
                 <div className="flex items-center justify-center border-2 border-dashed border-border rounded-xl p-6 bg-background/50 hover:bg-background/80 transition-colors relative cursor-pointer group">
                   <input
                     type="file"
+                    aria-label="Attach files to milestone submission"
                     multiple
                     onChange={handleFileUpload}
                     disabled={uploading || submitting}
@@ -268,7 +270,8 @@ export function MilestoneSubmitModal({ open, onClose, milestoneId, milestoneTitl
                           type="button"
                           onClick={() => removeAttachment(idx)}
                           disabled={submitting}
-                          className="text-muted-foreground hover:text-red-500 p-1"
+                          aria-label={`Remove attachment ${file.name}`}
+                          className="min-h-11 min-w-11 text-muted-foreground hover:text-[var(--status-danger-fg)]"
                         >
                           <Trash2 className="size-3.5" />
                         </button>
@@ -300,7 +303,7 @@ export function MilestoneSubmitModal({ open, onClose, milestoneId, milestoneTitl
             )}
           </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

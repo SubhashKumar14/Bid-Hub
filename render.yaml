@@ -5,7 +5,7 @@ services:
     region: oregon
     plan: free
     rootDir: backend
-    buildCommand: npm install --legacy-peer-deps
+    buildCommand: npm ci --ignore-scripts
     startCommand: npm start
     envVars:
       - key: NODE_ENV
@@ -17,8 +17,18 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: JWT_EXPIRE
-        value: 30d
+        value: 1d
+      - key: PAYMENT_PROVIDER
+        value: razorpay
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
       - key: CLIENT_URL
+        sync: false
+      - key: PRIVATE_UPLOAD_DIR
         sync: false
       - key: CLOUDINARY_CLOUD_NAME
         sync: false

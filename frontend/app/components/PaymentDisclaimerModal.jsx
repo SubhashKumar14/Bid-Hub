@@ -5,9 +5,9 @@ import { ShieldAlert } from "lucide-react";
 export function PaymentDisclaimerModal({ open, onConfirm, onCancel }) {
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onCancel()}>
-      <DialogContent className="bg-[#0f0c0b] border-border/80 max-w-md p-6 text-foreground rounded-2xl">
+      <DialogContent className="bg-card border-border max-w-md p-6 text-card-foreground rounded-xl">
         <DialogHeader className="flex flex-col items-center text-center gap-3">
-          <div className="size-12 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500 mb-1">
+          <div className="size-12 rounded-full bg-[var(--status-warning-bg)] flex items-center justify-center text-[var(--status-warning-fg)] mb-1">
             <ShieldAlert className="size-6" />
           </div>
           <DialogTitle className="font-serif text-2xl tracking-tight text-foreground">
@@ -26,8 +26,8 @@ export function PaymentDisclaimerModal({ open, onConfirm, onCancel }) {
             <li>No debit card, credit card, UPI account, or bank account will be charged.</li>
           </ul>
           
-          <div className="mt-3 pt-3 border-t border-border/20 text-[11px] space-y-1.5 bg-amber-500/5 p-2 rounded-lg border border-amber-500/10">
-            <p className="font-semibold text-amber-500">Official Razorpay Test Credentials:</p>
+          <div className="mt-3 pt-3 text-[11px] space-y-1.5 bg-[var(--status-warning-bg)] p-2 rounded-lg border border-[var(--status-warning-border)]">
+            <p className="font-semibold text-[var(--status-warning-fg)]">Official Razorpay Test Credentials:</p>
             <p>• <span className="font-medium text-foreground">Card Number:</span> <code className="bg-background px-1 py-0.5 rounded text-[var(--brand-gold)] font-mono">4111 1111 1111 1111</code></p>
             <p>• <span className="font-medium text-foreground">Expiry Date:</span> <code className="bg-background px-1 py-0.5 rounded text-[var(--brand-gold)] font-mono">12/30</code> (any future date)</p>
             <p>• <span className="font-medium text-foreground">CVV:</span> <code className="bg-background px-1 py-0.5 rounded text-[var(--brand-gold)] font-mono">111</code> (any 3 digits)</p>

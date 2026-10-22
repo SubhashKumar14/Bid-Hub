@@ -34,6 +34,7 @@ export function getPaymentProvider() {
     throw new Error("RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are required when PAYMENT_PROVIDER=razorpay.");
   }
   if (keyId === "rzp_test_placeholder" || keySecret === "placeholdersecret") throw new Error("Placeholder Razorpay credentials are not accepted.");
+  if (keyId.startsWith("rzp_live_")) throw new Error("Live payments are disabled until payout and reconciliation operations are implemented and verified.");
   if (process.env.NODE_ENV === "production" && !keyId.startsWith("rzp_test_") && !keyId.startsWith("rzp_live_")) throw new Error("Invalid Razorpay key ID configuration.");
 
   activeProvider = new RazorpayProvider(keyId, keySecret, webhookSecret);

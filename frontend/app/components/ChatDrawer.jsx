@@ -18,6 +18,8 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
     pages: 1,
   });
 
+  const targetRef = useRef("");
+  targetRef.current = open ? `${projectId}:${token}` : "";
   const chatEndRef = useRef(null);
   const scrollContainerRef = useRef(null);
 
@@ -40,36 +42,38 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
   // Fetch initial messages
   const fetchMessages = async () => {
     if (!token || !projectId || !open) return;
+    const target = targetRef.current;
     setLoading(true);
     setPollingDisabled(false);
     try {
       const data = await getMessages(projectId, token, 1, 20);
+      if (targetRef.current !== target) return;
       setMessages(data.messages);
       setPagination(data.pagination);
       setTimeout(() => scrollToBottom("auto"), 100);
     } catch (err) {
+      if (targetRef.current !== target) return;
       toast.error(err.message || "Failed to load messages");
       if (err.status === 400 || err.status === 403) {
         setPollingDisabled(true);
         onClose();
       }
     } finally {
-      setLoading(false);
+      if (targetRef.current === target) setLoading(false);
     }
   };
 
   // Poll for new messages
   const pollMessages = async () => {
     if (!token || !projectId || !open || loading || sending || pollingDisabled) return;
+    const target = targetRef.current;
     try {
-      const fetchLimit = Math.max(20, pagination.page * 20);
-      const data = await getMessages(projectId, token, 1, fetchLimit);
-      setMessages(data.messages);
-      setPagination(prev => ({
-        ...data.pagination,
-        page: Math.ceil(data.messages.length / 20) || 1
-      }));
+      const data = await getMessages(projectId, token, 1, 20);
+      if (targetRef.current !== target) return;
+      setMessages(prev => Array.from(new Map([...prev, ...data.messages].map(m => [m._id, m])).values()).sort((a,b) => new Date(a.createdAt) - new Date(b.createdAt)));
+      setPagination(prev => ({ ...prev, total: data.pagination.total, pages: Math.ceil(data.pagination.total / 20) }));
     } catch (err) {
+      if (targetRef.current !== target) return;
       console.error("Polling error:", err);
       if (err.status === 400 || err.status === 403) {
         setPollingDisabled(true);
@@ -82,16 +86,19 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
   // Load older messages (pagination)
   const handleLoadMore = async () => {
     if (loading || pagination.page >= pagination.pages) return;
+    const target = targetRef.current;
+    setLoading(true);
     const nextPage = pagination.page + 1;
     try {
       const data = await getMessages(projectId, token, nextPage, 20);
       
+      if (targetRef.current !== target) return;
       // Store current scroll height
       const container = scrollContainerRef.current;
       const prevScrollHeight = container ? container.scrollHeight : 0;
 
       // Update state
-      setMessages((prev) => [...data.messages, ...prev]);
+      setMessages(prev => Array.from(new Map([...data.messages, ...prev].map(m => [m._id, m])).values()));
       setPagination(data.pagination);
 
       // Restore scroll position so user doesn't jump
@@ -101,8 +108,9 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
         }
       }, 50);
     } catch (err) {
+      if (targetRef.current !== target) return;
       toast.error(err.message || "Failed to load older messages");
-    }
+    } finally { if (targetRef.current === target) setLoading(false); }
   };
 
   // Send message
@@ -110,30 +118,37 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
     if (e) e.preventDefault();
     if (!inputText.trim() || sending || !projectId) return;
 
+    const target = targetRef.current;
     setSending(true);
     const content = inputText.trim();
     setInputText("");
 
     try {
       const newMessage = await sendMessage(projectId, content, token);
-      setMessages((prev) => [...prev, newMessage]);
+      if (targetRef.current !== target) return;
+      setMessages((prev) => [...prev.filter(m => m._id !== newMessage._id), newMessage]);
       setTimeout(() => scrollToBottom("smooth"), 50);
     } catch (err) {
+      if (targetRef.current !== target) return;
       toast.error(err.message || "Failed to send message");
       setInputText(content); // Restore input in case of failure
     } finally {
-      setSending(false);
+      if (targetRef.current === target) setSending(false);
     }
   };
 
   // Load initial messages on open
   useEffect(() => {
+    setMessages([]);
+    setInputText("");
+    setSending(false);
+    setPagination({ page: 1, limit: 20, total: 0, pages: 1 });
     if (open) {
       fetchMessages();
     } else {
       setMessages([]);
     }
-  }, [open, projectId]);
+  }, [open, projectId, token]);
 
   // Set up polling interval every 5 seconds
   useEffect(() => {
@@ -144,7 +159,7 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [open, projectId, token, pagination.page, pollingDisabled]);
+  }, [open, projectId, token, pagination.page, pollingDisabled, loading, sending]);
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
@@ -248,6 +263,7 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
         <form onSubmit={handleSend} className="p-4 border-t border-border bg-card flex gap-2">
           <input
             type="text"
+            aria-label="Type a message"
             placeholder="Type a message..."
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}

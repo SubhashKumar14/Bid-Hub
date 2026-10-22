@@ -4,6 +4,7 @@ const milestoneSubmissionSchema = new mongoose.Schema(
   {
     milestoneId: { type: mongoose.Schema.Types.ObjectId, ref: "Milestone", required: true },
     submittedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    version: { type: Number, default: 1, min: 1 },
     githubUrl: { type: String, required: true },
     demoUrl: { type: String, required: true },
     videoUrl: { type: String, required: true },
@@ -26,5 +27,6 @@ const milestoneSubmissionSchema = new mongoose.Schema(
 
 // Index for fast query of submissions on a milestone
 milestoneSubmissionSchema.index({ milestoneId: 1, createdAt: -1 });
+milestoneSubmissionSchema.index({ milestoneId: 1, version: 1 }, { unique: true });
 
 export const MilestoneSubmission = mongoose.model("MilestoneSubmission", milestoneSubmissionSchema);

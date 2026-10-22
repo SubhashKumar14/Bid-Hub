@@ -17,16 +17,16 @@ const links = [
 
 // Notification type to display label/color
 const notifMeta = {
-  BID_RECEIVED: { label: "New Bid", color: "bg-blue-500" },
-  BID_ACCEPTED: { label: "Bid Accepted", color: "bg-green-500" },
-  BID_REJECTED: { label: "Bid Rejected", color: "bg-red-400" },
-  MILESTONE_SUBMITTED: { label: "Work Submitted", color: "bg-amber-500" },
-  MILESTONE_RELEASED: { label: "Funds Released", color: "bg-green-500" },
-  MILESTONE_CHANGES_REQUESTED: { label: "Changes Requested", color: "bg-orange-500" },
-  PROJECT_COMPLETED: { label: "Project Done", color: "bg-emerald-500" },
-  REVIEW_RECEIVED: { label: "New Review", color: "bg-purple-500" },
-  PROJECT_ASSIGNED: { label: "Assigned", color: "bg-teal-500" },
-  MESSAGE_RECEIVED: { label: "New Message", color: "bg-amber-500" },
+  BID_RECEIVED: { label: "New Bid", color: "bg-[var(--status-info-fg)]" },
+  BID_ACCEPTED: { label: "Bid Accepted", color: "bg-[var(--status-success-fg)]" },
+  BID_REJECTED: { label: "Bid Rejected", color: "bg-[var(--status-danger-fg)]" },
+  MILESTONE_SUBMITTED: { label: "Work Submitted", color: "bg-[var(--status-warning-fg)]" },
+  MILESTONE_RELEASED: { label: "Funds Released", color: "bg-[var(--status-success-fg)]" },
+  MILESTONE_CHANGES_REQUESTED: { label: "Changes Requested", color: "bg-[var(--status-danger-fg)]" },
+  PROJECT_COMPLETED: { label: "Project Done", color: "bg-[var(--status-success-fg)]" },
+  REVIEW_RECEIVED: { label: "New Review", color: "bg-[var(--status-info-fg)]" },
+  PROJECT_ASSIGNED: { label: "Assigned", color: "bg-[var(--status-info-fg)]" },
+  MESSAGE_RECEIVED: { label: "New Message", color: "bg-[var(--status-warning-fg)]" },
 };
 
 function NotificationBell({ token, setPage }) {
@@ -185,7 +185,7 @@ export function Nav({ page, setPage, role, setRole, theme, toggleTheme, onOpenEs
     return true;
   });
   return (
-    <header className="sticky top-0 z-40 backdrop-blur-md bg-background/80 border-b border-border">
+    <header className="sticky top-0 z-40 bg-background border-b border-border">
       <div className="mx-auto max-w-7xl 2xl:max-w-[1440px] min-[1920px]:max-w-[1680px] min-[2560px]:max-w-[2200px] min-[3400px]:max-w-[2800px] px-5 lg:px-8 h-16 flex items-center gap-4">
         <button onClick={() => setPage("landing")} className="flex items-center gap-2 group">
           <img src="/bidhublogo.png" alt="Bid·Hub Logo" className="size-8 object-contain rounded-md" />
@@ -212,7 +212,7 @@ export function Nav({ page, setPage, role, setRole, theme, toggleTheme, onOpenEs
         <div className="flex-1 max-w-md hidden lg:block">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <Input placeholder="Search projects, students, skills…"
+            <Input aria-label="Search projects, students, and skills" placeholder="Search projects, students, skills…"
               className="pl-9 bg-input-background border-transparent focus-visible:ring-1" />
           </div>
         </div>
@@ -278,14 +278,14 @@ export function Nav({ page, setPage, role, setRole, theme, toggleTheme, onOpenEs
             </Button>
           )}
 
-          <button className="md:hidden p-2" onClick={() => setOpen(!open)}>
-            <Menu className="size-5" />
+          <button type="button" className="md:hidden min-h-11 min-w-11 inline-grid place-items-center" onClick={() => setOpen(!open)} aria-label={open ? "Close navigation" : "Open navigation"} aria-expanded={open} aria-controls="mobile-navigation">
+            <Menu aria-hidden="true" className="size-5" />
           </button>
         </div>
       </div>
 
       {open && (
-        <div className="md:hidden border-t border-border px-5 py-3 space-y-1 bg-background">
+        <div id="mobile-navigation" className="md:hidden border-t border-border px-5 py-3 space-y-1 bg-background">
           {filteredLinks.map(l => (
             <button key={l.page} onClick={() => { setPage(l.page === "student" ? (currentUser ? currentUser.role : role) : l.page); setOpen(false); }}
               className="block w-full text-left py-2 text-sm">{l.label}</button>

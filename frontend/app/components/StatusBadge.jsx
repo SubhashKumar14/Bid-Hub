@@ -1,12 +1,12 @@
 import { cn } from "./ui/utils";
 
 const tones = {
-  gold: "bg-[color-mix(in_srgb,var(--brand-gold)_18%,transparent)] text-[var(--brand-gold)] border-[color-mix(in_srgb,var(--brand-gold)_35%,transparent)]",
-  sand: "bg-[color-mix(in_srgb,var(--brand-sand)_18%,transparent)] text-[var(--brand-sand)] border-[color-mix(in_srgb,var(--brand-sand)_35%,transparent)]",
-  bronze: "bg-[color-mix(in_srgb,var(--brand-bronze)_15%,transparent)] text-[var(--brand-bronze)] border-[color-mix(in_srgb,var(--brand-bronze)_35%,transparent)] dark:text-[#d6b86a]",
+  gold: "bg-[var(--status-info-bg)] text-[var(--status-info-fg)] border-[var(--status-info-border)]",
+  sand: "bg-[var(--status-warning-bg)] text-[var(--status-warning-fg)] border-[var(--status-warning-border)]",
+  bronze: "bg-[var(--status-neutral-bg)] text-[var(--status-neutral-fg)] border-[var(--status-neutral-border)]",
   muted: "bg-muted text-muted-foreground border-border",
-  success: "bg-[rgba(70,120,40,0.12)] text-[#5a7a2a] border-[rgba(90,122,42,0.35)] dark:text-[#b9d488]",
-  danger: "bg-[rgba(168,49,26,0.12)] text-[#a8311a] border-[rgba(168,49,26,0.35)] dark:text-[#e08769]",
+  success: "bg-[var(--status-success-bg)] text-[var(--status-success-fg)] border-[var(--status-success-border)]",
+  danger: "bg-[var(--status-danger-bg)] text-[var(--status-danger-fg)] border-[var(--status-danger-border)]",
 };
 
 export function StatusBadge({

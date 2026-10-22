@@ -11,10 +11,11 @@
 [![Vite](https://img.shields.io/badge/Vite-6.x-646CFF?style=flat-square&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![Cloudinary](https://img.shields.io/badge/Cloudinary-Media_Storage-3448C5?style=flat-square&logo=cloudinary&logoColor=white)](https://cloudinary.com/)
-[![Build](https://img.shields.io/badge/Build-Passing-brightgreen?style=flat-square)](#)
 [![Deployment](https://img.shields.io/badge/Deploy-Vercel%20%2B%20Render-black?style=flat-square)](https://vercel.com)
 
-**Bid-Hub** is a full-stack MERN marketplace where clients post technical project briefs and students compete through structured bidding. Work execution is managed through milestone tracking, simulated escrow payments, portfolio building, peer reviews, and reputation scoring.
+**Bid-Hub** is a full-stack MERN marketplace where clients post technical project briefs and students compete through structured bidding. Work execution is managed through milestone tracking, Razorpay Test Mode checkout demonstrations, an application escrow ledger, portfolio building, peer reviews, and reputation scoring.
+
+**Current release status:** live payments are disabled. See [the re-audit remediation status](reaudit-remediation-status.md) for verified fixes, remaining findings, and migration requirements. Transactions require a MongoDB replica set; production attachments require a durable private volume configured with `PRIVATE_UPLOAD_DIR`. Older setup and audit notes below are superseded where they conflict with that status report.
 
 [Live Demo](#deployment) · [API Docs](#7-api-endpoint-documentation) · [Quick Start](#10-installation--setup) · [Deploy](#13-production-deployment-guide)
 
@@ -65,8 +66,8 @@ Student freelance work is informal, opaque, and unprotected. Students share thei
 Bid-Hub is deliberately **scoped as a capstone project** — not a SaaS product. It prioritizes:
 - Clean, readable code over premature optimization
 - Real-world security practices (JWT, CORS, rate limiting, input sanitization)
-- A premium editorial aesthetic that treats student work with professional dignity
-- Simulated payments (no Stripe or real money) to keep complexity manageable
+- A minimal Campus Tech theme with off-white surfaces, navy text, teal actions, and accessible controls
+- Razorpay Test Mode for checkout demonstrations; the application ledger models escrow and no student payouts are sent
 
 ---
 
@@ -658,7 +659,13 @@ MONGODB_URI=mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/bidhu
 JWT_SECRET=your_64_char_minimum_cryptographically_random_secret
 JWT_EXPIRE=30d
 
-# ─── Cloudinary (optional — falls back to local disk storage) ─────────────────
+# ─── Razorpay (use Test Mode keys for the capstone demo) ───────────────────────
+PAYMENT_PROVIDER=razorpay
+RAZORPAY_KEY_ID=rzp_test_your_key_id
+RAZORPAY_KEY_SECRET=your_test_key_secret
+RAZORPAY_WEBHOOK_SECRET=your_webhook_secret
+
+# ─── Cloudinary (required in production; local development may use disk) ───────
 # Create free account at https://cloudinary.com
 CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_API_KEY=your_api_key
@@ -916,6 +923,10 @@ The complete API test suite is located at [`backend/tests/BidHub_Postman_Collect
 | `MONGODB_URI` | Your Atlas connection string |
 | `JWT_SECRET` | Strong 64+ char random string |
 | `JWT_EXPIRE` | `30d` |
+| `PAYMENT_PROVIDER` | `razorpay` |
+| `RAZORPAY_KEY_ID` | Razorpay Test Mode key ID for the demo |
+| `RAZORPAY_KEY_SECRET` | Razorpay Test Mode key secret |
+| `RAZORPAY_WEBHOOK_SECRET` | Configured webhook signing secret |
 | `CLIENT_URL` | Your Vercel URL (set after Step 4) |
 | `CLOUDINARY_CLOUD_NAME` | Your cloud name |
 | `CLOUDINARY_API_KEY` | Your API key |

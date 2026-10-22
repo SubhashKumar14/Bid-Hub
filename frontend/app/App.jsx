@@ -13,21 +13,39 @@ import { Toaster } from "./components/ui/sonner";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
 export default function App() {
-  const [page, setPage] = useState("landing");
+  const readInitialPage = () => {
+    const path = window.location.pathname.replace(/\/$/, "") || "/";
+    if (path.startsWith("/project/")) { localStorage.setItem("currentProjectId", path.split("/").pop()); return "detail"; }
+    return ({ "/": "landing", "/landing": "landing", "/browse": "browse", "/student": "student", "/client": "client", "/profile": "profile", "/post": "post", "/auth": "auth" })[path] || "landing";
+  };
+  const [page, setPageState] = useState(readInitialPage);
+  const [authError, setAuthError] = useState(false);
+  const [authRetry, setAuthRetry] = useState(0);
+  const setPage = (next) => {
+    const target = next === "landing" ? "/" : next === "detail" ? "/project/" + localStorage.getItem("currentProjectId") : "/" + next;
+    if ((window.location.pathname.replace(/\/$/, "") || "/") !== target) window.history.pushState({}, "", target);
+    setPageState(next);
+  };
   const [role, setRole] = useState("student");
-  const [theme, setTheme] = useState("dark");
+  const [theme, setTheme] = useState(() => localStorage.getItem("bidhub-theme") || "light");
   const [escrowOpen, setEscrowOpen] = useState(false);
   const [token, setToken] = useState(localStorage.getItem("token") || "");
   const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
+    localStorage.setItem("bidhub-theme", theme);
   }, [theme]);
 
   // Load user profile on mount / token change
   useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    setAuthError(false);
     if (token) {
       fetch("/api/auth/me", {
+        signal: controller.signal,
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -39,6 +57,7 @@ export default function App() {
           throw err;
         })
         .then((user) => {
+          if (!active) return;
           setCurrentUser(user);
           // Sync role switcher to user's registered role initially
           setRole(user.role);
@@ -53,7 +72,8 @@ export default function App() {
           if (path === "/auth") setPage(user.role);
         })
         .catch((err) => {
-          console.error("Auth check failed error:", err);
+          if (!active) return;
+          setAuthError(true);
           // Only clear token/logout if status is 401 or 403
           if (err.status === 401 || err.status === 403) {
             localStorage.removeItem("token");
@@ -65,7 +85,8 @@ export default function App() {
     } else {
       setCurrentUser(null);
     }
-  }, [token]);
+    return () => { active = false; clearTimeout(timeout); controller.abort(); };
+  }, [token, authRetry]);
 
   // Synchronize browser history and pathing
   useEffect(() => {
@@ -118,24 +139,6 @@ export default function App() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, [token, currentUser]);
 
-  useEffect(() => {
-    let targetPath = "/";
-    if (page === "browse") targetPath = "/browse";
-    else if (page === "student") targetPath = "/student";
-    else if (page === "client") targetPath = "/client";
-    else if (page === "profile") targetPath = "/profile";
-    else if (page === "post") targetPath = "/post";
-    else if (page === "auth") targetPath = "/auth";
-    else if (page === "detail") {
-      const pid = localStorage.getItem("currentProjectId");
-      targetPath = pid ? `/project/${pid}` : "/browse";
-    }
-
-    if (window.location.pathname !== targetPath) {
-      window.history.pushState({}, "", targetPath + window.location.search);
-    }
-  }, [page]);
-
   const handleLogout = () => {
     localStorage.removeItem("token");
     setToken("");
@@ -170,9 +173,16 @@ export default function App() {
     action();
   };
 
+  if (token && !currentUser && authError) {
+    return <div role="alert" className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center gap-4 p-6">
+      <p>We could not restore your session. Please try again.</p>
+      <button type="button" onClick={() => setAuthRetry(n => n + 1)}>Retry</button>
+      <button type="button" onClick={handleLogout}>Sign out</button>
+    </div>;
+  }
   if (token && !currentUser) {
     return (
-      <div className="min-h-screen bg-[var(--brand-deep)] text-[#f1e8cf] flex items-center justify-center font-serif text-xl animate-pulse">
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center font-medium text-base animate-pulse">
         Initializing secure marketplace session...
       </div>
     );

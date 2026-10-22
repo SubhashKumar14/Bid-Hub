@@ -83,6 +83,18 @@ test("RazorpayProvider verifies webhook HMAC before parsing events", async () =>
   );
 });
 
+test("captured lookup binds status, captured flag, amount, currency and order", async t => {
+  const provider = new RazorpayProvider("rzp_test_fixture", "unit-test-secret", "webhook-secret");
+  const payment = { id: "pay_123", order_id: "order_123", status: "captured", captured: true, currency: "INR", amount: 10000 };
+  t.mock.method(provider.razorpay.payments, "fetch", async () => payment);
+  assert.equal(await provider.confirmCapturedPayment("order_123", "pay_123", 10000), true);
+  for (const [key, value] of [["status", "authorized"], ["captured", false], ["currency", "USD"], ["amount", 100], ["order_id", "order_other"]]) {
+    const original = payment[key]; payment[key] = value;
+    assert.equal(await provider.confirmCapturedPayment("order_123", "pay_123", 10000), false);
+    payment[key] = original;
+  }
+});
+
 test("RazorpayProvider binds paid webhook payment and order amounts and IDs", async () => {
   const provider = new RazorpayProvider("rzp_test_securitycheck", "unit-test-secret", "webhook-secret");
   const payload = {
@@ -93,7 +105,7 @@ test("RazorpayProvider binds paid webhook payment and order amounts and IDs", as
         notes: { projectId: "project-1", bidId: "bid-1", clientId: "client-1", studentId: "student-1", amount: "15000" },
       } },
       payment: { entity: {
-        id: "pay_123", order_id: "order_123", currency: "INR", amount: 1500000, status: "captured",
+        id: "pay_123", order_id: "order_123", currency: "INR", amount: 1500000, status: "captured", captured: true,
       } },
     },
   };
@@ -104,6 +116,10 @@ test("RazorpayProvider binds paid webhook payment and order amounts and IDs", as
   assert.equal(result.paymentIntentId, "pay_123");
   assert.equal(result.bidId, "bid-1");
   assert.equal(result.amount, 15000);
+  payload.payload.order.entity.notes.amount = "999999";
+  const wrongNotes = Buffer.from(JSON.stringify(payload));
+  const wrongNotesSig = crypto.createHmac("sha256", "webhook-secret").update(wrongNotes).digest("hex");
+  assert.equal((await provider.verifyWebhook(wrongNotes, { "x-razorpay-signature": wrongNotesSig })).amountPaise, 1500000);
 
   payload.payload.payment.entity.amount = 100;
   const mismatchedBody = Buffer.from(JSON.stringify(payload));

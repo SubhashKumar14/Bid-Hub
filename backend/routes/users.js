@@ -1,18 +1,20 @@
+import { httpErrorStatus } from "../lib/validation.js";
 import express from "express";
+import { createRouter } from "../lib/router.js";
 import jwt from "jsonwebtoken";
 import { User } from "../models/User.js";
 import { Review } from "../models/Review.js";
 import { protect } from "../middleware/auth.js";
 import { upload } from "../config/cloudinary.js";
 
-const router = express.Router();
+const router = createRouter();
 
 // @desc    Get user profile details & reviews
 // @route   GET /api/users/:id
 // @access  Public
 router.get("/:id", async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select("-passwordHash");
+    const user = await User.findById(req.params.id).select("name avatarUrl role bio skills college rating completedProjects profileViews createdAt");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -43,7 +45,7 @@ router.get("/:id", async (req, res) => {
 
     res.json({ user, reviews });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(httpErrorStatus(error)).json({ message: error.message });
   }
 });
 
@@ -70,9 +72,10 @@ router.patch("/:id", protect, async (req, res) => {
     if (college) user.college = college;
 
     const updatedUser = await user.save();
-    res.json(updatedUser);
+    const { passwordHash, ...safeUser } = updatedUser.toObject();
+    res.json(safeUser);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(httpErrorStatus(error)).json({ message: error.message });
   }
 });
 
@@ -104,7 +107,7 @@ router.post("/avatar", protect, upload.single("avatar"), async (req, res) => {
 
     res.json({ message: "Avatar uploaded successfully", avatarUrl: url });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(httpErrorStatus(error)).json({ message: error.message });
   }
 });
 

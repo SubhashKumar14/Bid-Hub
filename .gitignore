@@ -37,6 +37,8 @@ pnpm-debug.log*
 # Upload directories
 # =========================
 backend/uploads/
+backend/private-uploads/
+frontend/tests/generated/
 server/uploads/
 
 # =========================

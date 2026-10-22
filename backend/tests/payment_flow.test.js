@@ -18,9 +18,9 @@ async function runTests() {
 
   // 1. Spawning backend server process
   console.log("Starting backend server process...");
-  const serverProcess = spawn("node", ["backend/index.js"], {
-    env: { ...process.env, PORT: "5003", NODE_ENV: "test" },
-    shell: true,
+  const serverProcess = spawn(process.execPath, ["index.js"], {
+    env: { ...process.env, PORT: "5003", NODE_ENV: "test", PAYMENT_PROVIDER: "mock" },
+    cwd: path.resolve(__dirname, ".."),
   });
 
   serverProcess.stdout.on("data", (data) => {
@@ -64,6 +64,15 @@ async function runTests() {
     console.log("✔ Client registered successfully!");
     const clientToken = clientRegRes.data.token;
 
+    const otherClientRegRes = await axios.post(`${BASE_URL}/api/auth/register`, {
+      name: "Other Test Client",
+      email: `other_${emailSuffix}@rvceinc.com`,
+      password: "password123",
+      role: "client",
+      college: "Other Inc.",
+    });
+    const otherClientToken = otherClientRegRes.data.token;
+
     console.log("\n--- Step 2: Client Posts a Project Brief ---");
     const projectRes = await axios.post(
       `${BASE_URL}/api/projects`,
@@ -71,11 +80,11 @@ async function runTests() {
         title: "Test Escrow Payment Integration Project",
         description: "Testing Stripe, Razorpay and Mock providers with workflow checks.",
         category: "Web Development",
-        budget: "₹10,000",
+        budget: "10000",
         deadline: "2026-12-31",
         skillsRequired: ["React", "Express", "Crypto"],
         milestones: [
-          { title: "Unified Payment Milestone Check", amount: "₹10,000", dueDate: "2026-06-30" }
+          { title: "Unified Payment Milestone Check", amount: "10000", dueDate: "2026-06-30" }
         ],
       },
       {
@@ -105,6 +114,39 @@ async function runTests() {
     console.log("✔ Bid placed successfully!");
     const bidId = bidRes.data._id;
 
+    const mismatchProjectRes = await axios.post(
+      `${BASE_URL}/api/projects`,
+      {
+        title: "Mismatched Milestone Total Test",
+        description: "Checkout must reject an escrow schedule that differs from the bid.",
+        category: "Web Development",
+        budget: "10000",
+        deadline: "2026-12-31",
+        skillsRequired: ["React"],
+        milestones: [{ title: "Single milestone", amount: "9000", dueDate: "2026-06-30" }],
+      },
+      { headers: { Authorization: `Bearer ${clientToken}` } }
+    );
+    const mismatchProjectId = mismatchProjectRes.data._id;
+    const mismatchBidRes = await axios.post(
+      `${BASE_URL}/api/projects/${mismatchProjectId}/bids`,
+      { amount: "10000", timeline: "1 week", proposal: "Bid amount differs from milestone total." },
+      { headers: { Authorization: `Bearer ${studentToken}` } }
+    );
+    const mismatchCheckout = await axios.post(
+      `${BASE_URL}/api/payments/checkout-session`,
+      { bidId: mismatchBidRes.data._id },
+      { headers: { Authorization: `Bearer ${clientToken}` }, validateStatus: (status) => status === 400 }
+    );
+    if (!mismatchCheckout.data.message.includes("milestone total")) {
+      throw new Error("Checkout did not explain the bid and milestone total mismatch.");
+    }
+    const mismatchProject = await axios.get(`${BASE_URL}/api/projects/${mismatchProjectId}`);
+    if (mismatchProject.data.project.status !== "OPEN") {
+      throw new Error("Mismatched checkout changed the project funding state.");
+    }
+    console.log("✔ Mismatched milestone funding was rejected before project state changed.");
+
     console.log("\n--- Step 4: Duplicate Checkout Test ---");
     // Client initiates checkout first time
     const checkoutRes1 = await axios.post(
@@ -116,6 +158,17 @@ async function runTests() {
     const checkoutUrl1 = checkoutRes1.data.url;
     const sessionId1 = checkoutRes1.data.orderId || checkoutRes1.data.sessionId || (checkoutUrl1 ? new URL(checkoutUrl1).searchParams.get("session_id") : null);
     console.log(`Session ID 1: ${sessionId1}`);
+
+    await axios.post(
+      `${BASE_URL}/api/payments/cancel`,
+      { sessionId: sessionId1 },
+      { headers: { Authorization: `Bearer ${otherClientToken}` }, validateStatus: (status) => status === 404 }
+    );
+    const afterUnauthorizedCancel = await axios.get(`${BASE_URL}/api/projects/${projectId}`);
+    if (afterUnauthorizedCancel.data.project.status !== "PENDING_FUNDING") {
+      throw new Error("Another client changed the project by cancelling an unowned checkout.");
+    }
+    console.log("✔ Another client is blocked from cancelling the pending checkout.");
 
     // Verify Project status transitioned to PENDING_FUNDING
     let checkProjectRes = await axios.get(`${BASE_URL}/api/projects/${projectId}`);
@@ -134,6 +187,13 @@ async function runTests() {
     const checkoutUrl2 = checkoutRes2.data.url;
     const sessionId2 = checkoutRes2.data.orderId || checkoutRes2.data.sessionId || (checkoutUrl2 ? new URL(checkoutUrl2).searchParams.get("session_id") : null);
     console.log(`Session ID 2: ${sessionId2}`);
+
+    await axios.post(
+      `${BASE_URL}/api/payments/cancel`,
+      { sessionId: sessionId2 },
+      { headers: { Authorization: `Bearer ${studentToken}` }, validateStatus: (status) => status === 403 }
+    );
+    console.log("✔ Student role is blocked from cancelling a client checkout.");
 
     console.log("\n--- Step 5: Cancelled Payment Test ---");
     // Cancel checkout session 2
@@ -171,7 +231,8 @@ async function runTests() {
     // Simulate payment complete webhook
     const simulateRes = await axios.post(
       `${BASE_URL}/api/payments/simulate-payment`,
-      { sessionId: sessionId3 }
+      { sessionId: sessionId3 },
+      { headers: { Authorization: `Bearer ${clientToken}` } }
     );
     console.log(`✔ Webhook simulation: ${simulateRes.data.message}`);
 
@@ -187,7 +248,8 @@ async function runTests() {
     // Send same webhook again
     const simulateRes2 = await axios.post(
       `${BASE_URL}/api/payments/simulate-payment`,
-      { sessionId: sessionId3 }
+      { sessionId: sessionId3 },
+      { headers: { Authorization: `Bearer ${clientToken}` } }
     );
     console.log(`✔ Duplicate Webhook result: ${simulateRes2.status} (${simulateRes2.data.message})`);
     
@@ -232,7 +294,7 @@ async function runTests() {
     console.log("\n--- Step 9: Client Releases Milestone Escrow ---");
     await axios.patch(
       `${BASE_URL}/api/milestones/${milestoneId}/release`,
-      {},
+      { status: "APPROVED", submissionId: (await axios.get(`${BASE_URL}/api/milestones/${milestoneId}/submission`, { headers: { Authorization: `Bearer ${clientToken}` } })).data._id },
       { headers: { Authorization: `Bearer ${clientToken}` } }
     );
     console.log("✔ Milestone funds released!");

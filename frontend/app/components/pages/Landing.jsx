@@ -72,8 +72,8 @@ export function Landing({ setPage }) {
               <span className="h-px w-12 bg-border" />
               <span className="eyebrow">For college students who freelance</span>
             </div>
-            <h1 className="display text-5xl md:text-6xl lg:text-7xl">
-              A quieter marketplace for <span className="italic text-[var(--brand-gold)]">student talent</span>, built on trust and small money.
+            <h1 className="display text-4xl md:text-5xl lg:text-6xl max-w-4xl">
+              A trusted place for campus freelance work.
             </h1>
             <p className={`mt-6 text-muted-foreground text-lg ${featuredProject ? "max-w-xl" : "max-w-3xl lg:max-w-4xl"}`}>
               Bid·Hub is where college students take on real, paid briefs — design, code, writing, video — with escrow, milestones, and reviews that travel with them after graduation.
@@ -95,8 +95,7 @@ export function Landing({ setPage }) {
           {/* Featured project card */}
           {featuredProject && (
             <div className="lg:col-span-5 relative">
-              <div className="absolute -top-4 -right-4 size-28 rounded-full blur-3xl bg-[var(--brand-gold)]/20" />
-              <div className="paper hairline rounded-3xl p-6 relative grain overflow-hidden">
+              <div className="paper hairline rounded-xl p-6 relative overflow-hidden">
                 <div className="flex items-center justify-between">
                   <StatusBadge tone="gold">Featured this week</StatusBadge>
                   <span className="text-xs text-muted-foreground num">#OPEN</span>
@@ -154,7 +153,7 @@ export function Landing({ setPage }) {
           <div className="mx-auto max-w-7xl 2xl:max-w-[1440px] min-[1920px]:max-w-[1680px] min-[2560px]:max-w-[2200px] min-[3400px]:max-w-[2800px] px-5 lg:px-8 grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-border">
             {displayStats.map(s => (
               <div key={s.k} className="py-6 px-4 text-center md:text-left">
-                <p className="font-serif text-3xl num">{s.v}</p>
+                <p className="font-serif text-xl font-semibold num">{s.v}</p>
                 <p className="text-xs text-muted-foreground mt-1">{s.k}</p>
               </div>
             ))}
@@ -170,15 +169,17 @@ export function Landing({ setPage }) {
             <h2 className="font-serif text-4xl mt-2 leading-tight">A short, calm process from brief to payout.</h2>
             <p className="mt-4 text-muted-foreground">No clutter, no hustle theatre. Just a clean loop students and clients both understand.</p>
           </div>
-          <div className="lg:col-span-8 grid sm:grid-cols-2 gap-4">
+          <ol className="lg:col-span-8 grid sm:grid-cols-2 gap-x-10">
             {steps.map(s => (
-              <div key={s.n} className="paper hairline rounded-2xl p-6">
-                <p className="font-serif text-3xl text-[var(--brand-gold)] num">{s.n}</p>
-                <h3 className="font-serif text-xl mt-3">{s.t}</h3>
-                <p className="text-sm text-muted-foreground mt-2">{s.d}</p>
-              </div>
+              <li key={s.n} className="flex gap-4 border-t border-border py-5">
+                <span className="text-sm font-semibold text-primary num">{s.n}</span>
+                <div>
+                  <h3 className="font-serif text-lg">{s.t}</h3>
+                  <p className="text-sm text-muted-foreground mt-1">{s.d}</p>
+                </div>
+              </li>
             ))}
-          </div>
+          </ol>
         </div>
       </section>
 
@@ -212,8 +213,7 @@ export function Landing({ setPage }) {
             body: "Post a brief in ten minutes. Bids arrive within hours. Pay only when milestones land.",
             cta: "Post your first brief", page: "post" },
         ].map((j,i) => (
-          <div key={i} className="paper hairline rounded-3xl p-8 relative overflow-hidden">
-            <div className="absolute -bottom-12 -right-12 size-48 rounded-full bg-[var(--brand-gold)]/10 blur-2xl" />
+          <div key={i} className="paper hairline rounded-xl p-8 relative overflow-hidden">
             <div className="flex items-center gap-2 text-[var(--brand-gold)]">
               {j.icon}<span className="eyebrow">{j.eyebrow}</span>
             </div>
@@ -239,7 +239,7 @@ export function Landing({ setPage }) {
                 <div className="mt-6 flex items-center justify-center gap-3">
                   <Avatar className="size-9">
                     {r.reviewerId?.avatarUrl ? (
-                      <img src={r.reviewerId.avatarUrl} alt="" className="size-full object-cover rounded-full" />
+                    <img src={r.reviewerId.avatarUrl} alt="" loading="lazy" className="size-full object-cover rounded-full" />
                     ) : (
                       <AvatarFallback className="bg-[var(--brand-bronze)] text-[var(--brand-gold)] text-xs">
                         {r.reviewerId?.name?.charAt(0).toUpperCase() || "R"}

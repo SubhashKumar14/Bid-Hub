@@ -1,7 +1,9 @@
-import { useState, useEffect } from "react";
+import { downloadAttachment } from "../../api/fileApi";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { Loader2, Github, Link, FileText, ArrowRight, CornerDownRight, X, ExternalLink, Paperclip } from "lucide-react";
+import { Loader2, Github, Link, FileText, ArrowRight, CornerDownRight, ExternalLink, Paperclip } from "lucide-react";
 import { Button } from "./ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./ui/dialog";
 
 export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitle, token, onSuccess }) {
   const [submission, setSubmission] = useState(null);
@@ -10,7 +12,10 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
   const [isRequestingChanges, setIsRequestingChanges] = useState(false);
   const [reviewComment, setReviewComment] = useState("");
 
+  const targetRef = useRef("");
+  targetRef.current = open ? `${milestoneId}:${token}` : "";
   const fetchSubmission = async () => {
+    const target = targetRef.current;
     if (!milestoneId || !token) return;
     setLoading(true);
     try {
@@ -18,6 +23,7 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
+      if (target !== targetRef.current) return;
       if (res.ok) {
         setSubmission(data);
       } else {
@@ -32,15 +38,16 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
   };
 
   useEffect(() => {
+    setSubmission(null);
     if (open) {
       fetchSubmission();
       setIsRequestingChanges(false);
       setReviewComment("");
     }
-  }, [open, milestoneId]);
+  }, [open, milestoneId, token]);
 
   const handleApprove = async () => {
-    if (!window.confirm("Are you sure you want to approve this milestone? This will release the allocated escrow funds to the student.")) return;
+    if (!window.confirm("Are you sure you want to approve this milestone? Demo approval does not transfer real money.")) return;
 
     setReviewing(true);
     try {
@@ -50,11 +57,11 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ status: "APPROVED" }),
+        body: JSON.stringify({ status: "APPROVED", submissionId: submission?._id }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to release milestone");
-      toast.success("Milestone approved and escrow funds released successfully!");
+      toast.success(data.message);
       onSuccess();
       onClose();
     } catch (err) {
@@ -81,6 +88,7 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
         },
         body: JSON.stringify({
           status: "CHANGES_REQUESTED",
+          submissionId: submission?._id,
           reviewComment: reviewComment.trim(),
         }),
       });
@@ -96,20 +104,16 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
     }
   };
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-      <div className="w-full max-w-lg bg-card border border-border rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
+      <DialogContent aria-describedby="milestone-review-description" className="w-full max-w-lg bg-card border-border rounded-2xl p-0 shadow-xl overflow-hidden flex flex-col max-h-[90dvh]">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-border">
           <div>
             <span className="eyebrow">Review Milestone Deliverables</span>
-            <h2 className="font-serif text-xl mt-1">{milestoneTitle}</h2>
+            <DialogTitle className="font-serif text-xl mt-1">{milestoneTitle}</DialogTitle>
+            <DialogDescription id="milestone-review-description" className="sr-only">Review submitted work and approve it or request changes.</DialogDescription>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-muted rounded-full transition-colors text-muted-foreground">
-            <X className="size-5" />
-          </button>
         </div>
 
         {/* Content */}
@@ -223,7 +227,7 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
                       <div key={idx} className="flex items-center justify-between text-xs p-2 rounded-lg bg-background border border-border">
                         <span className="font-medium truncate max-w-[75%]">{file.name}</span>
                         <a
-                          href={file.url}
+                          href={file.url} onClick={event => downloadAttachment(event, file.url, file.name, token).catch(error => toast.error(error.message))}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-xs text-[var(--brand-gold)] hover:underline font-medium"
@@ -240,17 +244,18 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
               {isRequestingChanges && (
                 <div className="pt-3 border-t border-border space-y-3">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-red-500 flex items-center gap-1">
+                    <label htmlFor="revision-feedback" className="text-xs font-semibold text-[var(--status-danger-fg)] flex items-center gap-1">
                       <CornerDownRight className="size-3.5" /> Revision Details / Feedback
                     </label>
                     <textarea
+                      id="revision-feedback"
                       placeholder="Specify what needs to be changed (e.g. Navbar mobile layout, validation bugs, test cases)..."
                       value={reviewComment}
                       onChange={(e) => setReviewComment(e.target.value)}
                       required
                       disabled={reviewing}
                       rows={3}
-                      className="w-full rounded-xl bg-background border border-border px-3.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-red-500"
+                      className="w-full rounded-xl bg-background border border-border px-3.5 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--status-danger-fg)]"
                     />
                   </div>
                 </div>
@@ -269,7 +274,8 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
               <Button
                 onClick={handleRequestChanges}
                 disabled={reviewing || !reviewComment.trim()}
-                className="bg-red-600 hover:bg-red-700 text-white rounded-xl"
+                variant="destructive"
+                className="rounded-xl"
               >
                 {reviewing ? (
                   <>
@@ -284,7 +290,7 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
             <>
               <Button
                 variant="outline"
-                className="text-red-500 border-red-500/20 hover:bg-red-500/10 rounded-xl"
+                className="text-[var(--status-danger-fg)] border-[var(--status-danger-border)] hover:bg-[var(--status-danger-bg)] rounded-xl"
                 onClick={() => setIsRequestingChanges(true)}
                 disabled={reviewing || !submission || loading}
               >
@@ -311,7 +317,7 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
             </>
           )}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

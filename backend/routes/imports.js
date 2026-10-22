@@ -1,11 +1,14 @@
+import { httpErrorStatus } from "../lib/validation.js";
+import { validFileContent } from "../lib/file-content.js";
 import express from "express";
+import { createRouter } from "../lib/router.js";
 import AdmZip from "adm-zip";
 import axios from "axios";
 import rateLimit from "express-rate-limit";
-import { upload } from "../config/cloudinary.js";
+import { importUpload } from "../config/cloudinary.js";
 import { protect } from "../middleware/auth.js";
 
-const router = express.Router();
+const router = createRouter();
 
 // Rate limit: 5 import calls per 15 minutes per IP (each GitHub import hits external API)
 const importLimiter = rateLimit({
@@ -44,14 +47,14 @@ const isImageFile = (filename) => {
 // @desc    Import local zip file
 // @route   POST /api/import/local
 // @access  Private
-router.post("/local", importLimiter, protect, upload.single("file"), async (req, res) => {
+router.post("/local", importLimiter, protect, importUpload.single("file"), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ message: "Please upload a ZIP file" });
   }
 
   try {
-    const zipPath = req.file.path; // Multer saves file
-    const zip = new AdmZip(zipPath);
+    if (!validFileContent(req.file.buffer, ".zip")) return res.status(415).json({ message: "Invalid or oversized archive." });
+    const zip = new AdmZip(req.file.buffer);
     const zipEntries = zip.getEntries();
 
     let validFiles = [];
@@ -104,7 +107,7 @@ router.post("/local", importLimiter, protect, upload.single("file"), async (req,
       manifest: validFiles,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(httpErrorStatus(error)).json({ message: error.message });
   }
 });
 
@@ -119,32 +122,36 @@ router.post("/github", importLimiter, protect, async (req, res) => {
   }
 
   try {
-    // Extract owner and repo from URL: e.g. https://github.com/owner/repo
-    const regex = /github\.com\/([^/]+)\/([^/]+)/;
-    const match = repoUrl.match(regex);
-    if (!match) {
+    if (typeof repoUrl !== "string") {
       return res.status(400).json({ message: "Invalid GitHub repository URL format" });
     }
-
-    const owner = match[1];
-    // Clean repo name from trailing `.git` or `/`
-    const repo = match[2].replace(/\.git$/, "").replace(/\/$/, "");
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(repoUrl);
+    } catch {
+      return res.status(400).json({ message: "Invalid GitHub repository URL format" });
+    }
+    const parts = parsedUrl.pathname.split("/").filter(Boolean);
+    const owner = parts[0] || "";
+    const repo = (parts[1] || "").replace(/\.git$/, "");
+    if (
+      parsedUrl.protocol !== "https:" ||
+      parsedUrl.hostname.toLowerCase() !== "github.com" ||
+      parts.length !== 2 ||
+      !/^[A-Za-z0-9_.-]+$/.test(owner) ||
+      !/^[A-Za-z0-9_.-]+$/.test(repo)
+    ) {
+      return res.status(400).json({ message: "Please provide a public GitHub URL in https://github.com/owner/repository format." });
+    }
+    const headers = { "User-Agent": "BidHub-Client", Accept: "application/vnd.github+json" };
+    if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
 
     // Fetch the file tree from GitHub API recursively
     // Try main branch, if fails try master
-    let response;
-    try {
-      response = await axios.get(
-        `https://api.github.com/repos/${owner}/${repo}/git/trees/main?recursive=1`,
-        { headers: { "User-Agent": "BidHub-Client" } }
-      );
-    } catch (e) {
-      response = await axios.get(
-        `https://api.github.com/repos/${owner}/${repo}/git/trees/master?recursive=1`,
-        { headers: { "User-Agent": "BidHub-Client" } }
-      );
-    }
-
+    const repository = await axios.get(`https://api.github.com/repos/${owner}/${repo}`, { headers, timeout: 8000 });
+    const branch = await axios.get(`https://api.github.com/repos/${owner}/${repo}/commits/${encodeURIComponent(repository.data.default_branch)}`, { headers, timeout: 8000 });
+    const response = await axios.get(`https://api.github.com/repos/${owner}/${repo}/git/trees/${branch.data.sha}?recursive=1`, { headers, timeout: 8000 });
+    if (response.data.truncated) return res.status(422).json({ message: "Repository tree is truncated. Import a smaller repository." });
     const tree = response.data.tree;
     let validFiles = [];
     let totalSize = 0;
@@ -191,12 +198,14 @@ router.post("/github", importLimiter, protect, async (req, res) => {
 
     res.json({
       source: "github",
+      commitSha: branch.data.sha,
+      verification: "filenames-only",
       fileCount: validFiles.length,
       totalSize: totalSize,
       manifest: validFiles,
     });
   } catch (error) {
-    res.status(500).json({
+    res.status(httpErrorStatus(error)).json({
       message: `Failed to fetch GitHub repo: ${error.response?.data?.message || error.message}`,
     });
   }

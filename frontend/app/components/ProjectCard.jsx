@@ -15,7 +15,7 @@ const formatCurrency = (val) => {
 export function ProjectCard({ project, onOpen }) {
   return (
     <button onClick={onOpen}
-      className="group text-left paper rounded-2xl p-5 hairline relative overflow-hidden transition-all hover:-translate-y-0.5 hover:shadow-[0_20px_50px_-30px_rgba(39,37,15,0.4)]">
+      className="group text-left paper rounded-2xl p-5 hairline relative overflow-hidden transition-shadow hover:shadow-md">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
           <span className="eyebrow">{project.category}</span>

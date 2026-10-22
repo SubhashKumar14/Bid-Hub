@@ -20,10 +20,9 @@ async function runVerification() {
 
   // 1. Spawning backend server process on PORT 5002
   console.log(`\n[1/9] Spawning backend server process on port ${PORT}...`);
-  const serverProcess = spawn("node", ["backend/index.js"], {
-    env: { ...process.env, PORT, NODE_ENV: "test" },
-    shell: true,
-    cwd: "."
+  const serverProcess = spawn(process.execPath, ["index.js"], {
+    env: { ...process.env, PORT, NODE_ENV: "test", PAYMENT_PROVIDER: "mock" },
+    cwd: path.resolve(__dirname, "..")
   });
 
   serverProcess.stdout.on("data", (data) => {
@@ -75,12 +74,12 @@ async function runVerification() {
         title: "Runtime Validation Project",
         description: "Testing end-to-end client routing, Razorpay checkout, and milestones.",
         category: "Web Development",
-        budget: "₹20,000",
+        budget: "20000",
         deadline: "2026-12-31",
         skillsRequired: ["React", "Express"],
         milestones: [
-          { title: "Frontend Implementation", amount: "₹10,000", dueDate: "2026-07-30" },
-          { title: "Backend Hardening", amount: "₹10,000", dueDate: "2026-08-30" }
+          { title: "Frontend Implementation", amount: "10000", dueDate: "2026-07-30" },
+          { title: "Backend Hardening", amount: "10000", dueDate: "2026-08-30" }
         ],
       },
       { headers: { Authorization: `Bearer ${clientToken}` } }
@@ -121,7 +120,8 @@ async function runVerification() {
       console.log("Mock provider active. Triggering simulated payment webhook...");
       verifyRes = await axios.post(
         `${BASE_URL}/api/payments/simulate-payment`,
-        { sessionId }
+        { sessionId },
+        { headers: { Authorization: `Bearer ${clientToken}` } }
       );
     } else {
       console.log("Razorpay provider active. Submitting verify signature request...");

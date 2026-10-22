@@ -1,3 +1,4 @@
+import { amountToPaise } from "../lib/validation.js";
 import mongoose from "mongoose";
 
 const projectSchema = new mongoose.Schema(
@@ -5,7 +6,7 @@ const projectSchema = new mongoose.Schema(
     title: { type: String, required: true },
     description: { type: String, required: true },
     category: { type: String, required: true },
-    budget: { type: Number, required: true },
+    budget: { type: Number, required: true, validate: value => { try { amountToPaise(value); return true; } catch { return false; } } },
     deadline: { type: String, required: true },
     skillsRequired: { type: [String], default: [] },
     clientId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },

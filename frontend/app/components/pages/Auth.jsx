@@ -88,9 +88,8 @@ export function Auth({ onDone, setToken }) {
 
   return (
     <div className="min-h-[calc(100vh-4rem)] grid lg:grid-cols-2">
-      {/* Left — editorial */}
-      <aside className="hidden lg:flex flex-col justify-between p-12 bg-[var(--brand-espresso)] text-[#f1e8cf] relative overflow-hidden grain">
-        <div className="absolute -top-32 -left-32 size-80 rounded-full bg-[var(--brand-gold)]/15 blur-3xl" />
+      {/* Sign-in information */}
+      <aside className="hidden lg:flex flex-col justify-between p-12 bg-primary text-primary-foreground relative overflow-hidden">
         <div className="flex items-center gap-3">
           <img src="/bidhublogo.png" alt="Bid·Hub Logo" className="size-10 object-contain rounded-md" />
           <span className="font-serif text-2xl">Bid<span className="text-[var(--brand-gold)]">·</span>Hub</span>
@@ -100,13 +99,13 @@ export function Auth({ onDone, setToken }) {
           <h1 className="display text-5xl mt-4">
             Small money, <span className="italic text-[var(--brand-gold)]">real work</span>, kept honest by escrow.
           </h1>
-          <div className="mt-12 paper rounded-2xl p-5 bg-[#27250f]/70 backdrop-blur border border-[var(--brand-gold)]/20">
+          <div className="mt-12 rounded-xl p-5 bg-primary-foreground/10 border border-primary-foreground/20">
             <Quote className="text-[var(--brand-gold)] size-5" />
             <p className="font-serif italic mt-3 leading-relaxed">"I funded my final-year thesis with five Bid·Hub gigs. The escrow made strangers feel like colleagues."</p>
             <p className="text-xs text-[var(--brand-sand)] mt-3">— Nidhi K · NID, '26</p>
           </div>
         </div>
-        <div className="text-xs text-[#f1e8cf]/60">© Bid·Hub · Made in Bengaluru</div>
+        <div className="text-xs text-primary-foreground/70">© Bid·Hub · Made in Bengaluru</div>
       </aside>
 
       {/* Right — form */}
@@ -131,8 +130,12 @@ export function Auth({ onDone, setToken }) {
                 }}
               >
                 <div>
-                  <label className="text-xs text-muted-foreground">Email</label>
+                  <label htmlFor="login-email" className="text-xs text-muted-foreground">Email</label>
                   <Input
+                    id="login-email"
+                    type="email"
+                    autoComplete="username"
+                    required
                     className="mt-1"
                     placeholder="you@college.edu"
                     value={loginEmail}
@@ -140,10 +143,13 @@ export function Auth({ onDone, setToken }) {
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground">Password</label>
+                  <label htmlFor="login-password" className="text-xs text-muted-foreground">Password</label>
                   <div className="relative mt-1">
                     <Input
+                      id="login-password"
                       type={showPassword ? "text" : "password"}
+                      autoComplete="current-password"
+                      required
                       placeholder="••••••••"
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
@@ -183,6 +189,7 @@ export function Auth({ onDone, setToken }) {
                       key={r}
                       onClick={() => setRole(r)}
                       type="button"
+                      aria-pressed={role === r}
                       className={`hairline rounded-xl p-3 text-left transition-colors ${
                         role === r
                           ? "bg-[var(--brand-espresso)] text-[var(--brand-gold)]"
@@ -197,30 +204,57 @@ export function Auth({ onDone, setToken }) {
                   ))}
                 </div>
                 <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label htmlFor="register-first-name" className="sr-only">First name</label>
+                    <Input
+                      id="register-first-name"
+                      autoComplete="given-name"
+                      placeholder="First name"
+                      value={registerFirstName}
+                      onChange={(e) => setRegisterFirstName(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="register-last-name" className="sr-only">Last name</label>
+                    <Input
+                      id="register-last-name"
+                      autoComplete="family-name"
+                      placeholder="Last name"
+                      value={registerLastName}
+                      onChange={(e) => setRegisterLastName(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="register-email" className="sr-only">College or company email</label>
                   <Input
-                    placeholder="First name"
-                    value={registerFirstName}
-                    onChange={(e) => setRegisterFirstName(e.target.value)}
-                  />
-                  <Input
-                    placeholder="Last name"
-                    value={registerLastName}
-                    onChange={(e) => setRegisterLastName(e.target.value)}
+                    id="register-email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    placeholder="College / company email"
+                    value={registerEmail}
+                    onChange={(e) => setRegisterEmail(e.target.value)}
                   />
                 </div>
-                <Input
-                  placeholder="College / company email"
-                  value={registerEmail}
-                  onChange={(e) => setRegisterEmail(e.target.value)}
-                />
-                <Input
-                  placeholder="College / university name"
-                  value={registerCollege}
-                  onChange={(e) => setRegisterCollege(e.target.value)}
-                />
-                <div className="relative">
+                <div>
+                  <label htmlFor="register-college" className="sr-only">College or university name</label>
                   <Input
+                    id="register-college"
+                    autoComplete="organization"
+                    placeholder="College / university name"
+                    value={registerCollege}
+                    onChange={(e) => setRegisterCollege(e.target.value)}
+                  />
+                </div>
+                <div className="relative">
+                  <label htmlFor="register-password" className="sr-only">Create password</label>
+                  <Input
+                    id="register-password"
                     type={showRegisterPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    aria-label="Create password"
+                    required
                     placeholder="Create password"
                     value={registerPassword}
                     onChange={(e) => setRegisterPassword(e.target.value)}

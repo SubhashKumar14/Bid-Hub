@@ -1,4 +1,6 @@
+import { httpErrorStatus } from "../lib/validation.js";
 import express from "express";
+import { createRouter } from "../lib/router.js";
 import { getPaymentProvider, getActiveProviderName } from "../payments/index.js";
 import { PaymentLedger } from "../models/PaymentLedger.js";
 import { Project } from "../models/Project.js";
@@ -8,8 +10,11 @@ import { Activity } from "../models/Activity.js";
 import { Notification } from "../models/Notification.js";
 import { User } from "../models/User.js";
 import { protect, requireRole } from "../middleware/auth.js";
+import { amountToPaise } from "../lib/validation.js";
+import { settlePayment } from "../payments/settle.js";
+import { PaymentEvent } from "../models/PaymentEvent.js";
 
-const router = express.Router();
+const router = createRouter();
 
 // Helper to generate transaction reference
 const genTxnRef = () =>
@@ -38,6 +43,7 @@ router.post("/checkout-session", protect, requireRole("client"), async (req, res
     if (!bid) {
       return res.status(404).json({ message: "Bid not found." });
     }
+    if (bid.status !== "PENDING") return res.status(409).json({ message: "Only a pending bid can enter checkout." });
 
     const project = await Project.findOne({
       _id: bid.projectId,
@@ -49,7 +55,7 @@ router.post("/checkout-session", protect, requireRole("client"), async (req, res
       return res.status(400).json({ message: "Project is not open or you are not authorized." });
     }
 
-    const numericAmount = parseAmount(bid.amount);
+    const numericAmount = amountToPaise(bid.amount) / 100;
     const milestones = await Milestone.find({ projectId: project._id });
     const milestoneTotal = milestones.reduce((total, milestone) => total + parseAmount(milestone.amount), 0);
     if (milestones.length === 0) {
@@ -70,101 +76,18 @@ router.post("/checkout-session", protect, requireRole("client"), async (req, res
     }
     const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
 
-    // Invalidate previous checkout attempts by marking them as FAILED
-    await PaymentLedger.updateMany(
-      { projectId: project._id, status: "PENDING_CHECKOUT" },
-      { status: "FAILED" }
-    );
-
     const provider = getPaymentProvider();
-    const checkoutData = await provider.createCheckout(transitionedProject, bid, numericAmount, clientUrl);
+    const checkoutData = await provider.createCheckout(transitionedProject, bid, numericAmount, clientUrl, milestones);
 
     res.json(checkoutData);
   } catch (error) {
     console.error("Escrow checkout initiation error:", error);
-    res.status(500).json({ message: "Failed to initiate payment checkout. Please try again." });
+    res.status(httpErrorStatus(error)).json({ message: "Failed to initiate payment checkout. Please try again." });
   }
 });
 
 // Helper function to handle the bid acceptance logic once paid
-const processBidAcceptance = async (projectId, bidId, amount, sessionId, paymentIntentId) => {
-  // Use atomic findOneAndUpdate to prevent duplicate assignment race conditions
-  const project = await Project.findOneAndUpdate(
-    { _id: projectId, status: { $in: ["OPEN", "PENDING_FUNDING"] } },
-    { status: "ASSIGNED", acceptedBidId: bidId },
-    { new: true }
-  );
-
-  if (!project) {
-    console.warn(`Project ${projectId} is already assigned or closed.`);
-    return false;
-  }
-
-  // Accept the bid
-  const bid = await Bid.findByIdAndUpdate(bidId, { status: "ACCEPTED" }, { new: true }).populate("studentId", "name");
-  if (!bid) return false;
-
-  // Reject all other bids
-  const rejectedBids = await Bid.find({ projectId, _id: { $ne: bidId } });
-  await Bid.updateMany({ projectId, _id: { $ne: bidId } }, { status: "REJECTED" });
-
-  // Update/Convert the pending PaymentLedger record to LOCKED
-  await PaymentLedger.findOneAndUpdate(
-    { stripeSessionId: sessionId },
-    {
-      status: "LOCKED",
-      stripePaymentIntentId: paymentIntentId || "pi_simulated_" + Math.random().toString(36).substring(2, 10),
-      releasedAt: null,
-    }
-  );
-
-  // Setup milestones in PaymentLedger
-  const milestones = await Milestone.find({ projectId });
-  for (const milestone of milestones) {
-    const numAmount = parseAmount(milestone.amount);
-    
-    // Create locked ledger allocations per milestone checkpoint
-    await PaymentLedger.create({
-      projectId,
-      milestoneId: milestone._id,
-      clientId: project.clientId,
-      studentId: bid.studentId._id || bid.studentId,
-      amount: numAmount,
-      status: "LOCKED",
-      stripeSessionId: sessionId,
-      stripePaymentIntentId: paymentIntentId || "pi_simulated_alloc",
-      transactionRef: genTxnRef(),
-    });
-  }
-
-  // Log Activity
-  const clientUser = await User.findById(project.clientId);
-  await Activity.create({
-    actorId: project.clientId,
-    type: "BID_ACCEPTED",
-    message: `${clientUser ? clientUser.name : "Client"} accepted bid & deposited ₹${amount} in Escrow for "${project.title}"`,
-    targetId: project._id,
-  });
-
-  // Notifications
-  await Notification.create({
-    recipientId: bid.studentId._id || bid.studentId,
-    type: "BID_ACCEPTED",
-    message: `Your proposal on "${project.title}" was accepted! Milestone funds are locked in Escrow.`,
-    targetId: project._id,
-  });
-
-  for (const rBid of rejectedBids) {
-    await Notification.create({
-      recipientId: rBid.studentId,
-      type: "BID_REJECTED",
-      message: `Your bid on "${project.title}" was not selected. Keep bidding!`,
-      targetId: project._id,
-    });
-  }
-
-  return true;
-};
+const processBidAcceptance = settlePayment;
 
 // @desc    Verify Razorpay payment signature (client-side modal success handler)
 // @route   POST /api/payments/verify
@@ -219,6 +142,12 @@ router.post("/verify", protect, requireRole("client"), async (req, res) => {
     if (parseAmount(bid.amount) !== Number(ledger.amount)) {
       return res.status(400).json({ message: "Payment amount does not match the selected bid." });
     }
+    if (!(await provider.confirmCapturedPayment(razorpay_order_id, razorpay_payment_id, ledger.amountPaise || amountToPaise(ledger.amount)))) {
+      return res.status(409).json({ message: "Payment is not a captured INR payment for the expected amount." });
+    }
+    await PaymentEvent.updateOne({ paymentId: razorpay_payment_id }, { $setOnInsert: {
+      orderId: razorpay_order_id, amountPaise: amountToPaise(ledger.amount), status: "RECEIVED",
+    } }, { upsert: true });
 
     const success = await processBidAcceptance(
       ledger.projectId,
@@ -227,6 +156,7 @@ router.post("/verify", protect, requireRole("client"), async (req, res) => {
       razorpay_order_id,
       razorpay_payment_id
     );
+    await PaymentEvent.updateOne({ paymentId: razorpay_payment_id }, { status: success ? "PROCESSED" : "NEEDS_RECONCILIATION" });
 
     if (success) {
       return res.json({ message: "Razorpay payment verified and processed successfully." });
@@ -235,7 +165,7 @@ router.post("/verify", protect, requireRole("client"), async (req, res) => {
     }
   } catch (error) {
     console.error("Razorpay signature verification error:", error);
-    res.status(500).json({ message: "Verification failed." });
+    res.status(httpErrorStatus(error)).json({ message: "Verification failed." });
   }
 });
 
@@ -292,7 +222,7 @@ router.post("/cancel", protect, requireRole("client"), async (req, res) => {
     res.json({ message: "Payment checkout cancelled. Project reopened." });
   } catch (error) {
     console.error("Cancel checkout session error:", error);
-    res.status(500).json({ message: "Cancellation failed." });
+    res.status(httpErrorStatus(error)).json({ message: "Cancellation failed." });
   }
 });
 
@@ -339,7 +269,7 @@ router.post("/simulate-payment", protect, requireRole("client"), async (req, res
     }
   } catch (error) {
     console.error("Simulation payment error:", error);
-    res.status(500).json({ message: "Simulation failed." });
+    res.status(httpErrorStatus(error)).json({ message: "Simulation failed." });
   }
 });
 
@@ -358,17 +288,21 @@ router.post("/webhook", express.raw({ type: "application/json" }), async (req, r
     const verification = await provider.verifyWebhook(req.body, req.headers);
 
     if (verification.success) {
+      await PaymentEvent.updateOne({ paymentId: verification.paymentIntentId }, { $setOnInsert: {
+        orderId: verification.sessionId, amountPaise: verification.amountPaise, status: "RECEIVED",
+      } }, { upsert: true });
       console.log(`Webhook signature verified for ${providerName}. Session: ${verification.sessionId}`);
 
       // Locate matching pending ledger
       const ledger = await PaymentLedger.findOne({
         stripeSessionId: verification.sessionId,
-        status: "PENDING_CHECKOUT"
+        milestoneId: null,
       });
 
       if (!ledger) {
         console.warn(`No pending checkout ledger found for session: ${verification.sessionId}`);
-        return res.json({ received: true, info: "Payment session already processed or not found." });
+        await PaymentEvent.updateOne({ paymentId: verification.paymentIntentId }, { status: "NEEDS_RECONCILIATION", reason: "Unknown order" });
+        return res.json({ received: true, outcome: "NEEDS_RECONCILIATION" });
       }
 
       if (
@@ -382,21 +316,22 @@ router.post("/webhook", express.raw({ type: "application/json" }), async (req, r
       }
 
       const bid = await Bid.findOne({
+        _id: ledger.bidId,
         projectId: verification.projectId,
         studentId: verification.studentId,
-        status: "PENDING"
       });
 
       if (!bid) {
         console.warn(`No pending bid found for project: ${verification.projectId} student: ${verification.studentId}`);
-        return res.json({ received: true });
+        await PaymentEvent.updateOne({ paymentId: verification.paymentIntentId }, { status: "NEEDS_RECONCILIATION", reason: "Missing bound bid" });
+        return res.json({ received: true, outcome: "NEEDS_RECONCILIATION" });
       }
       if (String(verification.bidId) !== bid._id.toString()) {
         console.error(`Webhook bid metadata did not match the pending bid for ${verification.sessionId}.`);
         return res.status(400).send("Webhook bid metadata mismatch.");
       }
 
-      await processBidAcceptance(
+      const processed = await processBidAcceptance(
         verification.projectId,
         bid._id,
         verification.amount,
@@ -404,7 +339,8 @@ router.post("/webhook", express.raw({ type: "application/json" }), async (req, r
         verification.paymentIntentId
       );
 
-      return res.json({ received: true });
+      await PaymentEvent.updateOne({ paymentId: verification.paymentIntentId }, { status: processed ? "PROCESSED" : "NEEDS_RECONCILIATION", reason: processed ? "" : "Settlement conflict" });
+      return res.json({ received: true, outcome: processed ? "PROCESSED" : "NEEDS_RECONCILIATION" });
     } else {
       return res.json({ received: true, info: "Skipped event." });
     }
@@ -456,7 +392,7 @@ router.get("/", protect, async (req, res) => {
       transactions,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(httpErrorStatus(error)).json({ message: error.message });
   }
 });
 

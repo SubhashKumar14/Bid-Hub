@@ -93,6 +93,7 @@ export function Browse({ setPage }) {
           <div className="relative flex-1 min-w-[220px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
             <Input
+              aria-label="Search projects by title, skill, or organisation"
               placeholder="Search by title, skill, or organisation…"
               className="pl-9 bg-input-background border-transparent"
               value={search}

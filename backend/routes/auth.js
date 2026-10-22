@@ -1,4 +1,6 @@
+import { httpErrorStatus } from "../lib/validation.js";
 import express from "express";
+import { createRouter } from "../lib/router.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import rateLimit from "express-rate-limit";
@@ -14,12 +16,12 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-const router = express.Router();
+const router = createRouter();
 
 const generateToken = (id) => {
   // JWT_SECRET is validated on startup — no fallback here
   return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE || "30d",
+    expiresIn: process.env.JWT_EXPIRE || "1d",
   });
 };
 
@@ -48,7 +50,7 @@ router.post("/register", authLimiter, async (req, res) => {
     return res.status(400).json({ message: "Role must be either 'student' or 'client'." });
   }
 
-  if (password.length < 6) {
+  if (password.length < 8 || Buffer.byteLength(password, "utf8") > 72 || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ message: "Password must be at least 6 characters." });
   }
 
@@ -84,7 +86,7 @@ router.post("/register", authLimiter, async (req, res) => {
     }
   } catch (error) {
     console.error("Register error:", error);
-    res.status(500).json({ message: "Registration failed. Please try again." });
+    res.status(httpErrorStatus(error)).json({ message: "Registration failed. Please try again." });
   }
 });
 
@@ -120,7 +122,7 @@ router.post("/login", authLimiter, async (req, res) => {
     }
   } catch (error) {
     console.error("Login error:", error);
-    res.status(500).json({ message: "Login failed. Please try again." });
+    res.status(httpErrorStatus(error)).json({ message: "Login failed. Please try again." });
   }
 });
 
@@ -131,7 +133,7 @@ router.get("/me", protect, async (req, res) => {
   try {
     res.json(req.user);
   } catch (error) {
-    res.status(500).json({ message: "Failed to fetch user profile." });
+    res.status(httpErrorStatus(error)).json({ message: "Failed to fetch user profile." });
   }
 });
 

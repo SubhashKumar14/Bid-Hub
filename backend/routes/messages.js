@@ -1,11 +1,14 @@
+import { httpErrorStatus } from "../lib/validation.js";
 import express from "express";
+import { createRouter } from "../lib/router.js";
 import { Message } from "../models/Message.js";
 import { Project } from "../models/Project.js";
 import { Bid } from "../models/Bid.js";
 import { Notification } from "../models/Notification.js";
 import { protect } from "../middleware/auth.js";
+import { boundedInteger } from "../lib/validation.js";
 
-const router = express.Router();
+const router = createRouter();
 
 // @desc    Send a message
 // @route   POST /api/messages
@@ -13,7 +16,7 @@ const router = express.Router();
 router.post("/", protect, async (req, res) => {
   const { projectId, content } = req.body;
 
-  if (!projectId || !content || !content.trim()) {
+  if (typeof projectId !== "string" || typeof content !== "string" || !content.trim() || content.length > 5000) {
     return res.status(400).json({ message: "Project ID and content are required." });
   }
 
@@ -71,7 +74,7 @@ router.post("/", protect, async (req, res) => {
     res.status(201).json(populatedMessage);
   } catch (error) {
     console.error("Post message error:", error);
-    res.status(500).json({ message: "Failed to send message." });
+    res.status(httpErrorStatus(error)).json({ message: "Failed to send message." });
   }
 });
 
@@ -80,8 +83,9 @@ router.post("/", protect, async (req, res) => {
 // @access  Private (Client or Accepted Student only)
 router.get("/:projectId", protect, async (req, res) => {
   const { projectId } = req.params;
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 20;
+  const page = boundedInteger(req.query.page, 1, 10000);
+  const limit = boundedInteger(req.query.limit, 20, 100);
+  if (page === null || limit === null) return res.status(400).json({ message: "Invalid message pagination." });
   const skip = (page - 1) * limit;
 
   try {
@@ -131,7 +135,7 @@ router.get("/:projectId", protect, async (req, res) => {
     });
   } catch (error) {
     console.error("Get messages error:", error);
-    res.status(500).json({ message: "Failed to fetch messages." });
+    res.status(httpErrorStatus(error)).json({ message: "Failed to fetch messages." });
   }
 });
 

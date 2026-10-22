@@ -6,10 +6,14 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
-    "test:security": "node --test tests/razorpay_security.test.js tests/audit_regressions.test.js"
+    "test:security": "node --test tests/razorpay_security.test.js tests/audit_regressions.test.js",
+    "test:transactions": "node --test tests/settlement_database.test.js",
+    "test:payment-flow": "node tests/payment_flow.test.js",
+    "test:security-chat": "node tests/security_chat.test.js",
+    "test:runtime": "node tests/runtime_verification.js"
   },
   "dependencies": {
-    "adm-zip": "^0.5.12",
+    "adm-zip": "^0.6.1",
     "axios": "^1.7.2",
     "bcryptjs": "^2.4.3",
     "cloudinary": "^2.2.0",

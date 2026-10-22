@@ -1,3 +1,7 @@
+import { httpErrorStatus } from "./lib/validation.js";
+import mongoose from "mongoose";
+import { User } from "./models/User.js";
+import { PaymentEvent } from "./models/PaymentEvent.js";
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -10,19 +14,19 @@ import { connectDB } from "./config/db.js";
 import { Activity } from "./models/Activity.js";
 import { getPaymentProvider } from "./payments/index.js";
 
-import crypto from "crypto";
 
 // Load environment variables
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(currentDir, ".env") });
 
 // === Env validation: fail fast if critical vars missing ===
-if (!process.env.JWT_SECRET || process.env.JWT_SECRET === "replace_with_a_long_random_secret_key") {
-  console.warn("WARNING: JWT_SECRET is not set or is using the default placeholder. Generating a temporary random secret key for this session to prevent boot crash.");
-  process.env.JWT_SECRET = crypto.randomBytes(32).toString("hex");
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET.startsWith("replace_with_") || process.env.JWT_SECRET.length < 32) {
+  console.error("FATAL CONFIGURATION ERROR: Set a stable JWT_SECRET of at least 32 characters before starting BidHub.");
+  process.exit(1);
 }
 if (!process.env.MONGODB_URI) {
-  console.warn("WARNING: MONGODB_URI is not set. Using local mongodb://localhost:27017/bidhub");
+  console.error("FATAL CONFIGURATION ERROR: Set MONGODB_URI before starting BidHub.");
+  process.exit(1);
 }
 
 try {
@@ -36,7 +40,8 @@ try {
 }
 
 // Connect to Database
-connectDB();
+await connectDB();
+await PaymentEvent.init();
 
 const app = express();
 
@@ -72,6 +77,7 @@ const messageWriteLimiter = rateLimit({
 
 // Exclude GET requests from global strict limiting to prevent polling 429 lockouts
 const apiLimiter = (req, res, next) => {
+  if (req.path === "/api/payments/webhook") return next();
   if (req.method === "GET") {
     return next();
   }
@@ -116,7 +122,7 @@ app.use(
     origin: (origin, callback) => {
       // Allow requests with no origin (e.g. curl, Postman, Render health checks)
       if (!origin) return callback(null, true);
-      if (allowedOrigins.some((allowed) => origin.startsWith(allowed))) {
+      if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
       callback(new Error(`CORS: Origin '${origin}' not allowed.`));
@@ -128,13 +134,18 @@ app.use(
 // Razorpay webhook requires raw body for signature verification
 app.use("/api/payments/webhook", express.raw({ type: "application/json" }));
 
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 app.use(mongoSanitize());
 
 // Serve static upload folder (local fallback)
 const __dirname = path.resolve();
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use("/uploads", async (req, res, next) => {
+  try {
+    if (!(await User.exists({ avatarUrl: `/uploads${req.path}` }))) return res.status(404).end();
+    next();
+  } catch (error) { next(error); }
+}, express.static(path.join(__dirname, "uploads")));
 
 // Import Routers
 import authRouter from "./routes/auth.js";
@@ -165,7 +176,7 @@ app.use("/api/messages", messagesRouter);
 // Global Activity Feed endpoint
 app.get("/api/activities", async (req, res) => {
   try {
-    const activities = await Activity.find()
+    const activities = await Activity.find({ type: { $in: ["PROJECT_POSTED", "PROJECT_COMPLETED"] } })
       .populate("actorId", "name avatarUrl college role")
       .sort({ createdAt: -1 })
       .limit(30);
@@ -186,6 +197,11 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+app.get("/api/ready", (req, res) => {
+  const ready = mongoose.connection.readyState === 1;
+  res.status(ready ? 200 : 503).json({ ready });
+});
+
 // Root endpoint
 app.get("/", (req, res) => {
   res.json({ message: "Bid-Hub API is running.", status: "ok" });
@@ -193,7 +209,7 @@ app.get("/", (req, res) => {
 
 // === Global error handler — never expose stack traces in production ===
 app.use((err, req, res, next) => {
-  const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
+  const statusCode = httpErrorStatus(err);
   console.error(err);
   res.status(statusCode).json({
     message: err.message || "Internal server error.",
