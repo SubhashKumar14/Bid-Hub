@@ -100,12 +100,13 @@ router.get("/student/dashboard", protect, requireRole("student"), async (req, re
 
     res.json({
       bids: studentBids.map(b => {
-        const isPendingEscrow = pendingLedgers.some(l => 
-          l.projectId.toString() === (b.projectId?._id || b.projectId).toString()
+        const projectId = b.projectId?._id ?? b.projectId;
+        const isPendingEscrow = projectId != null && pendingLedgers.some(l =>
+          String(l.projectId) === String(projectId)
         );
         return {
           id: b._id,
-          projectId: b.projectId?._id || b.projectId,
+          projectId,
           title: b.projectId?.title || "Deleted Project",
           amount: b.amount,
           status: isPendingEscrow ? "accepted (escrow pending)" : b.status.toLowerCase(),
@@ -245,6 +246,35 @@ router.get("/public/stats", async (req, res) => {
   }
 });
 
+// @desc    Recover pending checkout details for the owning client only
+// @route   GET /api/projects/:id/checkout
+// @access  Private (Client owner only)
+router.get("/:id/checkout", protect, requireRole("client"), async (req, res) => {
+  try {
+    const project = await Project.findOne({ _id: req.params.id, clientId: req.user._id });
+    if (!project) return res.status(404).json({ message: "Project not found." });
+
+    const ledger = project.status === "PENDING_FUNDING"
+      ? await PaymentLedger.findOne({
+          projectId: project._id,
+          clientId: req.user._id,
+          milestoneId: null,
+          status: "PENDING_CHECKOUT",
+        }).select("stripeSessionId studentId amount -_id")
+      : null;
+
+    // Explicit response allowlist: never return the underlying payment document.
+    res.json({ pendingPayment: ledger ? {
+      stripeSessionId: ledger.stripeSessionId,
+      studentId: ledger.studentId,
+      amount: ledger.amount,
+    } : null });
+  } catch (error) {
+    console.error("Get checkout error:", error);
+    res.status(500).json({ message: "Failed to load checkout details." });
+  }
+});
+
 // @desc    Get single project details
 // @route   GET /api/projects/:id
 // @access  Public
@@ -261,13 +291,7 @@ router.get("/:id", async (req, res) => {
     // Find milestones for this project
     const milestones = await Milestone.find({ projectId: project._id });
 
-    // Find pending checkout ledger if project is PENDING_FUNDING
-    let pendingPayment = null;
-    if (project.status === "PENDING_FUNDING") {
-      pendingPayment = await PaymentLedger.findOne({ projectId: project._id, status: "PENDING_CHECKOUT" });
-    }
-
-    res.json({ project, milestones, pendingPayment });
+    res.json({ project, milestones });
   } catch (error) {
     console.error("Get project error:", error);
     res.status(500).json({ message: "Failed to load project details. Please try again." });

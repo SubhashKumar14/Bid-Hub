@@ -1,11 +1,15 @@
 import { PaymentProvider } from "./PaymentProvider.js";
 import Razorpay from "razorpay";
 import { PaymentLedger } from "../models/PaymentLedger.js";
+import { verifyRazorpaySignature } from "./razorpay-signature.js";
 import crypto from "crypto";
 
 export class RazorpayProvider extends PaymentProvider {
   constructor(keyId, keySecret, webhookSecret) {
     super();
+    if (!keyId || !keySecret || keyId === "rzp_test_placeholder" || keySecret === "placeholdersecret") {
+      throw new Error("Valid Razorpay API credentials are required.");
+    }
     this.razorpay = new Razorpay({
       key_id: keyId,
       key_secret: keySecret,
@@ -18,23 +22,7 @@ export class RazorpayProvider extends PaymentProvider {
   async createCheckout(project, bid, numericAmount, clientUrl) {
     const studentId = bid.studentId._id || bid.studentId;
 
-    let order;
-    if (this.keyId === "rzp_test_placeholder") {
-      console.warn("WARNING: Using simulated placeholder order ID because real Razorpay keys are not configured.");
-      order = {
-        id: "order_mock_" + Math.random().toString(36).substring(2, 12),
-        amount: Math.round(numericAmount * 100),
-        currency: "INR",
-        notes: {
-          projectId: project._id.toString(),
-          bidId: bid._id.toString(),
-          clientId: project.clientId.toString(),
-          studentId: studentId.toString(),
-          amount: String(numericAmount),
-        }
-      };
-    } else {
-      order = await this.razorpay.orders.create({
+    const order = await this.razorpay.orders.create({
         amount: Math.round(numericAmount * 100), // in paise
         currency: "INR",
         receipt: "rcpt_" + Math.random().toString(36).substring(2, 10),
@@ -45,8 +33,7 @@ export class RazorpayProvider extends PaymentProvider {
           studentId: studentId.toString(),
           amount: String(numericAmount),
         },
-      });
-    }
+    });
 
     // Create PaymentLedger record in PENDING_CHECKOUT state (map order.id to stripeSessionId)
     await PaymentLedger.create({
@@ -71,23 +58,14 @@ export class RazorpayProvider extends PaymentProvider {
   }
 
   verifySignature(orderId, paymentId, signature) {
-    if (this.keyId === "rzp_test_placeholder" || signature === "signature_simulated") {
-      return true;
-    }
-    // Strictly validate payment ID pattern and reject mock values in production
-    if (process.env.NODE_ENV === "production") {
-      if (signature === "signature_simulated") return true;
-      const isRealPattern = /^pay_[a-zA-Z0-9]+$/.test(paymentId);
-      const isMockPattern = /mock|test/i.test(paymentId);
-      if (!isRealPattern || isMockPattern) {
-        console.warn(`[Security Alert] Rejected invalid or mock payment ID in production: "${paymentId}"`);
-        return false;
-      }
-    }
-    const shasum = crypto.createHmac("sha256", this.keySecret);
-    shasum.update(orderId + "|" + paymentId);
-    const generated = shasum.digest("hex");
-    return generated === signature;
+    return verifyRazorpaySignature({
+      keyId: this.keyId,
+      keySecret: this.keySecret,
+      orderId,
+      paymentId,
+      signature,
+      production: process.env.NODE_ENV === "production",
+    });
   }
 
   async verifyWebhook(rawBody, headers) {
@@ -97,11 +75,12 @@ export class RazorpayProvider extends PaymentProvider {
     }
 
     // Verify webhook signature
-    const shasum = crypto.createHmac("sha256", this.webhookSecret);
-    shasum.update(rawBody);
-    const generated = shasum.digest("hex");
-
-    if (generated !== sig) {
+    const expected = crypto.createHmac("sha256", this.webhookSecret).update(rawBody).digest();
+    if (
+      typeof sig !== "string" ||
+      !/^[a-fA-F0-9]{64}$/.test(sig) ||
+      !crypto.timingSafeEqual(Buffer.from(sig, "hex"), expected)
+    ) {
       throw new Error("Razorpay webhook signature verification failed.");
     }
 
@@ -112,6 +91,17 @@ export class RazorpayProvider extends PaymentProvider {
     if (eventType === "order.paid") {
       const order = payload.payload.order.entity;
       const payment = payload.payload.payment.entity;
+      if (
+        order.status !== "paid" ||
+        order.currency !== "INR" ||
+        Number(order.amount_paid) !== Number(order.amount) ||
+        payment.order_id !== order.id ||
+        payment.currency !== order.currency ||
+        Number(payment.amount) !== Number(order.amount) ||
+        (payment.status !== "captured" && payment.captured !== true)
+      ) {
+        throw new Error("Razorpay order and payment details do not match a captured INR payment.");
+      }
       const { projectId, bidId, clientId, studentId, amount } = order.notes;
 
       return {

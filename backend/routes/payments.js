@@ -39,18 +39,35 @@ router.post("/checkout-session", protect, requireRole("client"), async (req, res
       return res.status(404).json({ message: "Bid not found." });
     }
 
-    // Atomic update to transition project to PENDING_FUNDING
-    const project = await Project.findOneAndUpdate(
-      { _id: bid.projectId, clientId: req.user._id, status: { $in: ["OPEN", "PENDING_FUNDING"] } },
-      { status: "PENDING_FUNDING" },
-      { new: true }
-    );
+    const project = await Project.findOne({
+      _id: bid.projectId,
+      clientId: req.user._id,
+      status: { $in: ["OPEN", "PENDING_FUNDING"] },
+    });
 
     if (!project) {
       return res.status(400).json({ message: "Project is not open or you are not authorized." });
     }
 
     const numericAmount = parseAmount(bid.amount);
+    const milestones = await Milestone.find({ projectId: project._id });
+    const milestoneTotal = milestones.reduce((total, milestone) => total + parseAmount(milestone.amount), 0);
+    if (milestones.length === 0) {
+      return res.status(400).json({ message: "Add at least one milestone before funding this project." });
+    }
+    if (Math.round(milestoneTotal * 100) !== Math.round(numericAmount * 100)) {
+      return res.status(400).json({ message: "The selected bid total must match the project milestone total before checkout." });
+    }
+
+    // Atomically claim the project only after confirming its escrow schedule matches the bid.
+    const transitionedProject = await Project.findOneAndUpdate(
+      { _id: project._id, clientId: req.user._id, status: { $in: ["OPEN", "PENDING_FUNDING"] } },
+      { status: "PENDING_FUNDING" },
+      { new: true }
+    );
+    if (!transitionedProject) {
+      return res.status(400).json({ message: "Project status changed before checkout could start. Refresh and try again." });
+    }
     const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
 
     // Invalidate previous checkout attempts by marking them as FAILED
@@ -60,7 +77,7 @@ router.post("/checkout-session", protect, requireRole("client"), async (req, res
     );
 
     const provider = getPaymentProvider();
-    const checkoutData = await provider.createCheckout(project, bid, numericAmount, clientUrl);
+    const checkoutData = await provider.createCheckout(transitionedProject, bid, numericAmount, clientUrl);
 
     res.json(checkoutData);
   } catch (error) {
@@ -151,8 +168,8 @@ const processBidAcceptance = async (projectId, bidId, amount, sessionId, payment
 
 // @desc    Verify Razorpay payment signature (client-side modal success handler)
 // @route   POST /api/payments/verify
-// @access  Private
-router.post("/verify", protect, async (req, res) => {
+// @access  Private (Client owner only)
+router.post("/verify", protect, requireRole("client"), async (req, res) => {
   const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
 
   if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
@@ -171,19 +188,36 @@ router.post("/verify", protect, async (req, res) => {
       return res.status(400).json({ message: "Razorpay payment signature verification failed." });
     }
 
-    const ledger = await PaymentLedger.findOne({ stripeSessionId: razorpay_order_id, status: "PENDING_CHECKOUT" });
+    const ledger = await PaymentLedger.findOne({
+      stripeSessionId: razorpay_order_id,
+      milestoneId: null,
+      clientId: req.user._id,
+      status: "PENDING_CHECKOUT",
+    });
     if (!ledger) {
-      // Could be already verified or missing
-      const alreadyLocked = await PaymentLedger.findOne({ stripeSessionId: razorpay_order_id, status: "LOCKED" });
+      const alreadyLocked = await PaymentLedger.findOne({
+        stripeSessionId: razorpay_order_id,
+        milestoneId: null,
+        clientId: req.user._id,
+        status: "LOCKED",
+        stripePaymentIntentId: razorpay_payment_id,
+      });
       if (alreadyLocked) {
         return res.json({ message: "Payment already verified and locked." });
       }
       return res.status(404).json({ message: "Payment checkout session not found." });
     }
 
-    const bid = await Bid.findOne({ projectId: ledger.projectId, studentId: ledger.studentId, status: "PENDING" });
+    const bid = await Bid.findOne({
+      projectId: ledger.projectId,
+      studentId: ledger.studentId,
+      status: "PENDING",
+    });
     if (!bid) {
       return res.status(400).json({ message: "No matching pending bid for this payment." });
+    }
+    if (parseAmount(bid.amount) !== Number(ledger.amount)) {
+      return res.status(400).json({ message: "Payment amount does not match the selected bid." });
     }
 
     const success = await processBidAcceptance(
@@ -207,8 +241,8 @@ router.post("/verify", protect, async (req, res) => {
 
 // @desc    Cancel checkout session and reopen project for bidding
 // @route   POST /api/payments/cancel
-// @access  Private
-router.post("/cancel", protect, async (req, res) => {
+// @access  Private (Client owner only)
+router.post("/cancel", protect, requireRole("client"), async (req, res) => {
   const { sessionId, projectId } = req.body;
 
   if (!sessionId && !projectId) {
@@ -218,18 +252,21 @@ router.post("/cancel", protect, async (req, res) => {
   try {
     let ledger = null;
     if (sessionId) {
-      ledger = await PaymentLedger.findOne({ stripeSessionId: sessionId, status: "PENDING_CHECKOUT" });
+      ledger = await PaymentLedger.findOne({ stripeSessionId: sessionId, clientId: req.user._id, status: "PENDING_CHECKOUT" });
     }
     if (!ledger && projectId) {
-      ledger = await PaymentLedger.findOne({ projectId, status: "PENDING_CHECKOUT" });
+      ledger = await PaymentLedger.findOne({ projectId, clientId: req.user._id, status: "PENDING_CHECKOUT" });
     }
 
     if (!ledger) {
       // Revert project status anyway if it's currently stuck in PENDING_FUNDING
       if (projectId) {
-        const proj = await Project.findById(projectId);
-        if (proj && proj.status === "PENDING_FUNDING") {
-          await Project.findByIdAndUpdate(projectId, { status: "OPEN" });
+        const proj = await Project.findOneAndUpdate(
+          { _id: projectId, clientId: req.user._id, status: "PENDING_FUNDING" },
+          { $set: { status: "OPEN" } },
+          { new: true }
+        );
+        if (proj) {
           return res.json({ message: "No checkout session found, but project status reset to OPEN." });
         }
       }
@@ -237,11 +274,20 @@ router.post("/cancel", protect, async (req, res) => {
     }
 
     // Revert project status back to OPEN
-    await Project.findByIdAndUpdate(ledger.projectId, { status: "OPEN" });
+    const project = await Project.findOneAndUpdate(
+      { _id: ledger.projectId, clientId: req.user._id, status: "PENDING_FUNDING" },
+      { $set: { status: "OPEN" } },
+      { new: true }
+    );
+    if (!project) {
+      return res.status(409).json({ message: "Project is no longer awaiting funding. Refresh before continuing." });
+    }
 
     // Mark ledger as FAILED
-    ledger.status = "FAILED";
-    await ledger.save();
+    await PaymentLedger.updateOne(
+      { _id: ledger._id, clientId: req.user._id, status: "PENDING_CHECKOUT" },
+      { $set: { status: "FAILED" } }
+    );
 
     res.json({ message: "Payment checkout cancelled. Project reopened." });
   } catch (error) {
@@ -252,9 +298,9 @@ router.post("/cancel", protect, async (req, res) => {
 
 // @desc    Simulate payment completion webhook (for offline fallback testing)
 // @route   POST /api/payments/simulate-payment
-// @access  Public (Demo helper)
-router.post("/simulate-payment", async (req, res) => {
-  if (process.env.NODE_ENV === "production") {
+// @access  Private (Client owner, explicit non-production mock provider only)
+router.post("/simulate-payment", protect, requireRole("client"), async (req, res) => {
+  if (process.env.NODE_ENV === "production" || getActiveProviderName() !== "mock") {
     return res.status(403).json({ message: "Simulation is disabled in production." });
   }
   const { sessionId } = req.body;
@@ -264,7 +310,7 @@ router.post("/simulate-payment", async (req, res) => {
   }
 
   try {
-    const ledger = await PaymentLedger.findOne({ stripeSessionId: sessionId });
+    const ledger = await PaymentLedger.findOne({ stripeSessionId: sessionId, clientId: req.user._id, milestoneId: null });
     if (!ledger) {
       return res.status(404).json({ message: "Payment session not found." });
     }
@@ -325,6 +371,16 @@ router.post("/webhook", express.raw({ type: "application/json" }), async (req, r
         return res.json({ received: true, info: "Payment session already processed or not found." });
       }
 
+      if (
+        ledger.projectId.toString() !== String(verification.projectId) ||
+        ledger.clientId.toString() !== String(verification.clientId) ||
+        ledger.studentId.toString() !== String(verification.studentId) ||
+        Number(ledger.amount) !== Number(verification.amount)
+      ) {
+        console.error(`Webhook order metadata did not match the pending ledger for ${verification.sessionId}.`);
+        return res.status(400).send("Webhook order metadata mismatch.");
+      }
+
       const bid = await Bid.findOne({
         projectId: verification.projectId,
         studentId: verification.studentId,
@@ -334,6 +390,10 @@ router.post("/webhook", express.raw({ type: "application/json" }), async (req, r
       if (!bid) {
         console.warn(`No pending bid found for project: ${verification.projectId} student: ${verification.studentId}`);
         return res.json({ received: true });
+      }
+      if (String(verification.bidId) !== bid._id.toString()) {
+        console.error(`Webhook bid metadata did not match the pending bid for ${verification.sessionId}.`);
+        return res.status(400).send("Webhook bid metadata mismatch.");
       }
 
       await processBidAcceptance(

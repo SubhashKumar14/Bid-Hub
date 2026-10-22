@@ -57,6 +57,23 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
   const [reviewComment, setReviewComment] = useState("");
   const [submittingReview, setSubmittingReview] = useState(false);
 
+  const fetchPendingCheckout = async (loadedProject) => {
+    const ownerId = loadedProject.clientId?._id || loadedProject.clientId;
+    if (!token || ownerId !== currentUser?._id || loadedProject.status !== "PENDING_FUNDING") {
+      setPendingPayment(null);
+      return;
+    }
+    const response = await fetch(`/api/projects/${projectId}/checkout`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      setPendingPayment(null);
+      throw new Error(data.message || "Failed to load checkout details");
+    }
+    setPendingPayment(data.pendingPayment || null);
+  };
+
   const fetchProjectData = async () => {
     if (!projectId) return;
     setLoading(true);
@@ -67,7 +84,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
       if (!projectRes.ok) throw new Error(projectData.message || "Failed to load project details");
       setProject(projectData.project);
       setMilestones(projectData.milestones || []);
-      setPendingPayment(projectData.pendingPayment || null);
+      await fetchPendingCheckout(projectData.project);
 
       // 2. Fetch bids if user is logged in
       let bidsData = [];
@@ -131,7 +148,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
         if (projectRes.ok) {
           setProject(projectData.project);
           setMilestones(projectData.milestones || []);
-          setPendingPayment(projectData.pendingPayment || null);
+          await fetchPendingCheckout(projectData.project);
         }
 
         if (token) {
@@ -230,37 +247,8 @@ const loadRazorpay = () => {
       if (!res.ok) throw new Error(data.message || "Failed to initiate escrow checkout");
 
       if (data.provider === "razorpay") {
-        if (data.keyId === "rzp_test_placeholder") {
-          toast.info("Simulating Razorpay Test Mode checkout (using placeholder credentials)...");
-          setTimeout(async () => {
-            try {
-              const verifyRes = await fetch("/api/payments/verify", {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({
-                  razorpay_order_id: data.orderId,
-                  razorpay_payment_id: "pay_simulated_" + Math.random().toString(36).substring(2, 10),
-                  razorpay_signature: "signature_simulated",
-                }),
-              });
-              const verifyData = await verifyRes.json();
-              if (verifyRes.ok) {
-                setSuccessOpen(true);
-              } else {
-                throw new Error(verifyData.message || "Verification failed");
-              }
-            } catch (vErr) {
-              toast.error("Payment verification failed: " + vErr.message);
-            }
-          }, 1500);
-          return;
-        }
-
-        toast.info("Opening Razorpay test portal. Test Card: 4111 1111 1111 1111 | Expiry: 12/30 | CVV: 111", { duration: 10000 });
-        await loadRazorpay();
+        toast.info("Opening Razorpay checkout.");
+        if (!(await loadRazorpay())) throw new Error("Razorpay checkout could not be loaded. Check your connection and try again.");
         const options = {
           key: data.keyId,
           amount: data.amount,
@@ -314,9 +302,18 @@ const loadRazorpay = () => {
         };
         const rzp = new window.Razorpay(options);
         rzp.open();
+      } else if (data.provider === "mock") {
+        const simulation = await fetch("/api/payments/simulate-payment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ sessionId: data.sessionId }),
+        });
+        const result = await simulation.json();
+        if (!simulation.ok) throw new Error(result.message || "Demo checkout failed");
+        setSuccessOpen(true);
+        fetchProjectData();
       } else {
-        toast.success("Redirecting to payment checkout...");
-        window.location.href = data.url;
+        throw new Error("Unsupported payment provider response.");
       }
     } catch (err) {
       toast.error(err.message);

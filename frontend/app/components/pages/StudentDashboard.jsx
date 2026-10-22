@@ -63,7 +63,9 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
       const releasedAmount = paymentsData.stats?.releasedAmount || 0;
 
       // 2. Fetch User Profile & Views & Reviews
-      const profileRes = await fetch(`/api/users/${currentUser._id}`);
+      const profileRes = await fetch(`/api/users/${currentUser._id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const profileData = await profileRes.json();
       const views = profileData.user?.profileViews || 0;
       setReviews(profileData.reviews || []);
@@ -104,7 +106,9 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
         const paymentsData = await paymentsRes.json();
         const releasedAmount = paymentsData.stats?.releasedAmount || 0;
 
-        const profileRes = await fetch(`/api/users/${currentUser._id}`);
+        const profileRes = await fetch(`/api/users/${currentUser._id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         const profileData = await profileRes.json();
         const views = profileData.user?.profileViews || 0;
         setReviews(profileData.reviews || []);
