@@ -13,6 +13,11 @@ import dotenv from "dotenv";
 // Resolve storage capabilities after loading the same backend configuration as startup.
 dotenv.config({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../.env") });
 
+if (process.env.RENDER) {
+  if (!process.env.PRIVATE_STORAGE) process.env.PRIVATE_STORAGE = "mongodb";
+  if (!process.env.PAYMENT_PROVIDER) process.env.PAYMENT_PROVIDER = "mock";
+}
+
 const isCloudinaryConfigured =
   process.env.CLOUDINARY_CLOUD_NAME &&
   process.env.CLOUDINARY_API_KEY &&

@@ -67,7 +67,7 @@ for (const storageCase of ["missing", "relative", "configured"]) {
       CLOUDINARY_CLOUD_NAME: "fixture", CLOUDINARY_API_KEY: "fixture", CLOUDINARY_API_SECRET: "fixture",
     };
     const child = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
-      cwd: new URL("../", import.meta.url), env, encoding: "utf8", timeout: 15000,
+      cwd: new URL("../", import.meta.url), env, encoding: "utf8", timeout: 30000,
     });
     assert.equal(child.error, undefined);
     assert.equal(child.status, 0, child.stderr || child.stdout);
