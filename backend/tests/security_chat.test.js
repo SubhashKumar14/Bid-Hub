@@ -21,7 +21,7 @@ async function runTests() {
   // 1. Spawning backend server process on PORT 5001
   console.log(`Starting backend server process on port ${PORT}...`);
   const serverProcess = spawn(process.execPath, ["index.js"], {
-    env: { ...process.env, PORT, NODE_ENV: "test", PAYMENT_PROVIDER: "mock" },
+    env: { ...process.env, PORT, NODE_ENV: "test", PAYMENT_PROVIDER: "mock", AUTH_RATE_LIMIT: "10" },
     cwd: path.resolve(__dirname, ".."),
   });
 

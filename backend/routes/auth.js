@@ -7,12 +7,10 @@ import rateLimit from "express-rate-limit";
 import { User } from "../models/User.js";
 import { protect } from "../middleware/auth.js";
 
-// Rate limit: max 10 auth attempts per 15 minutes per IP (relaxed in test/CI/demo environments)
+// Rate limit: max 10 auth attempts per 15 minutes per IP (configurable via AUTH_RATE_LIMIT)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: process.env.AUTH_RATE_LIMIT
-    ? parseInt(process.env.AUTH_RATE_LIMIT, 10)
-    : (process.env.NODE_ENV === "test" || process.env.CI || process.env.PRODUCT_MODE === "demo" ? 1000 : 10),
+  max: process.env.AUTH_RATE_LIMIT ? parseInt(process.env.AUTH_RATE_LIMIT, 10) : 10,
   message: { message: "Too many login attempts. Please try again in 15 minutes." },
   standardHeaders: true,
   legacyHeaders: false,
