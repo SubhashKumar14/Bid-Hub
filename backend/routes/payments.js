@@ -1,3 +1,7 @@
+import { Contract } from "../models/Contract.js";
+import { capabilities } from "../config/capabilities.js";
+import { agreeOffer } from "../payments/agreement.js";
+import { FundingAttempt } from "../models/FundingAttempt.js";
 import { httpErrorStatus } from "../lib/validation.js";
 import express from "express";
 import { createRouter } from "../lib/router.js";
@@ -10,7 +14,7 @@ import { Activity } from "../models/Activity.js";
 import { Notification } from "../models/Notification.js";
 import { User } from "../models/User.js";
 import { protect, requireRole } from "../middleware/auth.js";
-import { amountToPaise } from "../lib/validation.js";
+import { boundedInteger, amountToPaise } from "../lib/validation.js";
 import { settlePayment } from "../payments/settle.js";
 import { PaymentEvent } from "../models/PaymentEvent.js";
 
@@ -32,17 +36,20 @@ const parseAmount = (amountVal) => {
 // @route   POST /api/payments/checkout-session
 // @access  Private (Client only)
 router.post("/checkout-session", protect, requireRole("client"), async (req, res) => {
-  const { bidId } = req.body;
+  const { bidId, proposalVersion } = req.body;
 
   if (!bidId) {
     return res.status(400).json({ message: "Bid ID is required." });
   }
+  if (!Number.isSafeInteger(proposalVersion) || proposalVersion < 1) return res.status(400).json({ message: "Review and submit the exact proposal version." });
 
   try {
     const bid = await Bid.findById(bidId).populate("studentId", "name");
     if (!bid) {
       return res.status(404).json({ message: "Bid not found." });
     }
+    if (!bid.studentId) return res.status(409).json({ message: "The selected student account is unavailable. Request operator review." });
+    if (bid.status === "ACCEPTED" && await Project.exists({ _id: bid.projectId, clientId: req.user._id, acceptedBidId: bid._id })) return res.json({ settled: true });
     if (bid.status !== "PENDING") return res.status(409).json({ message: "Only a pending bid can enter checkout." });
 
     const project = await Project.findOne({
@@ -55,30 +62,24 @@ router.post("/checkout-session", protect, requireRole("client"), async (req, res
       return res.status(400).json({ message: "Project is not open or you are not authorized." });
     }
 
-    const numericAmount = amountToPaise(bid.amount) / 100;
-    const milestones = await Milestone.find({ projectId: project._id });
-    const milestoneTotal = milestones.reduce((total, milestone) => total + parseAmount(milestone.amount), 0);
-    if (milestones.length === 0) {
-      return res.status(400).json({ message: "Add at least one milestone before funding this project." });
+    if (!await Contract.exists({ projectId: project._id }) && await PaymentLedger.exists({ projectId: project._id, milestoneId: null, status: "PENDING_CHECKOUT" })) return res.status(409).json({ message: "An existing legacy payable order requires operator review. No new order was created." });
+    const contract = await agreeOffer(bidId, req.user._id, proposalVersion);
+    const existing = await FundingAttempt.findOne({ contractId: contract._id });
+    if (existing) {
+      if (existing.state === "READY") return res.json(existing.checkout);
+      return res.status(409).json({ message: "Funding attempt is pending recovery. Retry later; a second order will not be created." });
     }
-    if (Math.round(milestoneTotal * 100) !== Math.round(numericAmount * 100)) {
-      return res.status(400).json({ message: "The selected bid total must match the project milestone total before checkout." });
+    try { await FundingAttempt.create({ contractId: contract._id }); }
+    catch (error) { if (error.code === 11000) return res.status(409).json({ message: "Checkout is already being prepared. Retry shortly." }); throw error; }
+    let checkoutData;
+    try {
+      const milestones = await Milestone.find({ projectId: project._id });
+      checkoutData = await getPaymentProvider().createCheckout(project, bid, contract.totalPaise / 100, process.env.CLIENT_URL || "http://localhost:5173", milestones);
+      await FundingAttempt.updateOne({ contractId: contract._id }, { state: "READY", checkout: checkoutData });
+    } catch (error) {
+      await FundingAttempt.updateOne({ contractId: contract._id }, { state: "RECOVERY_REQUIRED", reason: "Provider creation outcome uncertain. Operator review required." });
+      throw error;
     }
-
-    // Atomically claim the project only after confirming its escrow schedule matches the bid.
-    const transitionedProject = await Project.findOneAndUpdate(
-      { _id: project._id, clientId: req.user._id, status: { $in: ["OPEN", "PENDING_FUNDING"] } },
-      { status: "PENDING_FUNDING" },
-      { new: true }
-    );
-    if (!transitionedProject) {
-      return res.status(400).json({ message: "Project status changed before checkout could start. Refresh and try again." });
-    }
-    const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
-
-    const provider = getPaymentProvider();
-    const checkoutData = await provider.createCheckout(transitionedProject, bid, numericAmount, clientUrl, milestones);
-
     res.json(checkoutData);
   } catch (error) {
     console.error("Escrow checkout initiation error:", error);
@@ -180,6 +181,7 @@ router.post("/cancel", protect, requireRole("client"), async (req, res) => {
   }
 
   try {
+    if (await Contract.exists({ clientId: req.user._id, ...(projectId ? { projectId } : { bidId: (await PaymentLedger.findOne({ stripeSessionId: sessionId, clientId: req.user._id }))?.bidId }) })) return res.json({ message: "Checkout dismissed; agreement and payable order retained for recovery." });
     let ledger = null;
     if (sessionId) {
       ledger = await PaymentLedger.findOne({ stripeSessionId: sessionId, clientId: req.user._id, status: "PENDING_CHECKOUT" });
@@ -188,38 +190,11 @@ router.post("/cancel", protect, requireRole("client"), async (req, res) => {
       ledger = await PaymentLedger.findOne({ projectId, clientId: req.user._id, status: "PENDING_CHECKOUT" });
     }
 
-    if (!ledger) {
-      // Revert project status anyway if it's currently stuck in PENDING_FUNDING
-      if (projectId) {
-        const proj = await Project.findOneAndUpdate(
-          { _id: projectId, clientId: req.user._id, status: "PENDING_FUNDING" },
-          { $set: { status: "OPEN" } },
-          { new: true }
-        );
-        if (proj) {
-          return res.json({ message: "No checkout session found, but project status reset to OPEN." });
-        }
-      }
-      return res.status(404).json({ message: "Pending payment checkout session not found." });
-    }
-
-    // Revert project status back to OPEN
-    const project = await Project.findOneAndUpdate(
-      { _id: ledger.projectId, clientId: req.user._id, status: "PENDING_FUNDING" },
-      { $set: { status: "OPEN" } },
-      { new: true }
-    );
-    if (!project) {
-      return res.status(409).json({ message: "Project is no longer awaiting funding. Refresh before continuing." });
-    }
-
-    // Mark ledger as FAILED
-    await PaymentLedger.updateOne(
-      { _id: ledger._id, clientId: req.user._id, status: "PENDING_CHECKOUT" },
-      { $set: { status: "FAILED" } }
-    );
-
-    res.json({ message: "Payment checkout cancelled. Project reopened." });
+    if (!ledger) return res.status(404).json({ message: "No owned pending order found. An uncertain funding state requires operator review." });
+    const project = await Project.findOne({ _id: ledger.projectId, clientId: req.user._id, status: "PENDING_FUNDING" });
+    if (!project) return res.status(409).json({ message: "Project is no longer awaiting funding. Refresh before continuing." });
+    // Legacy payable orders also survive dismissal: late captures remain reconcilable.
+    res.json({ message: "Checkout dismissed; payable order and project state retained for recovery." });
   } catch (error) {
     console.error("Cancel checkout session error:", error);
     res.status(httpErrorStatus(error)).json({ message: "Cancellation failed." });
@@ -230,7 +205,7 @@ router.post("/cancel", protect, requireRole("client"), async (req, res) => {
 // @route   POST /api/payments/simulate-payment
 // @access  Private (Client owner, explicit non-production mock provider only)
 router.post("/simulate-payment", protect, requireRole("client"), async (req, res) => {
-  if (process.env.NODE_ENV === "production" || getActiveProviderName() !== "mock") {
+  if ((process.env.NODE_ENV === "production" && !capabilities().simulatedFunding) || getActiveProviderName() !== "mock") {
     return res.status(403).json({ message: "Simulation is disabled in production." });
   }
   const { sessionId } = req.body;
@@ -259,7 +234,7 @@ router.post("/simulate-payment", protect, requireRole("client"), async (req, res
       bid._id,
       ledger.amount,
       sessionId,
-      "pi_simulated_" + Math.random().toString(36).substring(2, 10)
+      "demo_payment_" + sessionId
     );
 
     if (success) {
@@ -357,32 +332,14 @@ router.get("/", protect, async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // Fetch all transactions involving this user (ignore pending checkouts for ledger)
-    const transactions = await PaymentLedger.find({
-      $or: [{ clientId: userId }, { studentId: userId }],
-      status: { $ne: "PENDING_CHECKOUT" },
-    })
-      .populate("projectId", "title")
-      .populate("milestoneId", "title")
-      .sort({ updatedAt: -1 });
-
-    // Compute stats
-    let lockedAmount = 0;
-    let pendingAmount = 0;
-    let releasedAmount = 0;
-
-    transactions.forEach((tx) => {
-      if (tx.milestoneId) {
-        if (tx.status === "LOCKED") {
-          lockedAmount += tx.amount;
-        } else if (tx.status === "PENDING_REVIEW") {
-          pendingAmount += tx.amount;
-        } else if (tx.status === "RELEASED") {
-          releasedAmount += tx.amount;
-        }
-      }
-    });
-
+    const page = boundedInteger(req.query.page, 1, 10000), limit = boundedInteger(req.query.limit, 25, 100);
+    if (page === null || limit === null) return res.status(400).json({ message: "Invalid ledger pagination." });
+    const filter = { $or: [{ clientId: userId }, { studentId: userId }], status: { $ne: "PENDING_CHECKOUT" } };
+    const transactions = await PaymentLedger.find(filter).populate("projectId", "title").populate("milestoneId", "title").sort({ updatedAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit);
+    const totals = await PaymentLedger.aggregate([{ $match: { ...filter, milestoneId: { $ne: null } } }, { $group: { _id: "$status", total: { $sum: "$amount" } } }]);
+    const sum = status => totals.find(row => row._id === status)?.total || 0;
+    const lockedAmount = sum("LOCKED"), pendingAmount = sum("PENDING_REVIEW"), releasedAmount = sum("RELEASED");
+    const total = await PaymentLedger.countDocuments(filter);
     res.json({
       stats: {
         lockedAmount,
@@ -390,6 +347,7 @@ router.get("/", protect, async (req, res) => {
         releasedAmount,
       },
       transactions,
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
     });
   } catch (error) {
     res.status(httpErrorStatus(error)).json({ message: error.message });

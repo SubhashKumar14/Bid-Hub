@@ -51,7 +51,7 @@ router.post("/register", authLimiter, async (req, res) => {
   }
 
   if (password.length < 8 || Buffer.byteLength(password, "utf8") > 72 || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return res.status(400).json({ message: "Password must be at least 6 characters." });
+    return res.status(400).json({ message: "Use a valid email and a password of at least 8 characters and at most 72 UTF-8 bytes." });
   }
 
   try {

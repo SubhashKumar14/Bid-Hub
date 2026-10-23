@@ -8,6 +8,9 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
+if (!process.env.TEST_MONGODB_URI) throw new Error("Set TEST_MONGODB_URI to an isolated replica-set database. This test never uses the application database implicitly.");
+process.env.MONGODB_URI = process.env.TEST_MONGODB_URI;
+process.env.PRODUCT_MODE = "demo";
 
 const BASE_URL = "http://localhost:5003";
 
@@ -114,44 +117,16 @@ async function runTests() {
     console.log("✔ Bid placed successfully!");
     const bidId = bidRes.data._id;
 
-    const mismatchProjectRes = await axios.post(
-      `${BASE_URL}/api/projects`,
-      {
-        title: "Mismatched Milestone Total Test",
-        description: "Checkout must reject an escrow schedule that differs from the bid.",
-        category: "Web Development",
-        budget: "10000",
-        deadline: "2026-12-31",
-        skillsRequired: ["React"],
-        milestones: [{ title: "Single milestone", amount: "9000", dueDate: "2026-06-30" }],
-      },
-      { headers: { Authorization: `Bearer ${clientToken}` } }
-    );
-    const mismatchProjectId = mismatchProjectRes.data._id;
-    const mismatchBidRes = await axios.post(
-      `${BASE_URL}/api/projects/${mismatchProjectId}/bids`,
-      { amount: "10000", timeline: "1 week", proposal: "Bid amount differs from milestone total." },
-      { headers: { Authorization: `Bearer ${studentToken}` } }
-    );
-    const mismatchCheckout = await axios.post(
-      `${BASE_URL}/api/payments/checkout-session`,
-      { bidId: mismatchBidRes.data._id },
-      { headers: { Authorization: `Bearer ${clientToken}` }, validateStatus: (status) => status === 400 }
-    );
-    if (!mismatchCheckout.data.message.includes("milestone total")) {
-      throw new Error("Checkout did not explain the bid and milestone total mismatch.");
-    }
-    const mismatchProject = await axios.get(`${BASE_URL}/api/projects/${mismatchProjectId}`);
-    if (mismatchProject.data.project.status !== "OPEN") {
-      throw new Error("Mismatched checkout changed the project funding state.");
-    }
-    console.log("✔ Mismatched milestone funding was rejected before project state changed.");
-
+    const mismatchProjectRes = await axios.post(`${BASE_URL}/api/projects`, {
+      title:"Inconsistent advertised schedule", description:"Invalid client-authored schedule.", category:"Web Development", budget:"10000", deadline:"2027-12-31",
+      milestones:[{title:"Delivery",amount:"9000"}]
+    }, {headers:{Authorization:`Bearer ${clientToken}`},validateStatus:status=>status===400});
+    if (!mismatchProjectRes.data.message.includes("advertised budget")) throw new Error("Publishing an inconsistent advertised schedule was not rejected.");
     console.log("\n--- Step 4: Duplicate Checkout Test ---");
     // Client initiates checkout first time
     const checkoutRes1 = await axios.post(
       `${BASE_URL}/api/payments/checkout-session`,
-      { bidId },
+      { bidId, proposalVersion: 1 },
       { headers: { Authorization: `Bearer ${clientToken}` } }
     );
     console.log("✔ Checkout session 1 initiated!");
@@ -180,13 +155,14 @@ async function runTests() {
     // Client initiates checkout second time (simulating double click or retry)
     const checkoutRes2 = await axios.post(
       `${BASE_URL}/api/payments/checkout-session`,
-      { bidId },
+      { bidId, proposalVersion: 1 },
       { headers: { Authorization: `Bearer ${clientToken}` } }
     );
     console.log("✔ Checkout session 2 initiated (Duplicate Checkout Scenario)!");
     const checkoutUrl2 = checkoutRes2.data.url;
     const sessionId2 = checkoutRes2.data.orderId || checkoutRes2.data.sessionId || (checkoutUrl2 ? new URL(checkoutUrl2).searchParams.get("session_id") : null);
     console.log(`Session ID 2: ${sessionId2}`);
+    if (sessionId1 !== sessionId2) throw new Error("Duplicate checkout created a second order.");
 
     await axios.post(
       `${BASE_URL}/api/payments/cancel`,
@@ -207,15 +183,15 @@ async function runTests() {
     // Verify Project status reverted to OPEN
     checkProjectRes = await axios.get(`${BASE_URL}/api/projects/${projectId}`);
     console.log(`Project status: ${checkProjectRes.data.project.status} (Expected: OPEN)`);
-    if (checkProjectRes.data.project.status !== "OPEN") {
-      throw new Error("Project status did not revert to OPEN on payment cancellation!");
+    if (checkProjectRes.data.project.status !== "PENDING_FUNDING") {
+      throw new Error("Dismissal invalidated a potentially payable order!");
     }
 
     console.log("\n--- Step 6: Successful Payment Test ---");
     // Client initiates checkout third time
     const checkoutRes3 = await axios.post(
       `${BASE_URL}/api/payments/checkout-session`,
-      { bidId },
+      { bidId, proposalVersion: 1 },
       { headers: { Authorization: `Bearer ${clientToken}` } }
     );
     const checkoutUrl3 = checkoutRes3.data.url;

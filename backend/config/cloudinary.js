@@ -1,3 +1,4 @@
+import { mongoPrivateStorage } from "../storage/private.js";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { Readable } from "node:stream";
@@ -7,6 +8,10 @@ import { CloudinaryStorage } from "multer-storage-cloudinary";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import dotenv from "dotenv";
+
+// Resolve storage capabilities after loading the same backend configuration as startup.
+dotenv.config({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../.env") });
 
 const isCloudinaryConfigured =
   process.env.CLOUDINARY_CLOUD_NAME &&
@@ -14,6 +19,7 @@ const isCloudinaryConfigured =
   process.env.CLOUDINARY_API_SECRET;
 
 let storage;
+export const avatarStorageAvailable = Boolean(isCloudinaryConfigured) || process.env.NODE_ENV !== "production";
 
 if (isCloudinaryConfigured) {
   cloudinary.config({
@@ -33,8 +39,9 @@ if (isCloudinaryConfigured) {
   console.log("Cloudinary Upload Storage configured.");
 } else {
   if (process.env.NODE_ENV === "production") {
-    throw new Error("Cloudinary credentials are required in production; local uploads are not durable.");
-  }
+    const unavailable = () => Object.assign(new Error("Avatar storage unavailable. Configure Cloudinary to enable photo uploads."), { status: 503 });
+    storage = { _handleFile(req, file, cb) { cb(unavailable()); }, _removeFile(req, file, cb) { cb(null); } };
+  } else {
   // Local disk fallback — use backend/uploads (resolved from CWD which is backend/)
   const uploadDir = path.resolve("uploads");
   if (!fs.existsSync(uploadDir)) {
@@ -51,6 +58,7 @@ if (isCloudinaryConfigured) {
     },
   });
   console.log("Local Filesystem Fallback Upload Storage configured (./uploads).");
+  }
 }
 
 const configuredPrivateDir = process.env.PRIVATE_UPLOAD_DIR?.trim();
@@ -64,10 +72,11 @@ if (privateUploadDirectory) {
     privateUploadDirectory = null;
   }
 }
-if (!privateUploadDirectory) console.warn("Private attachment storage unavailable. Attachment endpoints will return 503; configure PRIVATE_UPLOAD_DIR on a durable volume to enable them.");
-const privateStorage = privateUploadDirectory ? multer.diskStorage({ destination: privateUploadDirectory, filename: (req, file, cb) => cb(null, crypto.randomUUID() + path.extname(file.originalname).toLowerCase()) }) : null;
+if (!privateUploadDirectory && process.env.PRIVATE_STORAGE !== "mongodb") console.warn("Private attachment storage unavailable. Attachment endpoints will return 503; configure PRIVATE_UPLOAD_DIR on a durable volume to enable them.");
+export const privateStorageAvailable = process.env.PRIVATE_STORAGE === "mongodb" || Boolean(privateUploadDirectory);
+const privateStorage = process.env.PRIVATE_STORAGE === "mongodb" ? mongoPrivateStorage : privateUploadDirectory ? multer.diskStorage({ destination: privateUploadDirectory, filename: (req, file, cb) => cb(null, crypto.randomUUID() + path.extname(file.originalname).toLowerCase()) }) : null;
 const privateStorageError = () => Object.assign(new Error("Private attachment storage is unavailable. Please try again after storage is configured."), { status: 503 });
-export const requirePrivateUploadStorage = (req, res, next) => privateUploadDirectory ? next() : next(privateStorageError());
+export const requirePrivateUploadStorage = (req, res, next) => privateStorageAvailable ? next() : next(privateStorageError());
 const checkedStorage = {
   async _handleFile(req, file, cb) {
     try {

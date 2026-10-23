@@ -10,7 +10,7 @@ const userSchema = new mongoose.Schema(
     skills: { type: [String], default: [] },
     bio: { type: String, default: "" },
     avatarUrl: { type: String, default: "" },
-    rating: { type: Number, default: 5.0 },
+    rating: { type: Number, default: 0 },
     completedProjects: { type: Number, default: 0 },
     profileViews: { type: Number, default: 0 },
   },

@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { httpErrorStatus } from "../lib/validation.js";
 import express from "express";
 import { createRouter } from "../lib/router.js";
@@ -14,7 +15,8 @@ const router = createRouter();
 // @route   POST /api/messages
 // @access  Private (Client or Accepted Student only)
 router.post("/", protect, async (req, res) => {
-  const { projectId, content } = req.body;
+  const { projectId, content, requestId } = req.body;
+  if (requestId !== undefined && (typeof requestId !== "string" || !/^[\w-]{8,100}$/.test(requestId))) return res.status(400).json({ message: "Invalid message request identity." });
 
   if (typeof projectId !== "string" || typeof content !== "string" || !content.trim() || content.length > 5000) {
     return res.status(400).json({ message: "Project ID and content are required." });
@@ -52,24 +54,26 @@ router.post("/", protect, async (req, res) => {
     // Determine recipientId
     const recipientId = isClient ? bid.studentId : project.clientId;
 
-    const message = await Message.create({
+    if (requestId) { const prior = await Message.findOne({ senderId: req.user._id, requestId }); if (prior) return res.json(await Message.findById(prior._id).populate("senderId", "name avatarUrl role")); }
+    const message = await mongoose.connection.transaction(async session => {
+    const [message] = await Message.create([{
+      requestId,
       projectId,
       senderId: req.user._id,
       recipientId,
       content: content.trim(),
-    });
-
-    // Populate sender details for immediate frontend state update
-    const populatedMessage = await Message.findById(message._id)
-      .populate("senderId", "name avatarUrl role");
+    }], { session });
 
     // Send notification to recipient
-    await Notification.create({
+    await Notification.create([{
       recipientId,
       type: "MESSAGE_RECEIVED",
       message: `New message on "${project.title}" from ${req.user.name}`,
       targetId: project._id,
+    }], { session });
+    return message;
     });
+    const populatedMessage = await Message.findById(message._id).populate("senderId", "name avatarUrl role");
 
     res.status(201).json(populatedMessage);
   } catch (error) {

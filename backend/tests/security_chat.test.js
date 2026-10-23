@@ -7,6 +7,9 @@ import dotenv from "dotenv";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
+if (!process.env.TEST_MONGODB_URI) throw new Error("Set TEST_MONGODB_URI to an isolated replica-set database. This test never uses the application database implicitly.");
+process.env.MONGODB_URI = process.env.TEST_MONGODB_URI;
+process.env.PRODUCT_MODE = "demo";
 
 const PORT = "5001";
 const BASE_URL = `http://localhost:${PORT}`;
@@ -115,7 +118,7 @@ async function runTests() {
     // Client initiates checkout and simulates payment to lock and assign the project
     const checkoutRes = await axios.post(
       `${BASE_URL}/api/payments/checkout-session`,
-      { bidId },
+      { bidId, proposalVersion: 1 },
       { headers: { Authorization: `Bearer ${clientAToken}` } }
     );
     const sessionId = checkoutRes.data.sessionId || checkoutRes.data.orderId;

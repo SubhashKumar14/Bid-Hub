@@ -1,3 +1,5 @@
+import { capabilities } from "../config/capabilities.js";
+import { validateAttachments } from "../lib/attachments.js";
 import { httpErrorStatus } from "../lib/validation.js";
 import mongoose from "mongoose";
 import { getActiveProviderName } from "../payments/index.js";
@@ -50,45 +52,33 @@ router.patch("/:id/submit", protect, requireRole("student"), async (req, res) =>
     }
 
     const { githubUrl, demoUrl, videoUrl, description, attachments } = req.body;
+    await validateAttachments(attachments || [], req.user._id);
     const httpsUrl = (value, host) => {
       if (typeof value !== "string" || value.length > 2048) return false;
       try { const url = new URL(value); return url.protocol === "https:" && !url.username && !url.password && (!host || url.hostname === host); } catch { return false; }
     };
-    if (!httpsUrl(githubUrl, "github.com") || !httpsUrl(demoUrl) || !httpsUrl(videoUrl) || typeof description !== "string" || description.length > 10000) return res.status(400).json({ message: "Valid HTTPS submission URLs and bounded notes are required." });
-
-    if (!githubUrl || !githubUrl.trim()) {
-      return res.status(400).json({ message: "GitHub Repository URL is required." });
-    }
-    if (!githubUrl.startsWith("http") || !githubUrl.includes("github.com")) {
-      return res.status(400).json({ message: "Please provide a valid GitHub repository URL." });
-    }
-
-    if (!demoUrl || !demoUrl.trim() || !demoUrl.startsWith("http")) {
-      return res.status(400).json({ message: "Please provide a valid Live Demo URL (starting with http/https)." });
-    }
-
-    if (!videoUrl || !videoUrl.trim() || !videoUrl.startsWith("http")) {
-      return res.status(400).json({ message: "Please provide a valid Demo Video URL (starting with http/https)." });
-    }
-
-    if (!description || description.trim().length < 10) {
+    if ([githubUrl, demoUrl, videoUrl].some(v => v && !httpsUrl(v)) || (githubUrl && !httpsUrl(githubUrl, "github.com"))) return res.status(400).json({ message: "Supplied evidence links must be valid HTTPS URLs." });
+    if (typeof description !== "string" || description.trim().length < 10 || description.length > 10000) {
       return res.status(400).json({ message: "Submission Notes are required and must be at least 10 characters long." });
     }
 
     await mongoose.connection.transaction(async session => {
       const current = await Milestone.findOne({ _id: milestone._id, status: { $in: ["PENDING", "CHANGES_REQUESTED"] } }).session(session);
+      const activeProject = await Project.findOne({ _id: project._id, status: { $in: ["ASSIGNED", "IN_PROGRESS"] } }).session(session);
       const allocation = await PaymentLedger.findOne({ milestoneId: milestone._id, studentId: req.user._id, status: "LOCKED" }).session(session);
-      if (!current || !allocation) throw Object.assign(new Error("Milestone is not eligible for a new submission."), { status: 409 });
+      if (!activeProject || activeProject.recoveryPending || !current || !allocation) throw Object.assign(new Error("Milestone is not eligible for a new submission or recovery is pending."), { status: 409 });
       const latest = await MilestoneSubmission.findOne({ milestoneId: milestone._id }).sort({ version: -1 }).session(session);
-      const [submission] = await MilestoneSubmission.create([{ milestoneId: milestone._id, submittedBy: req.user._id, version: (latest?.version || 0) + 1, githubUrl, demoUrl, videoUrl, description, attachments: attachments || [], status: "SUBMITTED" }], { session });
+      const [submission] = await MilestoneSubmission.create([{ milestoneId: milestone._id, submittedBy: req.user._id, version: (latest?.version || 0) + 1, githubUrl: githubUrl || "", demoUrl: demoUrl || "", videoUrl: videoUrl || "", description, attachments: attachments || [], status: "SUBMITTED" }], { session });
       current.status = "SUBMITTED";
       current.activeSubmissionId = submission._id;
       allocation.status = "PENDING_REVIEW";
       await current.save({ session });
       await allocation.save({ session });
+      activeProject.status = "IN_PROGRESS";
+      await activeProject.save({ session });
       await Notification.create([{ recipientId: project.clientId, type: "MILESTONE_SUBMITTED", message: "New milestone submission is ready for review.", targetId: project._id }], { session });
     });
-    res.json({ message: "Milestone submitted for client review.", milestone });
+    res.json({ message: "Milestone submitted for client review.", milestone: await Milestone.findById(milestone._id) });
   } catch (error) {
     console.error("Submit milestone error:", error);
     res.status(error.status || 503).json({ message: error.status ? error.message : "Submission could not be committed. Please retry." });
@@ -102,38 +92,41 @@ router.patch("/:id/release", protect, requireRole("client"), async (req, res) =>
   const { status, reviewComment, submissionId } = req.body;
   if (!["APPROVED", "CHANGES_REQUESTED"].includes(status)) return res.status(400).json({ message: "Specify APPROVED or CHANGES_REQUESTED." });
   if (status === "CHANGES_REQUESTED" && (typeof reviewComment !== "string" || !reviewComment.trim() || reviewComment.length > 5000)) return res.status(400).json({ message: "Bounded review feedback is required." });
-  // Real provider payouts are not implemented. Never invent a live transfer.
-  if (status === "APPROVED" && (process.env.NODE_ENV === "production" || getActiveProviderName() !== "mock")) return res.status(503).json({ message: "Payout integration is unavailable. No funds were released." });
   if (typeof submissionId !== "string") return res.status(400).json({ message: "Submission ID is required for review." });
   try {
     const result = await mongoose.connection.transaction(async session => {
       const milestone = await Milestone.findById(req.params.id).session(session);
       if (!milestone) throw Object.assign(new Error("Milestone not found."), { status: 404 });
       const project = await Project.findOne({ _id: milestone.projectId, clientId: req.user._id, status: { $in: ["ASSIGNED", "IN_PROGRESS"] } }).session(session);
-      if (!project || milestone.status !== "SUBMITTED") throw Object.assign(new Error("Project or milestone is not eligible for review."), { status: 409 });
+      if (!project || project.recoveryPending || milestone.status !== "SUBMITTED") throw Object.assign(new Error("Project or milestone is not eligible for review or recovery is pending."), { status: 409 });
       const allocation = await PaymentLedger.findOne({ milestoneId: milestone._id, clientId: req.user._id, status: "PENDING_REVIEW" }).session(session);
       const submission = String(milestone.activeSubmissionId) === submissionId ? await MilestoneSubmission.findOne({ _id: submissionId, milestoneId: milestone._id, status: "SUBMITTED" }).session(session) : null;
-      if (!allocation || !submission || (status === "APPROVED" && allocation.provider !== "mock")) throw Object.assign(new Error("Matching funded allocation and submission required."), { status: 409 });
-      milestone.status = status === "APPROVED" ? "RELEASED" : "CHANGES_REQUESTED";
+      if (!allocation || !submission) throw Object.assign(new Error("Matching funded allocation and submission required."), { status: 409 });
+      milestone.status = status === "APPROVED" ? "APPROVED" : "CHANGES_REQUESTED";
       submission.status = status;
       submission.reviewComment = status === "CHANGES_REQUESTED" ? reviewComment.trim() : "";
-      allocation.status = status === "APPROVED" ? "RELEASED" : "LOCKED";
+      allocation.status = status === "APPROVED" && capabilities().simulatedFunding ? "RELEASED" : "LOCKED";
       // No transfer ID: this records only an explicitly simulated demo release.
       allocation.stripeTransferId = "";
-      allocation.releasedAt = status === "APPROVED" ? new Date() : null;
+      allocation.releasedAt = allocation.status === "RELEASED" ? new Date() : null;
+      // Every review writes the project, so simultaneous final approvals retry
+      // against a fresh snapshot before deriving completion.
+      project.updatedAt = new Date();
+      project.markModified("updatedAt");
+      await project.save({ session });
       await milestone.save({ session });
       await submission.save({ session });
       await allocation.save({ session });
-      const remaining = await Milestone.countDocuments({ projectId: project._id, status: { $ne: "RELEASED" } }).session(session);
+      const remaining = await Milestone.countDocuments({ projectId: project._id, status: { $nin: ["APPROVED", "RELEASED"] } }).session(session);
       if (remaining === 0) {
         project.status = "COMPLETED";
         await project.save({ session });
         await User.updateOne({ _id: allocation.studentId }, { $inc: { completedProjects: 1 } }, { session });
       }
-      await Notification.create([{ recipientId: allocation.studentId, type: status === "APPROVED" ? "MILESTONE_RELEASED" : "MILESTONE_CHANGES_REQUESTED", message: status === "APPROVED" ? "Demo milestone approved. No real money was transferred." : reviewComment.trim(), targetId: project._id }], { session });
+      await Notification.create([{ recipientId: allocation.studentId, type: status === "APPROVED" ? "MILESTONE_RELEASED" : "MILESTONE_CHANGES_REQUESTED", message: status === "APPROVED" ? "Work approved. No real money was transferred." : reviewComment.trim(), targetId: project._id }], { session });
       return { milestone, project };
     });
-    res.json({ ...result, simulated: status === "APPROVED", message: status === "APPROVED" ? "Demo milestone approved. No real money was transferred." : "Changes requested." });
+    res.json({ ...result, simulated: capabilities().simulatedFunding, message: status === "APPROVED" ? "Work approved. No real payout was made." : "Changes requested." });
   } catch (error) {
     res.status(error.status || 503).json({ message: error.status ? error.message : "Review could not be committed. Please retry." });
   }
@@ -163,6 +156,7 @@ router.get("/:id/submission", protect, async (req, res) => {
       return res.status(403).json({ message: "Not authorized to view this milestone's submissions." });
     }
 
+    if (req.query.history === "true") return res.json(await MilestoneSubmission.find({ milestoneId: req.params.id }).sort({ version: -1 }).limit(100).populate("submittedBy", "name avatarUrl"));
     const submission = await MilestoneSubmission.findOne({ milestoneId: req.params.id }).sort({ version: -1, createdAt: -1 })
       .populate("submittedBy", "name avatarUrl");
 

@@ -1,3 +1,4 @@
+import { Contract } from "../models/Contract.js";
 import test, { before, after, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -64,7 +65,7 @@ before(async () => {
 
 test("malformed search and chat return 400 and the same HTTP server survives", async t => {
   auth(t);
-  for (const queryString of ["search[]=a", "search[x]=a", "skills[]=a", "category[x]=a"]) {
+  for (const queryString of ["search[]=a", "search[x]=a", "skills[]=a", "category[x]=a", "sort=constructor", "limit=10000000", "page=-1"]) {
     assert.equal((await request("/api/projects?" + queryString)).status, 400);
   }
   for (const content of [[], {}, null, 42, "x".repeat(5001)]) {
@@ -91,7 +92,7 @@ test("missing and misspelled release actions are rejected, and production approv
   process.env.NODE_ENV = "production";
   try {
     const response = await fetch(base + "/api/milestones/m/release", { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${jwt.sign({ id: "owner" }, process.env.JWT_SECRET)}` }, body: JSON.stringify({ status: "APPROVED" }) });
-    assert.equal(response.status, 503);
+    assert.equal(response.status, 400);
   } finally { process.env.NODE_ENV = "test"; }
 });
 
@@ -127,6 +128,7 @@ after(() => new Promise(resolve => server.close(resolve)));
 afterEach(t => t.mock.restoreAll());
 
 function auth(t) {
+  t.mock.method(Contract, "exists", () => query(null));
   t.mock.method(User, "findById", id => query(identities[id]));
 }
 async function request(path, identity, body) {
@@ -179,39 +181,26 @@ for (const body of [{ projectId: "project" }, { sessionId: "order_123" }]) {
 }
 
 for (const status of ["ASSIGNED", "COMPLETED", "OPEN", "PENDING_FUNDING"]) {
-  test(`session cancellation only reopens an owned pending project (${status})`, async t => {
+  test(`legacy checkout dismissal preserves payable order and owned state (${status})`, async t => {
     auth(t);
     const project = { _id: "project", clientId: "owner", status };
     const ledger = { _id: "ledger", projectId: "project", clientId: "owner", status: "PENDING_CHECKOUT" };
     t.mock.method(PaymentLedger, "findOne", () => query(ledger));
-    t.mock.method(Project, "findOneAndUpdate", (filter, update) => {
-      assert.equal(filter.clientId, "owner");
-      assert.equal(filter.status, "PENDING_FUNDING");
-      if (!matches(project, filter)) return query(null);
-      Object.assign(project, update.$set);
-      return query(project);
-    });
-    const writes = t.mock.method(PaymentLedger, "updateOne", (filter, update) => {
-      assert.deepEqual(filter, { _id: "ledger", clientId: "owner", status: "PENDING_CHECKOUT" });
-      assert.equal(update.$set.status, "FAILED");
-      return query({ modifiedCount: 1 });
-    });
+    t.mock.method(Project, "findOne", filter => query(matches(project, filter) ? project : null));
+    const writes = t.mock.method(PaymentLedger, "updateOne", () => { throw new Error("Dismissal must not invalidate a payable order"); });
     const result = await request("/api/payments/cancel", "owner", { sessionId: "order_123" });
     assert.equal(result.status, status === "PENDING_FUNDING" ? 200 : 409);
-    assert.equal(project.status, status === "PENDING_FUNDING" ? "OPEN" : status);
-    assert.equal(writes.mock.callCount(), status === "PENDING_FUNDING" ? 1 : 0);
+    assert.equal(project.status, status); assert.equal(ledger.status,"PENDING_CHECKOUT");
+    assert.equal(writes.mock.callCount(), 0);
   });
 }
 
-test("project-only cancellation atomically resets an owned pending project", async t => {
+test("project-only dismissal with no known order never blindly reopens funding", async t => {
   auth(t);
   t.mock.method(PaymentLedger, "findOne", () => query(null));
-  t.mock.method(Project, "findOneAndUpdate", (filter, update) => {
-    assert.deepEqual(filter, { _id: "project", clientId: "owner", status: "PENDING_FUNDING" });
-    assert.equal(update.$set.status, "OPEN");
-    return query({ _id: "project", status: "OPEN" });
-  });
-  assert.equal((await request("/api/payments/cancel", "owner", { projectId: "project" })).status, 200);
+  const writes = t.mock.method(Project, "findOneAndUpdate", () => { throw new Error("Unknown funding must not be reopened"); });
+  assert.equal((await request("/api/payments/cancel", "owner", { projectId: "project" })).status, 404);
+  assert.equal(writes.mock.callCount(),0);
 });
 
 test("public project details never read or return a pending ledger", async t => {
@@ -282,11 +271,22 @@ for (const configuration of [
       'import { getPaymentProvider } from "./payments/index.js"; getPaymentProvider();',
     ], {
       cwd: new URL("../", import.meta.url),
-      env: { ...process.env, ...configuration, NODE_ENV: "production" },
+      env: { ...process.env, ...configuration, NODE_ENV: "production", PRODUCT_MODE: "test" },
       encoding: "utf8", timeout: 10000,
     });
     assert.equal(child.error, undefined);
     assert.equal(child.status, 1);
     assert.match(child.stderr, /Mock payments are disabled|are required|Placeholder Razorpay credentials/);
+  });
+}
+
+for (const [label, environment, expected] of [
+  ["explicit production demo permits only simulated funding", { PRODUCT_MODE: "demo", PAYMENT_PROVIDER: "mock" }, 0],
+  ["production requires an explicit product mode", { PRODUCT_MODE: "", PAYMENT_PROVIDER: "mock" }, 1],
+  ["test mode rejects live payment credentials", { PRODUCT_MODE: "test", PAYMENT_PROVIDER: "razorpay", RAZORPAY_KEY_ID: "rzp_live_synthetic", RAZORPAY_KEY_SECRET: "synthetic-secret" }, 1],
+]) {
+  test(label, () => {
+    const child=spawnSync(process.execPath,["--input-type=module","-e",'import { getPaymentProvider } from "./payments/index.js"; getPaymentProvider();'],{cwd:new URL("../",import.meta.url),env:{...process.env,...environment,NODE_ENV:"production"},encoding:"utf8",windowsHide:true,timeout:10000});
+    assert.equal(child.error,undefined); assert.equal(child.status,expected,child.stderr);
   });
 }

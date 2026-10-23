@@ -8,6 +8,9 @@ import crypto from "crypto";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
+if (!process.env.TEST_MONGODB_URI) throw new Error("Set TEST_MONGODB_URI to an isolated replica-set database. This test never uses the application database implicitly.");
+process.env.MONGODB_URI = process.env.TEST_MONGODB_URI;
+process.env.PRODUCT_MODE = "demo";
 
 const PORT = "5002";
 const BASE_URL = `http://localhost:${PORT}`;
@@ -105,7 +108,7 @@ async function runVerification() {
     // Initiate checkout session
     const checkoutRes = await axios.post(
       `${BASE_URL}/api/payments/checkout-session`,
-      { bidId },
+      { bidId, proposalVersion: 1 },
       { headers: { Authorization: `Bearer ${clientToken}` } }
     );
     
@@ -245,7 +248,10 @@ async function runVerification() {
     const milestoneId = milestones[0]._id;
     console.log(`First Milestone ID: ${milestoneId}`);
 
-    // Submit work
+    const uploadForm = new FormData();
+    uploadForm.append("files", new Blob(["%PDF-1.4\nSynthetic evidence\n%%EOF"], { type: "application/pdf" }), "report.pdf");
+    const uploaded = await axios.post(`${BASE_URL}/api/uploads/files`, uploadForm, { headers: { Authorization: `Bearer ${studentToken}` } });
+    // Submit actual owned evidence references.
     const submitRes = await axios.patch(
       `${BASE_URL}/api/milestones/${milestoneId}/submit`,
       {
@@ -253,7 +259,7 @@ async function runVerification() {
         demoUrl: "https://runtime-verification-test.vercel.app",
         videoUrl: "https://www.youtube.com/watch?v=mock-demo",
         description: "Implemented all verification scripts.",
-        attachments: [{ name: "report.pdf", url: "https://cloudinary.com/mock.pdf" }]
+        attachments: uploaded.data
       },
       { headers: { Authorization: `Bearer ${studentToken}` } }
     );
@@ -275,6 +281,7 @@ async function runVerification() {
       `${BASE_URL}/api/milestones/${milestoneId}/release`,
       {
         status: "CHANGES_REQUESTED",
+        submissionId: subRes.data._id,
         reviewComment: "Please improve code comments and rerun tests."
       },
       { headers: { Authorization: `Bearer ${clientToken}` } }

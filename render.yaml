@@ -19,7 +19,11 @@ services:
       - key: JWT_EXPIRE
         value: 1d
       - key: PAYMENT_PROVIDER
-        value: razorpay
+        value: mock
+      - key: PRODUCT_MODE
+        value: demo
+      - key: PRIVATE_STORAGE
+        value: mongodb
       - key: RAZORPAY_KEY_ID
         sync: false
       - key: RAZORPAY_KEY_SECRET
@@ -27,8 +31,6 @@ services:
       - key: RAZORPAY_WEBHOOK_SECRET
         sync: false
       - key: CLIENT_URL
-        sync: false
-      - key: PRIVATE_UPLOAD_DIR
         sync: false
       - key: CLOUDINARY_CLOUD_NAME
         sync: false

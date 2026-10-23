@@ -1,3 +1,4 @@
+import { capabilities } from "../config/capabilities.js";
 import { RazorpayProvider } from "./RazorpayProvider.js";
 import { MockProvider } from "./MockProvider.js";
 import dotenv from "dotenv";
@@ -14,13 +15,13 @@ let activeProviderName = "";
 export function getPaymentProvider() {
   if (activeProvider) return activeProvider;
 
-  const providerEnv = (process.env.PAYMENT_PROVIDER || "razorpay").toLowerCase().trim();
+  const providerEnv = capabilities().simulatedFunding ? "mock" : (process.env.PAYMENT_PROVIDER || "razorpay").toLowerCase().trim();
 
   if (providerEnv === "mock") {
-    if (process.env.NODE_ENV === "production") throw new Error("Mock payments are disabled in production.");
+    if (process.env.NODE_ENV === "production" && !capabilities().simulatedFunding) throw new Error("Mock payments are disabled in production unless PRODUCT_MODE=demo.");
     activeProvider = new MockProvider();
     activeProviderName = "mock";
-    console.warn("Mock payment provider enabled for this non-production environment.");
+    console.warn(`Mock payment provider enabled in explicit ${capabilities().mode} mode. No real money will move.`);
     return activeProvider;
   }
   if (providerEnv !== "razorpay") throw new Error("PAYMENT_PROVIDER must be either 'razorpay' or 'mock'.");

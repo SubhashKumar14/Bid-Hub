@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { httpErrorStatus } from "../lib/validation.js";
 import express from "express";
 import { createRouter } from "../lib/router.js";
@@ -74,42 +75,46 @@ router.post("/", protect, async (req, res) => {
     });
 
     if (existingReview) {
-      return res.status(400).json({ message: "You have already submitted a review for this project." });
+      return res.json(existingReview);
     }
 
-    const review = await Review.create({
+    const review = await mongoose.connection.transaction(async session => {
+    const [review] = await Review.create([{
       projectId,
       reviewerId: req.user._id,
       revieweeId,
       rating: numRating,
-      comment: comment?.trim() || "",
-    });
+      comment: comment.trim(),
+    }], { session });
 
     // Recalculate average rating of reviewee
-    const allReviews = await Review.find({ revieweeId });
+    const allReviews = await Review.find({ revieweeId }).session(session);
     const totalRating = allReviews.reduce((sum, r) => sum + r.rating, 0);
     const avgRating = totalRating / allReviews.length;
 
+    // Serialize rating recomputation with concurrent reviews of the same user.
     await User.findByIdAndUpdate(revieweeId, {
       rating: parseFloat(avgRating.toFixed(2)),
-    });
+    }, { session });
 
     // Log Activity
-    await Activity.create({
+    await Activity.create([{
       actorId: req.user._id,
       type: "REVIEW_SUBMITTED",
       message: `${req.user.name} submitted a ${numRating}-star review for project "${project.title}"`,
       targetId: project._id,
-    });
+    }], { session });
 
     // Notify the person being reviewed
-    await Notification.create({
+    await Notification.create([{
       recipientId: revieweeId,
       type: "REVIEW_RECEIVED",
       message: `${req.user.name} left you a ${numRating}-star review for project "${project.title}".`,
       targetId: project._id,
-    });
+    }], { session });
 
+    return review;
+    });
     res.status(201).json(review);
   } catch (error) {
     console.error("Submit review error:", error);

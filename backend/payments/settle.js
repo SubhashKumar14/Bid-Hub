@@ -18,7 +18,7 @@ export async function settlePayment(projectId, bidId, amount, orderId, paymentId
     if (deposit.amountPaise !== total) return false;
     const project = await Project.findOne({ _id: projectId, clientId: deposit.clientId, status: "PENDING_FUNDING" }).session(session);
     const bid = await Bid.findOne({ _id: bidId, projectId, studentId: deposit.studentId, status: "PENDING" }).session(session);
-    if (!project || !bid || amountToPaise(bid.amount) !== total) return false;
+    if (!project || project.recoveryPending || !bid || amountToPaise(bid.amount) !== total) return false;
     const milestones = await Milestone.find({ projectId }).session(session);
     if (!deposit.allocationSchedule?.length || deposit.allocationSchedule.length !== milestones.length ||
       milestones.some(m => !deposit.allocationSchedule.some(a => String(a.milestoneId) === String(m._id) && a.amountPaise === amountToPaise(m.amount)))) return false;
@@ -36,7 +36,7 @@ export async function settlePayment(projectId, bidId, amount, orderId, paymentId
       amount: amountToPaise(m.amount) / 100, amountPaise: amountToPaise(m.amount),
       bidId, provider: deposit.provider, status: "LOCKED", stripeSessionId: orderId,
       stripePaymentIntentId: paymentId,
-    })), { session });
+    })), { session, ordered: true });
     await Activity.create([{ actorId: deposit.clientId, type: "BID_ACCEPTED", message: `Funding confirmed for "${project.title}"`, targetId: projectId }], { session });
     await Notification.create([{ recipientId: deposit.studentId, type: "BID_ACCEPTED", message: `Your bid on "${project.title}" was accepted.`, targetId: projectId }], { session });
     return true;

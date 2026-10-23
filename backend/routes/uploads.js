@@ -1,3 +1,4 @@
+import { downloadMongoFile } from "../storage/private.js";
 import express from "express";
 import { createRouter } from "../lib/router.js";
 import { upload, privateUploadDirectory, requirePrivateUploadStorage } from "../config/cloudinary.js";
@@ -36,7 +37,7 @@ router.post("/files", protect, requirePrivateUploadStorage, upload.array("files"
   res.json(uploadedFiles);
 });
 
-router.get("/files/:filename", protect, requirePrivateUploadStorage, async (req, res) => {
+router.get("/files/:filename", protect, requirePrivateUploadStorage, async (req, res, next) => {
   const file = await Upload.findOne({ filename: req.params.filename });
   if (!file) return res.status(404).json({ message: "File not found." });
   if (String(file.ownerId) !== String(req.user._id)) {
@@ -47,10 +48,12 @@ router.get("/files/:filename", protect, requirePrivateUploadStorage, async (req,
       const milestone = submission && await Milestone.findById(submission.milestoneId);
       project = milestone && await Project.findById(milestone.projectId);
     }
+    const publishedBrief = project && project.status === "OPEN" && req.user.role === "student" && project.files.some(f => f.url === url);
     const bid = project?.acceptedBidId && await Bid.findById(project.acceptedBidId);
-    if (!project || (String(project.clientId) !== String(req.user._id) && String(bid?.studentId) !== String(req.user._id))) return res.status(404).json({ message: "File not found." });
+    if (!publishedBrief && (!project || (String(project.clientId) !== String(req.user._id) && String(bid?.studentId) !== String(req.user._id)))) return res.status(404).json({ message: "File not found." });
   }
   res.setHeader("X-Content-Type-Options", "nosniff");
+  if (process.env.PRIVATE_STORAGE === "mongodb") return downloadMongoFile(file, res, next);
   res.download(path.join(privateUploadDirectory, file.filename), file.name);
 });
 

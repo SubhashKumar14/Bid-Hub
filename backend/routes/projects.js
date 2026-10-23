@@ -1,4 +1,8 @@
 import { httpErrorStatus } from "../lib/validation.js";
+import { validateAttachments } from "../lib/attachments.js";
+import { Contract } from "../models/Contract.js";
+import { RecoveryCase } from "../models/RecoveryCase.js";
+import { Clarification } from "../models/Clarification.js";
 import mongoose from "mongoose";
 import express from "express";
 import { createRouter } from "../lib/router.js";
@@ -9,9 +13,47 @@ import { Activity } from "../models/Activity.js";
 import { User } from "../models/User.js";
 import { PaymentLedger } from "../models/PaymentLedger.js";
 import { protect, requireRole } from "../middleware/auth.js";
-import { amountToPaise } from "../lib/validation.js";
+import { boundedInteger, amountToPaise } from "../lib/validation.js";
 
 const router = createRouter();
+
+const clarificationAccess = async req => {
+  const project = await Project.findById(req.params.id);
+  if (!project || (String(project.clientId) !== String(req.user._id) && !(project.status === "OPEN" && req.user.role === "student"))) throw Object.assign(new Error("Clarifications are available to the owner and prospective students on open briefs."), { status: 403 });
+  return project;
+};
+router.get("/:id/clarifications", protect, async (req, res) => {
+  await clarificationAccess(req);
+  res.json(await Clarification.find({ projectId: req.params.id }).sort({ createdAt: -1 }).limit(100).populate("authorId", "name role"));
+});
+router.post("/:id/clarifications", protect, async (req, res) => {
+  await clarificationAccess(req);
+  if (typeof req.body.content !== "string" || !req.body.content.trim() || req.body.content.length > 2000) return res.status(400).json({ message: "Clarification must contain 1 to 2000 characters." });
+  const record = await Clarification.create({ projectId: req.params.id, authorId: req.user._id, content: req.body.content.trim() });
+  res.status(201).json(record);
+});
+
+router.get("/:id/contract", protect, async (req, res) => {
+  const contract = await Contract.findOne({ projectId: req.params.id, $or: [{ clientId: req.user._id }, { studentId: req.user._id }] });
+  if (!contract) return res.status(404).json({ message: "Agreed contract unavailable." });
+  res.json(contract);
+});
+
+router.post("/:id/recovery", protect, async (req, res) => {
+  if (typeof req.body.reason !== "string" || req.body.reason.trim().length < 10 || req.body.reason.length > 5000) return res.status(400).json({ message: "Describe the problem in 10 to 5000 characters." });
+  const recovery = await mongoose.connection.transaction(async session => {
+    const project = await Project.findOne({ _id: req.params.id, status: { $in: ["PENDING_FUNDING", "ASSIGNED", "IN_PROGRESS"] } }).session(session);
+    const contract = project && await Contract.findOne({ projectId: project._id }).session(session);
+    if (!contract || ![contract.clientId, contract.studentId].some(id => String(id) === String(req.user._id))) throw Object.assign(new Error("Only contract participants may request recovery."), { status: 403 });
+    const prior = await RecoveryCase.findOne({ projectId: project._id }).session(session);
+    if (prior) return prior;
+    project.recoveryPending = true;
+    await project.save({ session });
+    const [record] = await RecoveryCase.create([{ projectId: project._id, requestedBy: req.user._id, reason: req.body.reason.trim() }], { session });
+    return record;
+  });
+  res.json({ recovery, message: "Recovery requested. Work is paused for operator review. No refund or payout was initiated." });
+});
 
 // Helper: escape special regex characters to prevent ReDoS
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -29,12 +71,20 @@ const parseAmount = (val) => {
 // @route   GET /api/projects
 // @access  Public
 router.get("/", async (req, res) => {
-  const { search, category, status, skills } = req.query;
-  if ([search, category, status, skills].some(value => value !== undefined && (typeof value !== "string" || value.length > 1000))) {
+  const { search, category, status, skills, location, sort } = req.query;
+  const page = boundedInteger(req.query.page, 1, 10000), limit = boundedInteger(req.query.limit, 50, 100);
+  if (page === null || limit === null) return res.status(400).json({ message: "Invalid project pagination." });
+  if ([search, category, status, skills, location, sort].some(value => value !== undefined && (typeof value !== "string" || value.length > 1000))) {
     return res.status(400).json({ message: "Search and filter values must be bounded strings." });
   }
 
   let query = {};
+  if (location === "remote") query.$and = [{ $or: [{ remote: true }, { remote: null, location: /remote/i }] }];
+  else if (location === "onsite") query.$and = [{ $or: [{ remote: false }, { remote: null, location: { $exists: true, $nin: ["", null], $not: /remote/i } }] }];
+  else if (location && location !== "all") return res.status(400).json({ message: "Unknown location filter." });
+  const orders = new Map([["newest", { createdAt: -1, _id: -1 }], ["budget-desc", { budget: -1, _id: -1 }], ["budget-asc", { budget: 1, _id: -1 }], ["proposals", { bidsCount: -1, _id: -1 }]]);
+  const order = orders.get(sort || "newest");
+  if (!order) return res.status(400).json({ message: "Unknown sorting rule." });
 
   if (category && category !== "All") {
     query.category = category;
@@ -60,7 +110,8 @@ router.get("/", async (req, res) => {
   try {
     const projects = await Project.find(query)
       .populate("clientId", "name avatarUrl rating completedProjects")
-      .sort({ createdAt: -1 });
+      .sort(order).skip((page - 1) * limit).limit(limit);
+    res.setHeader("X-Total-Count", String(await Project.countDocuments(query)));
     res.json(projects);
   } catch (error) {
     console.error("Get projects error:", error);
@@ -122,15 +173,15 @@ router.get("/student/dashboard", protect, requireRole("student"), async (req, re
       contracts: projectsWithMilestones.map(item => {
         const p = item.project;
         const ms = item.milestones;
-        const releasedCount = ms.filter(m => m.status === "RELEASED").length;
-        const progress = ms.length > 0 ? Math.round((releasedCount / ms.length) * 100) : 0;
+        const totalAmount = ms.reduce((n,m) => n + m.amount, 0);
+        const progress = totalAmount > 0 ? Math.round(ms.filter(m => ["RELEASED", "APPROVED"].includes(m.status)).reduce((n,m) => n + m.amount, 0) / totalAmount * 100) : 0;
         const inReview = ms.some(m => m.status === "SUBMITTED");
 
         return {
           id: p._id,
           title: `${p.clientId?.name || "Client"} · ${p.title}`,
-          statusText: inReview ? "Hi-fi / milestone in review" : "Sprint active",
-          amount: p.budget,
+          statusText: p.status === "COMPLETED" ? "Completed" : inReview ? "Milestone in review" : "Active work",
+          amount: p.contractTotalPaise != null ? p.contractTotalPaise / 100 : totalAmount || null,
           progress,
           status: inReview ? "in-review" : "active",
           projectStatus: p.status,
@@ -174,16 +225,16 @@ router.get("/client/dashboard", protect, requireRole("client"), async (req, res)
       bidsReceivedCount += p.bidsCount || 0;
       const ms = milestones.filter(m => m.projectId.toString() === p._id.toString());
 
-      if (p.status !== "OPEN" && p.status !== "CANCELLED") {
+      if (["ASSIGNED", "IN_PROGRESS"].includes(p.status)) {
         activeGigsCount++;
-        const releasedCount = ms.filter(m => m.status === "RELEASED").length;
-        const progress = ms.length > 0 ? Math.round((releasedCount / ms.length) * 100) : 0;
+        const totalAmount = ms.reduce((n,m) => n + m.amount, 0);
+        const progress = totalAmount > 0 ? Math.round(ms.filter(m => ["RELEASED", "APPROVED"].includes(m.status)).reduce((n,m) => n + m.amount, 0) / totalAmount * 100) : 0;
 
         activeProjects.push({
           id: p._id,
           title: p.title,
           statusText: p.status === "PENDING_FUNDING" ? "Escrow Pending" : p.status === "ASSIGNED" ? "Hired / Kickoff" : p.status === "IN_PROGRESS" ? "Development" : "Completed",
-          budget: p.budget,
+          budget: p.contractTotalPaise != null ? p.contractTotalPaise / 100 : totalAmount || null,
           progress,
           status: p.status,
         });
@@ -210,6 +261,9 @@ router.get("/client/dashboard", protect, requireRole("client"), async (req, res)
         projectTitle: myProjects.find(p => p._id.toString() === b.projectId.toString())?.title || "Project",
         amount: b.amount,
         timeline: b.timeline,
+        proposal: b.proposal,
+        schedule: b.schedule,
+        version: b.version,
       }));
 
     res.json({
@@ -219,6 +273,8 @@ router.get("/client/dashboard", protect, requireRole("client"), async (req, res)
       pendingBids,
       milestonesToApprove,
       activeProjects,
+      awaitingFunding: myProjects.filter(p => p.status === "PENDING_FUNDING"),
+      completedProjects: myProjects.filter(p => p.status === "COMPLETED"),
     });
   } catch (error) {
     console.error("Client dashboard projects error:", error);
@@ -309,7 +365,7 @@ router.get("/:id", async (req, res) => {
 // @route   POST /api/projects
 // @access  Private (Client only)
 router.post("/", protect, requireRole("client"), async (req, res) => {
-  const { title, description, category, budget, deadline, skillsRequired, milestones, files, fileManifest, importSource } = req.body;
+  const { title, description, category, budget, deadline, skillsRequired, milestones, files, fileManifest, importSource, importRevision, remote, location, level, duration, clientRequestId } = req.body;
 
   if (!title || !description || !category || !budget || !deadline) {
     return res.status(400).json({ message: "Please fill in all required fields: title, description, category, budget, deadline." });
@@ -325,8 +381,18 @@ router.post("/", protect, requireRole("client"), async (req, res) => {
         amountToPaise(m.amount);
       }
     } catch { return res.status(400).json({ message: "Positive budget and 1 to 50 valid milestone amounts are required." }); }
+    if (clientRequestId) { const prior = await Project.findOne({ clientId: req.user._id, clientRequestId }); if (prior) return res.json(prior); }
+    if (clientRequestId !== undefined && (typeof clientRequestId !== "string" || !/^[\w-]{8,100}$/.test(clientRequestId))) return res.status(400).json({ message: "Invalid publish request identity." });
+    await validateAttachments(files || [], req.user._id);
+    if ((fileManifest !== undefined && (!Array.isArray(fileManifest) || fileManifest.length > 1000 || fileManifest.some(f => !f || typeof f.path !== "string" || f.path.length > 1000 || !Number.isSafeInteger(f.size) || f.size < 0))) || (importRevision && !/^[a-f0-9]{40}$/.test(importRevision))) return res.status(400).json({ message: "Invalid source manifest or revision." });
+    if (skillsRequired !== undefined && (!Array.isArray(skillsRequired) || skillsRequired.length > 30 || skillsRequired.some(s => typeof s !== "string" || !s.trim() || s.length > 80))) return res.status(400).json({ message: "Invalid skills." });
+    if (level && !["beginner", "intermediate", "advanced", "expert", "any"].includes(level)) return res.status(400).json({ message: "Invalid experience level." });
+    if (!Number.isFinite(Date.parse(deadline)) || new Date(deadline).toISOString().slice(0, 10) !== deadline) return res.status(400).json({ message: "Use a valid delivery date (YYYY-MM-DD)." });
+    if (milestones.reduce((sum, m) => sum + amountToPaise(m.amount), 0) !== amountToPaise(budget)) return res.status(400).json({ message: "Advertised milestone amounts must equal the advertised budget." });
+    if ((remote !== undefined && typeof remote !== "boolean") || [location, level, duration].some(v => v !== undefined && (typeof v !== "string" || v.length > 200)) || !/^\d{4}-\d{2}-\d{2}$/.test(deadline) || !Number.isFinite(Date.parse(deadline))) return res.status(400).json({ message: "Invalid project location, level, duration or delivery deadline." });
     const project = await mongoose.connection.transaction(async session => {
     const [project] = await Project.create([{
+      remote, location, level, duration, clientRequestId,
       title: title.trim(),
       description: description.trim(),
       category,
@@ -338,6 +404,7 @@ router.post("/", protect, requireRole("client"), async (req, res) => {
       files: files || [],
       fileManifest: fileManifest || [],
       importSource: importSource || "",
+      importRevision: importRevision || "",
     }], { session });
 
     // Create milestones if provided
@@ -366,6 +433,7 @@ router.post("/", protect, requireRole("client"), async (req, res) => {
     res.status(201).json(project);
   } catch (error) {
     console.error("Create project error:", error);
+    if (error.code === 11000 && clientRequestId) { const prior = await Project.findOne({ clientId: req.user._id, clientRequestId }); if (prior) return res.json(prior); }
     res.status(httpErrorStatus(error)).json({ message: "Failed to create project. Please try again." });
   }
 });
@@ -374,58 +442,38 @@ router.post("/", protect, requireRole("client"), async (req, res) => {
 // @route   PATCH /api/projects/:id
 // @access  Private (Client only)
 router.patch("/:id", protect, requireRole("client"), async (req, res) => {
-  try {
-    const project = await Project.findById(req.params.id);
-    if (!project) {
-      return res.status(404).json({ message: "Project not found." });
-    }
-
-    if (project.clientId.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: "You are not authorized to update this project." });
-    }
-
-    const { status, title, description, budget, deadline } = req.body;
-
-    if (status) {
-      // Define allowed manual transitions (clients cannot skip the payment/escrow workflow)
-      const allowedTransitions = {
-        OPEN: ["CANCELLED"],         // Client can cancel their OPEN project
-        PENDING_FUNDING: [],          // Must go through payment flow
-        ASSIGNED: ["IN_PROGRESS"],    // Client can mark project as in progress
-        IN_PROGRESS: [],              // Completion only via milestone release
-        COMPLETED: [],                // Immutable once complete
-        CANCELLED: [],                // Immutable once cancelled
-      };
-
-      const currentStatus = project.status;
-      const allowed = allowedTransitions[currentStatus] || [];
-      if (!allowed.includes(status)) {
-        return res.status(400).json({
-          message: `Cannot transition project from '${currentStatus}' to '${status}'. This transition is not permitted via manual update.`,
-        });
-      }
-
-      project.status = status;
-    }
-    if (title || description || budget || deadline) {
-      if (project.status !== "OPEN") {
-        return res.status(400).json({
-          message: "Only projects in 'OPEN' status can have their title, description, budget, or deadline edited.",
-        });
+  const updated = await mongoose.connection.transaction(async session => {
+    const project = await Project.findOne({ _id: req.params.id, clientId: req.user._id }).session(session);
+    if (!project) throw Object.assign(new Error("Owned project not found."), { status: 404 });
+    const scopeFields = ["title", "description", "budget", "deadline", "remote", "location", "level", "duration"];
+    const editing = scopeFields.some(field => req.body[field] !== undefined);
+    if (editing && (project.status !== "OPEN" || await Bid.exists({ projectId: project._id }).session(session))) throw Object.assign(new Error("Scope cannot change after proposals. Clarify the brief or publish a new project; existing offers retain their context."), { status: 409 });
+    for (const field of ["title", "description", "deadline", "location", "level", "duration"]) {
+      if (req.body[field] !== undefined) {
+        if (typeof req.body[field] !== "string" || req.body[field].length > (field === "description" ? 10000 : 200)) throw Object.assign(new Error("Invalid project field."), { status: 400 });
+        project[field] = req.body[field].trim();
       }
     }
-
-    if (title) project.title = title.trim();
-    if (description) project.description = description.trim();
-    if (budget) project.budget = parseAmount(budget);
-    if (deadline) project.deadline = deadline;
-
-    const updatedProject = await project.save();
-    res.json(updatedProject);
-  } catch (error) {
-    console.error("Update project error:", error);
-    res.status(httpErrorStatus(error)).json({ message: "Failed to update project. Please try again." });
-  }
+    if (req.body.remote !== undefined) {
+      if (typeof req.body.remote !== "boolean") throw Object.assign(new Error("Location mode must be a boolean."), { status: 400 });
+      project.remote = req.body.remote;
+    }
+    if (req.body.deadline !== undefined && (!/^\d{4}-\d{2}-\d{2}$/.test(project.deadline) || !Number.isFinite(Date.parse(project.deadline)) || new Date(project.deadline).toISOString().slice(0,10) !== project.deadline)) throw Object.assign(new Error("Invalid delivery deadline."), { status: 400 });
+    if (req.body.budget !== undefined) {
+      const total = amountToPaise(req.body.budget);
+      const milestones = await Milestone.find({ projectId: project._id }).session(session);
+      if (milestones.reduce((n,m)=>n+amountToPaise(m.amount),0) !== total) throw Object.assign(new Error("Advertised budget must equal the posted schedule."), { status: 400 });
+      project.budget = total / 100;
+    }
+    if (req.body.status !== undefined) {
+      const allowed = { OPEN: ["CANCELLED"], ASSIGNED: ["IN_PROGRESS"] };
+      if (!allowed[project.status]?.includes(req.body.status)) throw Object.assign(new Error("This state transition requires the funding, approval or operator recovery workflow."), { status: 409 });
+      project.status = req.body.status;
+    }
+    await project.save({ session });
+    return project;
+  });
+  res.json(updated);
 });
 
 // @desc    Delete project

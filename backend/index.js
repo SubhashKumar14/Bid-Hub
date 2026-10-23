@@ -1,3 +1,5 @@
+import { capabilities } from "./config/capabilities.js";
+import { privateStorageAvailable, avatarStorageAvailable } from "./config/cloudinary.js";
 import { httpErrorStatus } from "./lib/validation.js";
 import mongoose from "mongoose";
 import { User } from "./models/User.js";
@@ -159,6 +161,8 @@ import uploadsRouter from "./routes/uploads.js";
 import importsRouter from "./routes/imports.js";
 import notificationsRouter from "./routes/notifications.js";
 import messagesRouter from "./routes/messages.js";
+
+app.get("/api/capabilities", (req, res) => res.json({ ...capabilities(), privateAttachments: privateStorageAvailable, avatarUploads: avatarStorageAvailable, attachmentLimitBytes: 10485760 }));
 
 // Mount Routers
 app.use("/api/auth", authRouter);

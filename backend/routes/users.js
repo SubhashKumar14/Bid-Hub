@@ -65,11 +65,12 @@ router.patch("/:id", protect, async (req, res) => {
     }
 
     const { name, bio, skills, college } = req.body;
+    if ([name, bio, college].some(value => value !== undefined && (typeof value !== "string" || value.length > 5000)) || (skills !== undefined && (!Array.isArray(skills) || skills.length > 30 || skills.some(s => typeof s !== "string" || !s.trim() || s.length > 80)))) return res.status(400).json({ message: "Profile fields and skills must be bounded text." });
 
     if (name) user.name = name;
     if (bio !== undefined) user.bio = bio;
     if (skills) user.skills = skills;
-    if (college) user.college = college;
+    if (college !== undefined) user.college = college;
 
     const updatedUser = await user.save();
     const { passwordHash, ...safeUser } = updatedUser.toObject();
