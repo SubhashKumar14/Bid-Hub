@@ -10,10 +10,12 @@ import { protect } from "../middleware/auth.js";
 
 const router = createRouter();
 
-// Rate limit: 5 import calls per 15 minutes per IP (each GitHub import hits external API)
+// Rate limit: 5 import calls per 15 minutes per IP (each GitHub import hits external API; relaxed in test/CI/demo)
 const importLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: process.env.IMPORT_RATE_LIMIT
+    ? parseInt(process.env.IMPORT_RATE_LIMIT, 10)
+    : (process.env.NODE_ENV === "test" || process.env.CI || process.env.PRODUCT_MODE === "demo" ? 500 : 5),
   message: { message: "Too many import requests. Please wait 15 minutes before trying again." },
   standardHeaders: true,
   legacyHeaders: false,

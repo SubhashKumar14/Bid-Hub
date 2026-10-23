@@ -7,7 +7,7 @@ import mongoose from "../backend/node_modules/mongoose/index.js";
 import AdmZip from "adm-zip";
 const children = [];
 const api = "http://127.0.0.1:5019/api";
-const serverEnv = { PORT: "5019", NODE_ENV: "production", PRODUCT_MODE: "demo", PAYMENT_PROVIDER: "mock", JWT_SECRET: "synthetic-browser-test-secret-at-least-32-characters", MONGODB_URI: process.env.TEST_MONGODB_URI || "mongodb://127.0.0.1:27129/journey?replicaSet=journey", PRIVATE_STORAGE: "mongodb", CLOUDINARY_CLOUD_NAME: "fixture", CLOUDINARY_API_KEY: "fixture", CLOUDINARY_API_SECRET: "fixture", CLIENT_URL: "http://127.0.0.1:5189" };
+const serverEnv = { PORT: "5019", NODE_ENV: "production", PRODUCT_MODE: "demo", PAYMENT_PROVIDER: "mock", JWT_SECRET: "synthetic-browser-test-secret-at-least-32-characters", MONGODB_URI: process.env.TEST_MONGODB_URI || "mongodb://127.0.0.1:27129/journey?replicaSet=journey", PRIVATE_STORAGE: "mongodb", CLOUDINARY_CLOUD_NAME: "fixture", CLOUDINARY_API_KEY: "fixture", CLOUDINARY_API_SECRET: "fixture", CLIENT_URL: "http://127.0.0.1:5189", AUTH_RATE_LIMIT: "1000" };
 let apiProcess;
 const run = (exe, args, env = {}) => { const child = spawn(exe, args, { env: { ...process.env, ...env }, windowsHide: true, stdio: "ignore" }); children.push(child); return child; };
 test.beforeAll(async () => {
