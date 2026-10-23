@@ -458,8 +458,10 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
               {project.title}
             </h1>
             <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground pt-1">
-              <span className="inline-flex items-center gap-1.5"><Clock className="size-3.5" /> Deadline: {project.deadline}</span>
-              <span className="inline-flex items-center gap-1.5"><MapPin className="size-3.5" /> Remote</span>
+              <span className="inline-flex items-center gap-1.5"><Clock className="size-3.5" /> Delivery deadline: {project.deadline || "Not set"}</span>
+              <span className="inline-flex items-center gap-1.5"><MapPin className="size-3.5" /> {project.location || (project.remote === true ? "Remote" : project.remote === false ? "On-site" : "Location not specified")}</span>
+              {project.level && <span>Experience: {project.level}</span>}
+              {project.duration && <span>Estimated duration: {project.duration}</span>}
               <span className="inline-flex items-center gap-1.5 text-foreground"><ShieldCheck className="size-3.5 text-brand-accent" /> Demo funding · no legal escrow</span>
             </div>
           </header>

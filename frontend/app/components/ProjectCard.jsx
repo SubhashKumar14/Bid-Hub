@@ -45,6 +45,7 @@ export function ProjectRow({ project, onOpen }) {
                 <span className="text-xs text-muted-foreground">{project.level}</span>
               </>
             )}
+            {project.duration && <span className="text-xs text-muted-foreground">Estimated: {project.duration}</span>}
             {project.status && project.status !== "OPEN" && (
               <StatusBadge
                 tone={

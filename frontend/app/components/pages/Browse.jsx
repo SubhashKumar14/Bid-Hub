@@ -246,6 +246,7 @@ export function Browse({ setPage }) {
                   remote: p.remote,
                   location: p.location,
                   level: p.level,
+                  duration: p.duration,
                   poster: {
                     name: p.clientId?.name || "Client",
                     org: p.clientId?.college || "Client",

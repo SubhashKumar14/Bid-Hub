@@ -171,7 +171,7 @@ export function Profile({ token, currentUser, onUserUpdate }) {
               {!capabilities?.avatarUploads && <p className="text-xs text-muted-foreground">Photo uploads unavailable; the operator must configure avatar storage.</p>}
               <div className="flex flex-wrap items-center gap-2">
                 <span className="eyebrow text-xs capitalize text-muted-foreground">
-                  {profile.role} · {profile.college || "Independent Student"}
+                  {profile.role} · {profile.college || (profile.role === "student" ? "Student" : "Client")}
                 </span>
                 <StatusBadge tone="success" className="text-[10px] py-0">
                   Registered Account
