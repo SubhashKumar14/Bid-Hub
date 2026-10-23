@@ -16,3 +16,34 @@ jobs:
       - run: npm run test:security --prefix backend
       - run: npm run test:frontend
       - run: npm run build
+  journeys:
+    runs-on: ubuntu-latest
+    env:
+      TEST_MONGODB_URI: mongodb://127.0.0.1:27017/bidhub_ci?replicaSet=audit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm ci --ignore-scripts --prefix backend
+      - name: Start isolated transaction-capable MongoDB
+        run: |
+          docker run -d --name workflow-mongo -p 27017:27017 mongo:8.0 --replSet audit --bind_ip_all
+          for i in $(seq 1 40); do
+            if docker exec workflow-mongo mongosh --quiet --eval 'db.adminCommand({ping:1})'; then break; fi
+            sleep 1
+          done
+          docker exec workflow-mongo mongosh --quiet --eval 'rs.initiate({_id:"audit",members:[{_id:0,host:"127.0.0.1:27017"}]})'
+      - run: npm run test:transactions --prefix backend
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: workflow-browser-evidence
+          path: |
+            test-results/
+            e2e-results/
+          if-no-files-found: ignore

@@ -8,6 +8,9 @@ node_modules/
 # =========================
 # Production builds
 # =========================
+test-results/
+playwright-report/
+e2e-results/
 dist/
 build/
 .next/

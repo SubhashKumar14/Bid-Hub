@@ -265,10 +265,15 @@ test("real verify/webhook handlers converge, reject uncaptured payments and reta
   process.env.PRODUCT_MODE="demo";
 });
 
-test("additive migration dry run and apply are repeatable on the isolated replica set", () => {
+test("additive migration dry run and apply are repeatable on the isolated replica set", async () => {
   const uri=process.env.TEST_MONGODB_URI || "mongodb://127.0.0.1:27128/settlement_test?replicaSet=audit";
+  const models=[Project,Bid,Contract,PaymentLedger,Review,Message,MilestoneSubmission];
+  const counts=await Promise.all(models.map(model=>model.countDocuments()));
+  const financial=await PaymentLedger.aggregate([{ $group: { _id:null, paise:{$sum:"$amountPaise"} } }]);
   for(const args of [[],["--apply"],["--apply"]]) {
     const result=spawnSync(process.execPath,["scripts/workflow-migration.js",...args],{cwd:new URL("../",import.meta.url),env:{...process.env,MONGODB_URI:uri},encoding:"utf8",windowsHide:true,timeout:15000});
     assert.equal(result.error,undefined); assert.equal(result.status,0,result.stderr || result.stdout);
   }
+  assert.deepEqual(await Promise.all(models.map(model=>model.countDocuments())),counts);
+  assert.deepEqual(await PaymentLedger.aggregate([{ $group: { _id:null, paise:{$sum:"$amountPaise"} } }]),financial);
 });

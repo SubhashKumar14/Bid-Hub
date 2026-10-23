@@ -15,7 +15,7 @@ Actors: anonymous visitors read published briefs; students propose only on open 
 | Finance | DEMO simulates funding explicitly even under production Node. Razorpay test mode verifies captured paise/INR; live keys/payouts remain disabled. Ledger funding and simulated release are distinct from work approval. |
 | Review | Completed project, other participant only, one review per author/project, explicit human feedback. |
 
-Money is bounded integer paise at agreement/funding boundaries. If the student omits a custom schedule, the offer uses the client's checkpoints proportionally allocated to the offered total, with exact integer rounding. This schedule must be presented before submission; acceptance freezes it. Contract records do not mutate when presentation data changes.
+Money is bounded integer paise at agreement/funding boundaries. This release generates the offer schedule from the client's checkpoints, proportionally allocated to the offered total with exact integer rounding. Students see this schedule before submitting; acceptance freezes it. A custom checkpoint/reallocation editor is outside this release; substantially different checkpoints require a new brief. Contract records do not mutate when presentation data changes.
 
 ## Action inventory
 
