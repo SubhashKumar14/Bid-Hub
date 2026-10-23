@@ -5,6 +5,7 @@ import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { XIcon } from "lucide-react";
 
 import { cn } from "./utils";
+import { useFocusReturn } from "./focus-return";
 
 const Sheet = SheetPrimitive.Root;
 
@@ -33,10 +34,13 @@ const SheetOverlay = React.forwardRef(({ className, ...props }, ref) => (
 ));
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName || "SheetOverlay";
 
-const SheetContent = React.forwardRef(({ className, children, side = "right", ...props }, ref) => (
+const SheetContent = React.forwardRef(({ className, children, side = "right", onOpenAutoFocus, onCloseAutoFocus, ...props }, ref) => {
+  const focus = useFocusReturn(onOpenAutoFocus, onCloseAutoFocus);
+  return (
   <SheetPortal>
     <SheetOverlay />
     <SheetPrimitive.Content
+      {...focus}
       ref={ref}
       data-slot="sheet-content"
       className={cn(
@@ -60,7 +64,8 @@ const SheetContent = React.forwardRef(({ className, children, side = "right", ..
       </SheetPrimitive.Close>
     </SheetPrimitive.Content>
   </SheetPortal>
-));
+  );
+});
 SheetContent.displayName = SheetPrimitive.Content.displayName || "SheetContent";
 
 const SheetHeader = ({ className, ...props }) => (

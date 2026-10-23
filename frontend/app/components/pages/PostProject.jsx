@@ -4,7 +4,8 @@ import { Textarea } from "../ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Paperclip, Github, Lightbulb, X, Plus } from "lucide-react";
 import { BrandIcon } from "../../brand/BrandIcon";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useCapabilities } from "../../../api/capabilities";
 import { toast } from "sonner";
 
 const categories = [
@@ -27,7 +28,11 @@ const SUGGESTED_SKILLS = {
   "Data & Research": ["Python", "SQL", "Data Analysis", "User Research", "Market Sizing"],
 };
 
-export function PostProject({ token, onDone }) {
+export function PostProject({ token, currentUser, onDone }) {
+  const capabilities = useCapabilities();
+  const active = useRef(token);
+  useEffect(() => { active.current = token; return () => { active.current = ""; }; }, [token]);
+  const [error, setError] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("Web Development");
@@ -38,7 +43,7 @@ export function PostProject({ token, onDone }) {
   const [location, setLocation] = useState("Remote");
 
   // Custom Skills state
-  const [skills, setSkills] = useState(["React", "TypeScript"]);
+  const [skills, setSkills] = useState([]);
   const [newSkillInput, setNewSkillInput] = useState("");
 
   // Milestones state
@@ -52,18 +57,32 @@ export function PostProject({ token, onDone }) {
   const [uploadingFiles, setUploadingFiles] = useState(false);
 
   // Import State
+  const [importRevision, setImportRevision] = useState("");
   const [importSource, setImportSource] = useState("");
   const [githubUrl, setGithubUrl] = useState("");
   const [fileManifest, setFileManifest] = useState([]);
   const [manifestStats, setManifestStats] = useState(null);
   const [importingSource, setImportingSource] = useState(false);
 
+  const draftKey = "bidhub_post_draft:" + (currentUser?._id || "guest");
+  const publishLock = useRef(false);
+  const [publishing, setPublishing] = useState(false);
+  const publishId = useRef(crypto.randomUUID());
   // Restore draft if available
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("bidhub_post_draft");
+      const saved = localStorage.getItem(draftKey);
       if (saved) {
         const parsed = JSON.parse(saved);
+        if (parsed.clientRequestId) publishId.current = parsed.clientRequestId;
+        if (parsed.milestones) setMilestones(parsed.milestones);
+        if (parsed.attachments) setAttachments(parsed.attachments);
+        if (parsed.location) setLocation(parsed.location);
+        if (parsed.level) setLevel(parsed.level);
+        if (parsed.duration) setDuration(parsed.duration);
+        if (parsed.fileManifest) setFileManifest(parsed.fileManifest);
+        setImportRevision(parsed.importRevision || "");
+        if (parsed.importSource) setImportSource(parsed.importSource);
         if (parsed.title) setTitle(parsed.title);
         if (parsed.description) setDescription(parsed.description);
         if (parsed.category) setCategory(parsed.category);
@@ -77,11 +96,11 @@ export function PostProject({ token, onDone }) {
   // Auto-save draft
   useEffect(() => {
     if (title || description) {
-      localStorage.setItem("bidhub_post_draft", JSON.stringify({
-        title, description, category, budget, deadline, skills,
+      localStorage.setItem(draftKey, JSON.stringify({
+        title, description, category, budget, deadline, skills, milestones, attachments, location, level, duration, fileManifest, importSource, importRevision, clientRequestId: publishId.current,
       }));
     }
-  }, [title, description, category, budget, deadline, skills]);
+  }, [title, description, category, budget, deadline, skills, milestones, attachments, location, level, duration, fileManifest, importSource, importRevision]);
 
   const addSkill = (skillToAdd) => {
     const s = (skillToAdd || newSkillInput).trim();
@@ -133,13 +152,16 @@ export function PostProject({ token, onDone }) {
         body: formData,
       });
       const data = await res.json();
+      if (active.current !== token || localStorage.getItem("token") !== token) return;
       if (!res.ok) throw new Error(data.message || "Failed to upload attachments");
       setAttachments([...attachments, ...data]);
       toast.success("Attachments indexed successfully");
     } catch (err) {
+      if (active.current !== token) return;
+      setError(err.message);
       toast.error(err.message);
     } finally {
-      setUploadingFiles(false);
+      if (active.current === token) setUploadingFiles(false);
     }
   };
 
@@ -159,15 +181,19 @@ export function PostProject({ token, onDone }) {
         body: formData,
       });
       const data = await res.json();
+      if (active.current !== token || localStorage.getItem("token") !== token) return;
       if (!res.ok) throw new Error(data.message || "ZIP import rejected");
+      setImportRevision(data.commitSha || "");
       setFileManifest(data.manifest);
       setManifestStats({ fileCount: data.fileCount, totalSize: data.totalSize });
       toast.success(`ZIP manifest parsed: ${data.fileCount} files indexed.`);
     } catch (err) {
+      if (active.current !== token) return;
+      setError(err.message);
       toast.error(err.message);
       setImportSource("");
     } finally {
-      setImportingSource(false);
+      if (active.current === token) setImportingSource(false);
     }
   };
 
@@ -189,15 +215,19 @@ export function PostProject({ token, onDone }) {
         body: JSON.stringify({ repoUrl: githubUrl }),
       });
       const data = await res.json();
+      if (active.current !== token || localStorage.getItem("token") !== token) return;
       if (!res.ok) throw new Error(data.message || "GitHub repository import failed");
+      setImportRevision(data.commitSha || "");
       setFileManifest(data.manifest);
       setManifestStats({ fileCount: data.fileCount, totalSize: data.totalSize });
       toast.success("GitHub repository manifest indexed successfully");
     } catch (err) {
+      if (active.current !== token) return;
+      setError(err.message);
       toast.error(err.message);
       setImportSource("");
     } finally {
-      setImportingSource(false);
+      if (active.current === token) setImportingSource(false);
     }
   };
 
@@ -207,13 +237,18 @@ export function PostProject({ token, onDone }) {
       return;
     }
 
-    const validMilestones = milestones.filter((m) => m.title.trim() && m.amount);
+    if (publishLock.current || uploadingFiles || importingSource) return;
+    setError("");
+    const validMilestones = milestones;
+    if (milestones.some(m => !m.title.trim() || !m.amount)) { setError("Complete every milestone row or remove it before publishing."); return; }
     if (validMilestones.length === 0) {
       toast.error("Please configure at least one milestone with title and amount");
       return;
     }
 
     try {
+      publishLock.current = true;
+      setPublishing(true);
       const res = await fetch("/api/projects", {
         method: "POST",
         headers: {
@@ -221,16 +256,18 @@ export function PostProject({ token, onDone }) {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
+          clientRequestId: publishId.current,
           title: title.trim(),
           description: description.trim(),
           category,
           budget,
           deadline,
-          skillsRequired: skills.length > 0 ? skills : [category],
+          skillsRequired: skills,
           milestones: validMilestones,
           files: attachments,
           fileManifest,
           importSource,
+          importRevision,
           remote: location.toLowerCase().includes("remote"),
           location,
           level,
@@ -238,18 +275,22 @@ export function PostProject({ token, onDone }) {
         }),
       });
       const data = await res.json();
+      if (active.current !== token || localStorage.getItem("token") !== token) return;
       if (!res.ok) throw new Error(data.message || "Failed to publish brief");
       
-      localStorage.removeItem("bidhub_post_draft");
+      localStorage.removeItem(draftKey);
       toast.success("Project brief published successfully");
       onDone();
     } catch (err) {
+      if (active.current !== token) return;
+      setError(err.message);
       toast.error(err.message);
-    }
+    } finally { publishLock.current = false; if (active.current === token) setPublishing(false); }
   };
 
   return (
     <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 py-10 grid lg:grid-cols-12 gap-8">
+      {error && <div role="alert" className="border border-destructive rounded p-4 text-sm">{error} <Button variant="outline" onClick={() => window.location.reload()}>Retry</Button></div>}
       <main className="lg:col-span-8 space-y-6">
         <header className="pb-4 border-b border-border">
           <span className="eyebrow text-xs">New project brief</span>
@@ -283,7 +324,7 @@ export function PostProject({ token, onDone }) {
               <label htmlFor="project-category" className="text-xs font-medium text-foreground block mb-1">
                 Discipline / Category <span className="text-[var(--brand-accent)]">*</span>
               </label>
-              <Select value={category} onValueChange={setCategory}>
+              <Select value={category} onValueChange={value => { setCategory(value); setSkills([]); }}>
                 <SelectTrigger id="project-category" className="w-full">
                   <SelectValue placeholder="Choose category" />
                 </SelectTrigger>
@@ -429,13 +470,13 @@ export function PostProject({ token, onDone }) {
                 multiple
                 className="absolute inset-0 opacity-0 cursor-pointer"
                 onChange={handleFileUpload}
-                disabled={uploadingFiles}
+                disabled={uploadingFiles || !capabilities?.privateAttachments}
               />
               <Paperclip className="size-5 mx-auto text-muted-foreground" />
               <p className="text-xs font-medium mt-2 text-foreground">
-                {uploadingFiles ? "Indexing attachments…" : "Click or drag documents to upload"}
+                {uploadingFiles ? "Uploading attachments…" : capabilities?.privateAttachments ? "Click to upload brief materials (visible to signed-in prospective students)" : "Attachments unavailable; private storage must be configured."}
               </p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">PDF, PNG, ZIP · up to 50 MB total</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">PDF, DOCX, PPTX, PNG, JPG · 10 MB per file, up to 10 files</p>
             </div>
             {attachments.length > 0 && (
               <div className="mt-2.5 flex flex-wrap gap-2">
@@ -572,7 +613,7 @@ export function PostProject({ token, onDone }) {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Divide the work into verifiable milestones. Escrow deposits unlock as you approve each deliverable.
+            Describe the required work in each checkpoint. Funding is simulated; approving work does not initiate a real payout.
           </p>
 
           <div className="space-y-3 pt-1">
@@ -624,9 +665,10 @@ export function PostProject({ token, onDone }) {
           <Button
             variant="default"
             onClick={handlePublish}
+            disabled={publishing || uploadingFiles || importingSource}
             className="rounded-[5px] px-6 h-11 text-sm font-medium"
           >
-            Publish Project Brief
+            {publishing ? "Publishing…" : "Publish Project Brief"}
           </Button>
         </div>
       </main>

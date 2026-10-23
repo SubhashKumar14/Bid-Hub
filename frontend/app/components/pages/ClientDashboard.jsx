@@ -1,3 +1,4 @@
+import { checkout } from "../../../api/checkout";
 import { Button } from "../ui/button";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { StatusBadge } from "../StatusBadge";
@@ -22,6 +23,7 @@ const formatCurrency = (val) => {
 };
 
 export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
+  const [error, setError] = useState("");
   const [stats, setStats] = useState({
     postedCount: 0,
     bidsReceivedCount: 0,
@@ -33,11 +35,14 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
   const [pendingBids, setPendingBids] = useState([]);
   const [milestonesToApprove, setMilestonesToApprove] = useState([]);
   const [activeProjects, setActiveProjects] = useState([]);
+  const [awaitingFunding, setAwaitingFunding] = useState([]);
+  const [completedProjects, setCompletedProjects] = useState([]);
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [disclaimerOpen, setDisclaimerOpen] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
   const [selectedBidId, setSelectedBidId] = useState(null);
+  const [selectedProjectId, setSelectedProjectId] = useState(null);
 
   const [chatOpen, setChatOpen] = useState(false);
   const [chatProjectId, setChatProjectId] = useState(null);
@@ -61,12 +66,14 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
 
   const fetchDashboardData = async () => {
     if (!token || !currentUser) return;
+    setError("");
     setLoading(true);
     try {
       const paymentsRes = await fetch("/api/payments", {
         headers: { Authorization: `Bearer ${token}` },
       });
       const paymentsData = await paymentsRes.json();
+      if (!paymentsRes.ok) throw new Error("Financial data unavailable. Retry to refresh.");
       const lockedEscrow = paymentsData.stats?.lockedAmount || 0;
       const releasedEscrow = paymentsData.stats?.releasedAmount || 0;
 
@@ -79,6 +86,8 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
       setPendingBids(dashData.pendingBids || []);
       setMilestonesToApprove(dashData.milestonesToApprove || []);
       setActiveProjects(dashData.activeProjects || []);
+      setAwaitingFunding(dashData.awaitingFunding || []);
+      setCompletedProjects(dashData.completedProjects || []);
 
       setStats({
         postedCount: dashData.postedCount || 0,
@@ -94,6 +103,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
         setActivities(Array.isArray(actData) ? actData.slice(0, 8) : []);
       }
     } catch (err) {
+      setError(err.message);
       toast.error(err.message);
     } finally {
       setLoading(false);
@@ -106,116 +116,23 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
 
   const handleAcceptBid = (bidId) => {
     setSelectedBidId(bidId);
+    setSelectedProjectId(pendingBids.find(b => b.id === bidId)?.projectId);
     setDisclaimerOpen(true);
   };
 
   const executeCheckout = async () => {
     setDisclaimerOpen(false);
     if (!selectedBidId) return;
-
-    try {
-      const checkoutRes = await fetch(`/api/bids/${selectedBidId}/accept`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await checkoutRes.json();
-      if (!checkoutRes.ok) throw new Error(data.message || "Could not generate escrow order");
-
-      if (data.provider === "razorpay") {
-        if (!window.Razorpay) {
-          throw new Error("Razorpay checkout SDK is not loaded. Check internet connectivity.");
-        }
-        const options = {
-          key: data.keyId,
-          amount: data.amount,
-          currency: data.currency,
-          name: "Bid·Hub Escrow",
-          description: data.description,
-          order_id: data.orderId,
-          handler: async function (response) {
-            try {
-              const verifyRes = await fetch("/api/payments/verify", {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({
-                  razorpay_order_id: response.razorpay_order_id,
-                  razorpay_payment_id: response.razorpay_payment_id,
-                  razorpay_signature: response.razorpay_signature,
-                }),
-              });
-              const verifyData = await verifyRes.json();
-              if (verifyRes.ok) {
-                setSuccessOpen(true);
-                fetchDashboardData();
-              } else {
-                throw new Error(verifyData.message || "Verification failed");
-              }
-            } catch (vErr) {
-              toast.error("Payment verification failed: " + vErr.message);
-            }
-          },
-          modal: {
-            ondismiss: async function () {
-              toast.info("Checkout dismissed.");
-              await fetch("/api/payments/cancel", {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({ sessionId: data.orderId }),
-              });
-              fetchDashboardData();
-            },
-          },
-          prefill: {
-            name: currentUser ? currentUser.name : "",
-            email: currentUser ? currentUser.email : "",
-          },
-          theme: { color: getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() || "#24231F" },
-        };
-        const rzp = new window.Razorpay(options);
-        rzp.open();
-      } else if (data.provider === "mock") {
-        const simulation = await fetch("/api/payments/simulate-payment", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ sessionId: data.sessionId }),
-        });
-        const result = await simulation.json();
-        if (!simulation.ok) throw new Error(result.message || "Demonstration checkout failed");
-        setSuccessOpen(true);
-        fetchDashboardData();
-      } else {
-        throw new Error("Unsupported payment gateway response.");
-      }
-    } catch (err) {
-      toast.error(err.message);
-    }
+    try { await checkout(selectedBidId, token, currentUser, pendingBids.find(b => b.id === selectedBidId)?.version || 1); if (localStorage.getItem("token") !== token) return; setSuccessOpen(true); fetchDashboardData(); }
+    catch (error) { if (localStorage.getItem("token") !== token) return; setError(error.message); toast.error(error.message); }
   };
 
-  const handleReleaseMilestone = async (milestoneId) => {
-    try {
-      const res = await fetch(`/api/milestones/${milestoneId}/release`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status: "APPROVED" }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to release milestone");
-      toast.success(data.message);
-      fetchDashboardData();
-    } catch (err) {
-      toast.error(err.message);
-    }
-  };
+  if (error && !loading) return <div role="alert" className="max-w-xl mx-auto p-8 space-y-4"><h1 className="text-xl">Workspace data unavailable</h1><p>{error}</p><Button onClick={fetchDashboardData}>Retry</Button></div>;
 
   if (loading) {
     return (
       <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 py-20 text-center animate-pulse">
+      {error && <div role="alert" className="border border-destructive rounded p-4 text-sm">{error} <Button variant="outline" onClick={() => window.location.reload()}>Retry</Button></div>}
         <p className="text-sm text-muted-foreground">Syncing client workspace…</p>
       </div>
     );
@@ -233,7 +150,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
             Client Dashboard
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Manage your project briefs, review student proposals, and release milestone funds.
+            Manage your project briefs, agree proposals, and approve completed work.
           </p>
         </div>
         <div className="flex flex-wrap gap-2.5">
@@ -249,7 +166,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
             variant="outline"
             className="rounded-[5px] text-xs h-9 px-4 font-medium"
           >
-            <ShieldCheck className="size-3.5 mr-1" /> Escrow ledger
+            <ShieldCheck className="size-3.5 mr-1" /> Funding ledger
           </Button>
         </div>
       </header>
@@ -267,7 +184,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
             <span className="text-xs text-muted-foreground">Action Required</span>
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Students have submitted completed deliverables for these checkpoints. Review files, test demos, and release escrow funds or request revisions.
+            Students have submitted completed deliverables for these checkpoints. Review files, test demos, and approve completed work or request revisions.
           </p>
 
           <div className="space-y-2 pt-1">
@@ -307,7 +224,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
           { k: "Briefs Published", v: stats.postedCount },
           { k: "Proposals Received", v: stats.bidsReceivedCount },
           { k: "Active Deliveries", v: stats.activeGigsCount },
-          { k: "Held in Escrow", v: formatCurrency(stats.lockedEscrow) },
+          { k: "Test funds allocated", v: formatCurrency(stats.lockedEscrow) },
           { k: "Funds Released", v: formatCurrency(stats.releasedEscrow) },
         ].map((s) => (
           <div key={s.k} className="bg-card border border-border rounded-[8px] p-3.5 space-y-1">
@@ -385,7 +302,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
                       className="rounded-[4px] text-xs h-8 px-3"
                       onClick={() => handleAcceptBid(b.id)}
                     >
-                      Accept & Deposit Escrow
+                      Accept & Resume Test Funding
                     </Button>
                   </div>
                 </div>
@@ -478,6 +395,10 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
       </section>
 
       {/* Dialogs and Drawers */}
+      {[{ title: "Awaiting test funding", projects: awaitingFunding }, { title: "Completed history", projects: completedProjects }].map(group => <section key={group.title} className="space-y-3 py-5 border-t border-border">
+        <h2 className="text-lg font-medium">{group.title} ({group.projects.length})</h2>
+        {group.projects.map(p => <Button key={p._id} variant="outline" onClick={() => { localStorage.setItem("currentProjectId", p._id); setPage("detail"); }}>{p.title} · Open workspace</Button>)}
+      </section>)}
       <ChatDrawer
         open={chatOpen}
         onClose={() => setChatOpen(false)}
@@ -493,10 +414,11 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
         milestoneId={reviewMilestoneId}
         milestoneTitle={reviewMilestoneTitle}
         token={token}
-        onRelease={fetchDashboardData}
+        onSuccess={fetchDashboardData}
       />
 
       <PaymentDisclaimerModal
+        offer={pendingBids.find(b => b.id === selectedBidId)}
         open={disclaimerOpen}
         onCancel={() => {
           setDisclaimerOpen(false);
@@ -510,6 +432,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
         onClose={() => {
           setSuccessOpen(false);
           setSelectedBidId(null);
+          if (selectedProjectId) { localStorage.setItem("currentProjectId", selectedProjectId); setPage("detail"); }
         }}
       />
     </div>

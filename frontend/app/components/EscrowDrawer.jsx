@@ -3,11 +3,17 @@ import { Button } from "./ui/button";
 import { Separator } from "./ui/separator";
 import { StatusBadge } from "./StatusBadge";
 import { ShieldCheck, ArrowUpFromLine, Copy, ExternalLink } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { BrandState } from "../brand/BrandState";
 
 export function EscrowDrawer({ open, onClose, token, currentUser }) {
+  const [page, setResultPage] = useState(1);
+  const [pages, setPages] = useState(1);
+  const [error, setError] = useState("");
+  const targetRef = useRef("");
+  useEffect(() => () => { targetRef.current = ""; }, []);
+  targetRef.current = open ? `${token}:${page}` : "";
   const [stats, setStats] = useState({
     lockedAmount: 0,
     pendingAmount: 0,
@@ -18,25 +24,29 @@ export function EscrowDrawer({ open, onClose, token, currentUser }) {
 
   const fetchEscrowDetails = async () => {
     if (!token || !open) return;
-    setLoading(true);
+    const target = targetRef.current;
+    setError(""); setLoading(true);
     try {
-      const res = await fetch("/api/payments", {
+      const res = await fetch(`/api/payments?page=${page}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
+      if (target !== targetRef.current) return;
       if (!res.ok) throw new Error(data.message || "Failed to load escrow details");
       setStats(data.stats);
+      setPages(data.pagination?.pages || 1);
       setTransactions(data.transactions || []);
     } catch (err) {
-      toast.error(err.message);
+      if (target === targetRef.current) setError(err.message);
     } finally {
-      setLoading(false);
+      if (target === targetRef.current) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchEscrowDetails();
-  }, [open, token]);
+  }, [open, token, page]);
+  useEffect(() => { setResultPage(1); setTransactions([]); }, [open, token]);
 
   const copyRef = (ref) => {
     navigator.clipboard.writeText(ref);
@@ -49,15 +59,17 @@ export function EscrowDrawer({ open, onClose, token, currentUser }) {
         <SheetHeader className="text-left space-y-1">
           <div className="flex items-center gap-1.5 text-brand-accent">
             <ShieldCheck className="size-4" />
-            <span className="text-xs uppercase tracking-wider font-mono">Milestone Escrow Vault</span>
+            <span className="text-xs uppercase tracking-wider font-mono">Funding and approvals</span>
           </div>
-          <SheetTitle className="text-xl font-semibold tracking-tight text-foreground">Funds Held in Trust</SheetTitle>
+          <SheetTitle className="text-xl font-semibold tracking-tight text-foreground">Test Funding Ledger</SheetTitle>
           <SheetDescription className="text-xs text-muted-foreground leading-relaxed">
-            Client deposits remain locked in contract escrow until each deliverable milestone is reviewed and signed off.
+            Test funding and simulated releases are recorded here. Work approval is separate from payouts; no real money is transferred.
           </SheetDescription>
         </SheetHeader>
 
-        {loading ? (
+        {error && <p role="alert">{error} <Button onClick={fetchEscrowDetails}>Retry</Button></p>}
+        <div className="flex gap-2"><Button variant="outline" disabled={page <= 1 || loading} onClick={() => setResultPage(n => n - 1)}>Previous records</Button><Button variant="outline" disabled={page >= pages || loading} onClick={() => setResultPage(n => n + 1)}>Next records</Button></div>
+        {loading || error ? (
           <div className="py-20 text-center text-xs text-muted-foreground animate-pulse">
             Opening escrow ledger…
           </div>
@@ -66,13 +78,13 @@ export function EscrowDrawer({ open, onClose, token, currentUser }) {
             {/* Vault Summary Card */}
             <div className="rounded-[8px] bg-secondary/30 border border-border p-5 space-y-4">
               <div>
-                <p className="text-xs uppercase tracking-wider font-mono text-muted-foreground">Currently Locked in Escrow</p>
+                <p className="text-xs uppercase tracking-wider font-mono text-muted-foreground">Test funds allocated</p>
                 <p className="text-3xl font-mono tabular-nums font-semibold text-foreground mt-1">₹{stats.lockedAmount.toLocaleString()}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-3 pt-3 border-t border-border text-xs">
                 <div>
-                  <p className="text-muted-foreground text-[11px]">Released to Date</p>
+                  <p className="text-muted-foreground text-[11px]">Simulated releases</p>
                   <p className="font-mono tabular-nums font-semibold text-[var(--status-success-fg)] mt-0.5">
                     ₹{stats.releasedAmount.toLocaleString()}
                   </p>

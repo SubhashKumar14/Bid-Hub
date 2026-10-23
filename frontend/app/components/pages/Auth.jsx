@@ -1,16 +1,19 @@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../ui/tabs";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { BrandLogo } from "../../brand/BrandLogo";
 import { BrandIcon } from "../../brand/BrandIcon";
 import { toast } from "sonner";
 
-export function Auth({ onDone, setToken }) {
+export function Auth({ onDone, setToken, initialRole = "student" }) {
+  const [error, setError] = useState("");
+  const active = useRef(true);
+  useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   const [showPassword, setShowPassword] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
-  const [role, setRole] = useState("student");
+  const [role, setRole] = useState(initialRole === "client" ? "client" : "student");
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [registerFirstName, setRegisterFirstName] = useState("");
@@ -27,6 +30,7 @@ export function Auth({ onDone, setToken }) {
     }
 
     setLoading(true);
+    setError("");
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
@@ -34,6 +38,7 @@ export function Auth({ onDone, setToken }) {
         body: JSON.stringify({ email: loginEmail, password: loginPassword }),
       });
       const data = await res.json();
+      if (!active.current) return;
 
       if (!res.ok) {
         throw new Error(data.message || "Failed to log in");
@@ -44,9 +49,11 @@ export function Auth({ onDone, setToken }) {
       toast.success("Welcome back to Bid·Hub");
       onDone(data.role);
     } catch (err) {
+      if (!active.current) return;
+      setError(err.message);
       toast.error(err.message);
     } finally {
-      setLoading(false);
+      if (active.current) setLoading(false);
     }
   };
 
@@ -57,6 +64,7 @@ export function Auth({ onDone, setToken }) {
     }
 
     setLoading(true);
+    setError("");
     try {
       const name = `${registerFirstName.trim()} ${registerLastName.trim()}`;
       const res = await fetch("/api/auth/register", {
@@ -71,6 +79,7 @@ export function Auth({ onDone, setToken }) {
         }),
       });
       const data = await res.json();
+      if (!active.current) return;
 
       if (!res.ok) {
         throw new Error(data.message || "Registration failed");
@@ -81,14 +90,17 @@ export function Auth({ onDone, setToken }) {
       toast.success("Account created successfully");
       onDone(data.role);
     } catch (err) {
+      if (!active.current) return;
+      setError(err.message);
       toast.error(err.message);
     } finally {
-      setLoading(false);
+      if (active.current) setLoading(false);
     }
   };
 
   return (
     <div className="min-h-[calc(100vh-72px)] grid lg:grid-cols-12 bg-background">
+      {error && <p role="alert" className="lg:col-span-12 px-5 py-3 text-sm text-destructive">{error}</p>}
       {/* Editorial Identity Side */}
       <aside className="hidden lg:flex lg:col-span-5 flex-col justify-between p-12 bg-secondary/50 border-r border-border relative">
         <div>
@@ -314,7 +326,7 @@ export function Auth({ onDone, setToken }) {
                       type={showRegisterPassword ? "text" : "password"}
                       autoComplete="new-password"
                       required
-                      placeholder="At least 6 characters"
+                      placeholder="At least 8 characters"
                       value={registerPassword}
                       onChange={(e) => setRegisterPassword(e.target.value)}
                       className="pr-10"

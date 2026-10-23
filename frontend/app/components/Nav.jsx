@@ -22,7 +22,7 @@ const notifMeta = {
   BID_ACCEPTED: { label: "Proposal Accepted", color: "bg-[var(--status-success)]" },
   BID_REJECTED: { label: "Proposal Rejected", color: "bg-[var(--status-danger)]" },
   MILESTONE_SUBMITTED: { label: "Work Submitted", color: "bg-[var(--status-warning)]" },
-  MILESTONE_RELEASED: { label: "Funds Released", color: "bg-[var(--status-success)]" },
+  MILESTONE_RELEASED: { label: "Work Approved", color: "bg-[var(--status-success)]" },
   MILESTONE_CHANGES_REQUESTED: { label: "Changes Requested", color: "bg-[var(--status-danger)]" },
   PROJECT_COMPLETED: { label: "Project Complete", color: "bg-[var(--status-success)]" },
   REVIEW_RECEIVED: { label: "New Review", color: "bg-[var(--status-info)]" },
@@ -31,6 +31,7 @@ const notifMeta = {
 };
 
 function NotificationBell({ token, setPage }) {
+  const [error, setError] = useState("");
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
@@ -40,11 +41,12 @@ function NotificationBell({ token, setPage }) {
     if (!token) return;
     try {
       setLoading(true);
+      setError("");
       const data = await getNotifications(token);
       setNotifications(data.notifications || []);
       setUnreadCount(data.unreadCount || 0);
     } catch {
-      // Silently fail - non-critical
+      setError("Notifications unavailable. Retry to refresh.");
     } finally {
       setLoading(false);
     }
@@ -67,7 +69,7 @@ function NotificationBell({ token, setPage }) {
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       setUnreadCount(0);
     } catch {
-      // ignore
+      setError("Could not mark notifications read. Please retry.");
     }
   };
 
@@ -79,13 +81,13 @@ function NotificationBell({ token, setPage }) {
       );
       setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch {
-      // ignore
+      setError("Could not mark this notification read. Please retry.");
     }
   };
 
   if (!token) {
     return (
-      <Button variant="ghost" size="icon" aria-label="Notifications" className="relative rounded-[5px]">
+      <Button onClick={() => setPage("auth")} variant="ghost" size="icon" aria-label="Sign in for notifications" className="relative rounded-[5px]">
         <Bell className="size-4" />
       </Button>
     );
@@ -118,9 +120,10 @@ function NotificationBell({ token, setPage }) {
         </div>
 
         <div className="overflow-y-auto flex-1">
+          {error && <p role="alert" className="p-3 text-xs">{error} <Button variant="outline" onClick={fetchNotifications}>Retry</Button></p>}
           {loading && notifications.length === 0 ? (
             <div className="px-4 py-8 text-center text-xs text-muted-foreground">Loading notifications…</div>
-          ) : notifications.length === 0 ? (
+          ) : notifications.length === 0 && !error ? (
             <BrandState
               name="no-notifications"
               title="All caught up"
@@ -194,14 +197,14 @@ export function Nav({ page, setPage, role, setRole, theme, toggleTheme, onOpenEs
 
   return (
     <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-xs border-b border-border">
-      <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 h-[72px] flex items-center justify-between gap-4">
+      <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 h-[72px] flex items-center justify-between gap-2 sm:gap-4">
         <div className="flex items-center gap-6">
           <button
             onClick={() => setPage("landing")}
             className="flex items-center gap-2 cursor-pointer focus-visible:outline-2 focus-visible:outline-[var(--brand-accent)] rounded-[4px]"
             aria-label="Bid·Hub Home"
           >
-            <BrandLogo width={138} decorative />
+            <BrandLogo width={138} className="w-[112px] sm:w-[138px]" decorative />
           </button>
 
           <nav className="hidden md:flex items-center gap-1">
@@ -238,7 +241,7 @@ export function Nav({ page, setPage, role, setRole, theme, toggleTheme, onOpenEs
           </form>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-0 sm:gap-2">
           {!currentUser && (
             <div className="hidden md:flex items-center gap-0.5 rounded-[5px] bg-secondary p-0.5 text-xs border border-border">
               {["student", "client"].map(r => (
@@ -260,14 +263,14 @@ export function Nav({ page, setPage, role, setRole, theme, toggleTheme, onOpenEs
             variant="ghost"
             size="icon"
             onClick={onOpenEscrow}
-            aria-label="Trust & Escrow Ledger"
-            className="rounded-[5px]"
-            title="Escrow Overview"
+            aria-label="Test funding ledger"
+            className="hidden sm:inline-flex rounded-[5px]"
+            title="Test funding ledger"
           >
             <Wallet className="size-4" />
           </Button>
 
-          <NotificationBell token={token} setPage={setPage} />
+          <NotificationBell key={token} token={token} setPage={setPage} />
 
           <Button
             variant="ghost"

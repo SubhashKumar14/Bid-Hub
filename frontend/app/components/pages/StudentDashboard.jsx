@@ -20,6 +20,7 @@ const formatCurrency = (val) => {
 };
 
 export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) {
+  const [error, setError] = useState("");
   const [stats, setStats] = useState({
     earnings: 0,
     activeContractsCount: 0,
@@ -53,18 +54,21 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
 
   const fetchDashboardData = async () => {
     if (!token || !currentUser) return;
+    setError("");
     setLoading(true);
     try {
       const paymentsRes = await fetch("/api/payments", {
         headers: { Authorization: `Bearer ${token}` },
       });
       const paymentsData = await paymentsRes.json();
+      if (!paymentsRes.ok) throw new Error("Financial data unavailable. Retry to refresh.");
       const releasedAmount = paymentsData.stats?.releasedAmount || 0;
 
       const profileRes = await fetch(`/api/users/${currentUser._id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const profileData = await profileRes.json();
+      if (!profileRes.ok) throw new Error("Profile data unavailable. Retry to refresh.");
       const views = profileData.user?.profileViews || 0;
       setReviews(profileData.reviews || []);
 
@@ -81,11 +85,12 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
 
       setStats({
         earnings: releasedAmount,
-        activeContractsCount: (dashData.contracts || []).length,
+        activeContractsCount: (dashData.contracts || []).filter(c => c.projectStatus !== "COMPLETED").length,
         openBidsCount,
         profileViews: views,
       });
     } catch (err) {
+      setError(err.message);
       toast.error(err.message);
     } finally {
       setLoading(false);
@@ -120,9 +125,12 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
     });
   });
 
+  if (error && !loading) return <div role="alert" className="max-w-xl mx-auto p-8 space-y-4"><h1 className="text-xl">Workspace data unavailable</h1><p>{error}</p><Button onClick={fetchDashboardData}>Retry</Button></div>;
+
   if (loading) {
     return (
       <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 py-20 text-center animate-pulse">
+      {error && <div role="alert" className="border border-destructive rounded p-4 text-sm">{error} <Button variant="outline" onClick={() => window.location.reload()}>Retry</Button></div>}
         <p className="text-sm text-muted-foreground">Syncing student workspace…</p>
       </div>
     );
@@ -134,13 +142,13 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 border-b border-border">
         <div>
           <span className="eyebrow text-xs text-muted-foreground">
-            Student Freelance Workspace · {currentUser?.college || "Verified Student"}
+            Student Freelance Workspace · {currentUser?.college || "Student"}
           </span>
           <h1 className="text-3xl font-medium tracking-tight text-foreground mt-1">
             Workspace: {currentUser?.name}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Track active milestone submissions, pending client feedback, and verified escrow payouts.
+            Track active milestone submissions, pending client feedback, and test funding records.
           </p>
         </div>
         <div className="flex flex-wrap gap-2.5">
@@ -156,7 +164,7 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
             variant="outline"
             className="rounded-[5px] text-xs h-9 px-4 font-medium"
           >
-            Escrow ledger
+            Funding ledger
           </Button>
         </div>
       </header>
@@ -164,7 +172,7 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
       {/* Priority: Needs Your Attention Banner */}
       {attentionItems.length > 0 && (
         <section className="bg-card border-l-4 border-l-[var(--brand-accent)] border border-border rounded-[8px] p-5 space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap gap-2 items-center justify-between">
             <div className="flex items-center gap-2">
               <BrandIcon name="submission" size={18} className="text-[var(--brand-accent)]" />
               <h2 className="text-sm font-medium text-foreground">
@@ -211,7 +219,7 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
       {/* Compact Financial & Stats Summary */}
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { k: "Released Earnings", v: formatCurrency(stats.earnings), d: "Direct escrow payout", icon: <Wallet className="size-4" /> },
+          { k: "Released Earnings", v: formatCurrency(stats.earnings), d: "Simulated release; no real payout", icon: <Wallet className="size-4" /> },
           { k: "Active Contracts", v: stats.activeContractsCount, d: "In delivery pipeline", icon: <Sparkles className="size-4" /> },
           { k: "Proposals Pending", v: stats.openBidsCount, d: "Under client review", icon: <TrendingUp className="size-4" /> },
           { k: "Profile Views", v: stats.profileViews, d: "Direct directory discovery", icon: <Eye className="size-4" /> },
@@ -230,13 +238,13 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
       {/* Workspaces Grid: Contracts and Proposals */}
       <section className="grid lg:grid-cols-12 gap-8 items-start">
         {/* Active Contracts Column */}
-        <div className="lg:col-span-8 bg-card border border-border rounded-[8px] p-6 space-y-4">
+        <div className="min-w-0 lg:col-span-8 bg-card border border-border rounded-[8px] p-6 space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-border/60">
             <div className="flex items-center gap-2">
               <BrandIcon name="contract" size={18} className="text-[var(--brand-accent)]" />
-              <h2 className="text-base font-medium text-foreground">Active Contracts</h2>
+              <h2 className="text-base font-medium text-foreground">Contracts and completed history</h2>
             </div>
-            <span className="text-xs text-muted-foreground">{contracts.length} active</span>
+            <span className="text-xs text-muted-foreground">{contracts.filter(c => c.projectStatus !== "COMPLETED").length} active · {contracts.filter(c => c.projectStatus === "COMPLETED").length} completed</span>
           </div>
 
           <div className="space-y-4">
@@ -295,8 +303,8 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
                     />
                   </div>
                   <div className="flex justify-between text-[11px] text-muted-foreground">
-                    <span>{c.progress}% escrow released</span>
-                    <span>{c.milestones?.filter((m) => m.status === "RELEASED").length || 0} of {c.milestones?.length || 0} milestones approved</span>
+                    <span>{c.progress}% work approved</span>
+                    <span>{c.milestones?.filter((m) => ["RELEASED", "APPROVED"].includes(m.status)).length || 0} of {c.milestones?.length || 0} milestones approved</span>
                   </div>
 
                   {/* Checkpoints List */}
@@ -336,7 +344,7 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
                           {m.status === "SUBMITTED" && (
                             <StatusBadge tone="info" className="text-[10px] py-0">In Review</StatusBadge>
                           )}
-                          {m.status === "RELEASED" && (
+                          {["RELEASED", "APPROVED"].includes(m.status) && (
                             <StatusBadge tone="success" className="text-[10px] py-0">Released</StatusBadge>
                           )}
                         </div>
@@ -350,7 +358,7 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
         </div>
 
         {/* Proposals Sent Column */}
-        <div className="lg:col-span-4 bg-card border border-border rounded-[8px] p-6 space-y-4">
+        <div className="min-w-0 lg:col-span-4 bg-card border border-border rounded-[8px] p-6 space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-border/60">
             <div className="flex items-center gap-2">
               <BrandIcon name="proposal" size={18} className="text-[var(--brand-accent)]" />

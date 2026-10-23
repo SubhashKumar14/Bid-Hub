@@ -9,8 +9,8 @@ import { useState, useEffect } from "react";
 const steps = [
   { n: "01", t: "Publish or explore", d: "Clients publish clear, milestone-driven briefs. Students compare scope, deadlines, and budgets along a consistent index." },
   { n: "02", t: "Propose with intent", d: "Submit a focused proposal outlining your delivery approach, schedule, and relevant portfolio evidence." },
-  { n: "03", t: "Fund in escrow", d: "Agreed milestones are funded and held securely in trust before students begin development work." },
-  { n: "04", t: "Deliver and release", d: "Submit checkpoints for client review. Approved deliverables unlock escrow funds and record verified feedback." },
+  { n: "03", t: "Confirm test funding", d: "Accept an exact proposal and confirm simulated funding before work begins. No live payments or payouts." },
+  { n: "04", t: "Deliver and approve", d: "Submit checkpoints for client review. Participants may leave feedback after work is completed. Approval never asserts a real payout." },
 ];
 
 const categories = ["Product Design", "Web Development", "Backend & APIs", "Writing & Editing", "Video & Motion", "Brand Identity", "Research", "Data & AI", "Growth & Marketing", "Graphic Design"];
@@ -77,7 +77,7 @@ export function Landing({ setPage }) {
             </h1>
 
             <p className="mt-5 text-muted-foreground text-base sm:text-lg leading-relaxed max-w-2xl">
-              Bid·Hub bridges ambitious college students with clients who value craftsmanship. Compare structured project briefs, propose directly, and collaborate with transparent escrow milestones.
+              Bid·Hub bridges ambitious college students with clients who value craftsmanship. Compare structured project briefs, propose directly, and collaborate with clear, agreed milestones.
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3">
@@ -205,7 +205,7 @@ export function Landing({ setPage }) {
               A straightforward process from brief to release.
             </h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Every assignment is anchored by agreed deliverables and escrow checkpoints, so students and clients stay aligned.
+              Every assignment is anchored by agreed deliverables and review checkpoints, so students and clients stay aligned.
             </p>
           </div>
           <ol className="lg:col-span-8 grid sm:grid-cols-2 gap-x-8 gap-y-6">
@@ -267,7 +267,7 @@ export function Landing({ setPage }) {
             icon: <BrandIcon name="contract" size={20} className="text-[var(--brand-accent)]" />,
             eyebrow: "For Clients",
             title: "Delegate scoped work to campus talent.",
-            body: "Define deliverables and milestones in minutes. Proposals arrive with student portfolios; escrow funds release only on approval.",
+            body: "Define deliverables and milestones in minutes. Proposals arrive with student portfolios; work is approved per checkpoint; funding is simulated.",
             cta: "Post a project brief",
             page: "post",
           },

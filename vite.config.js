@@ -15,7 +15,7 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/api': 'http://localhost:5000',
+      '/api': process.env.BIDHUB_API_TARGET || 'http://localhost:5000',
     },
   },
   assetsInclude: ['**/*.svg', '**/*.csv'],

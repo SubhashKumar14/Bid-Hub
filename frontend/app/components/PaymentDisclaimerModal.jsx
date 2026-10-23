@@ -2,7 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "./ui/button";
 import { ShieldAlert } from "lucide-react";
 
-export function PaymentDisclaimerModal({ open, onConfirm, onCancel }) {
+export function PaymentDisclaimerModal({ open, onConfirm, onCancel, offer }) {
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onCancel()}>
       <DialogContent className="bg-popover border-border max-w-md p-6 text-foreground rounded-[12px] shadow-lg">
@@ -14,19 +14,24 @@ export function PaymentDisclaimerModal({ open, onConfirm, onCancel }) {
             Payment Demonstration
           </DialogTitle>
           <DialogDescription className="text-muted-foreground text-xs leading-relaxed text-center">
-            This workspace utilizes Razorpay's Test Mode environment for workflow validation.
+            This workspace supports simulated funding or provider test orders only. Live payments and payouts are disabled.
           </DialogDescription>
         </DialogHeader>
 
         <div className="my-3 text-xs space-y-3 leading-relaxed text-muted-foreground bg-secondary/50 border border-border rounded-[8px] p-4">
           <p className="font-medium text-foreground">Demonstration Environment:</p>
+          {offer && <div className="space-y-1 text-foreground">
+            <p>Accept proposal version {offer.version || 1}: ₹{Number(offer.amount).toLocaleString("en-IN")} · {offer.timeline}</p>
+            <p className="whitespace-pre-wrap">{offer.proposal}</p>
+            <ul>{offer.schedule?.map((m, i) => <li key={i}>{m.title}: ₹{(m.amountPaise / 100).toLocaleString("en-IN")}</li>)}</ul>
+          </div>}
           <ul className="list-disc pl-4 space-y-1 text-muted-foreground">
             <li>No real money or bank accounts will be charged.</li>
             <li>No actual fund transfer or legal escrow settlement will occur.</li>
-            <li>Test orders simulate real-world escrow funding and verification.</li>
+            <li>Accepting freezes this proposal's price, timeline and milestone schedule.</li>
           </ul>
           
-          <div className="mt-3 pt-3 text-[12px] space-y-1.5 bg-[var(--status-warning-bg)] p-3 rounded-[5px] border border-[var(--status-warning-border)] text-foreground">
+          <div hidden className="mt-3 pt-3 text-[12px] space-y-1.5 bg-[var(--status-warning-bg)] p-3 rounded-[5px] border border-[var(--status-warning-border)] text-foreground">
             <p className="font-semibold text-[var(--status-warning)] text-[11px] uppercase tracking-wider">Test Card Details:</p>
             <p>• <span className="text-muted-foreground">Card:</span> <code className="bg-card px-1.5 py-0.5 rounded border border-border font-mono text-xs">4111 1111 1111 1111</code></p>
             <p>• <span className="text-muted-foreground">Expiry / CVV:</span> <code className="bg-card px-1.5 py-0.5 rounded border border-border font-mono text-xs">12/30</code> · <code className="bg-card px-1.5 py-0.5 rounded border border-border font-mono text-xs">111</code></p>

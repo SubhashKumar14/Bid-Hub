@@ -18,7 +18,9 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
     pages: 1,
   });
 
+  const sendIdentity = useRef(null);
   const targetRef = useRef("");
+  useEffect(() => () => { targetRef.current = ""; }, []);
   targetRef.current = open ? `${projectId}:${token}` : "";
   const chatEndRef = useRef(null);
   const scrollContainerRef = useRef(null);
@@ -121,8 +123,9 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
     setInputText("");
 
     try {
-      const newMessage = await sendMessage(projectId, content, token);
+      const newMessage = await sendMessage(projectId, content, token, (sendIdentity.current?.content === content ? sendIdentity.current.id : (sendIdentity.current = { content, id: crypto.randomUUID() }).id));
       if (targetRef.current !== target) return;
+      sendIdentity.current = null;
       setMessages((prev) => [...prev.filter(m => m._id !== newMessage._id), newMessage]);
       setTimeout(() => scrollToBottom("smooth"), 50);
     } catch (err) {

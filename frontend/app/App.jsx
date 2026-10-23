@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useCapabilities } from "../api/capabilities";
 import { Nav } from "./components/Nav";
 import { EscrowDrawer } from "./components/EscrowDrawer";
 import { Landing } from "./components/pages/Landing";
@@ -15,17 +16,26 @@ import { BrandLogo } from "./brand/BrandLogo";
 import { Button } from "./components/ui/button";
 
 export default function App() {
+  const capabilities = useCapabilities();
   const readInitialPage = () => {
     const path = window.location.pathname.replace(/\/$/, "") || "/";
     if (path.startsWith("/project/")) { localStorage.setItem("currentProjectId", path.split("/").pop()); return "detail"; }
     return ({ "/": "landing", "/landing": "landing", "/browse": "browse", "/student": "student", "/client": "client", "/profile": "profile", "/post": "post", "/auth": "auth" })[path] || "landing";
   };
   const [page, setPageState] = useState(readInitialPage);
+  const [routePath, setRoutePath] = useState(() => window.location.pathname);
   const [authError, setAuthError] = useState(false);
   const [authRetry, setAuthRetry] = useState(0);
   const setPage = (next) => {
+    if (["post", "profile", "student", "client"].includes(next) && !localStorage.getItem("token")) {
+      sessionStorage.setItem("bidhub-return", `/${next}`);
+      next = "auth";
+    }
+    if (currentUser && ((["post", "client"].includes(next) && currentUser.role !== "client") || (next === "student" && currentUser.role !== "student"))) next = currentUser.role;
+    if (next === "auth" && window.location.pathname !== "/auth" && !sessionStorage.getItem("bidhub-return")) sessionStorage.setItem("bidhub-return", window.location.pathname);
     const target = next === "landing" ? "/" : next === "detail" ? "/project/" + localStorage.getItem("currentProjectId") : "/" + next;
     if ((window.location.pathname.replace(/\/$/, "") || "/") !== target) window.history.pushState({}, "", target);
+    setRoutePath(target);
     setPageState(next);
   };
   const [role, setRole] = useState("student");
@@ -33,6 +43,12 @@ export default function App() {
   const [escrowOpen, setEscrowOpen] = useState(false);
   const [token, setToken] = useState(localStorage.getItem("token") || "");
   const [currentUser, setCurrentUser] = useState(null);
+
+  useEffect(() => {
+    const sync = event => { if (event.key === "token") { setCurrentUser(null); setToken(event.newValue || ""); } };
+    window.addEventListener("storage", sync);
+    return () => window.removeEventListener("storage", sync);
+  }, []);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
@@ -45,6 +61,7 @@ export default function App() {
     let active = true;
     const timeout = setTimeout(() => controller.abort(), 10000);
     setAuthError(false);
+    setCurrentUser(null);
     if (token) {
       fetch("/api/auth/me", {
         signal: controller.signal,
@@ -71,7 +88,15 @@ export default function App() {
           if (path === "/student" && user.role !== "student") setPage("client");
           if (path === "/client" && user.role !== "client") setPage("student");
           if (path === "/post" && user.role !== "client") setPage("student");
-          if (path === "/auth") setPage(user.role);
+          if (path === "/auth") {
+            const returnPath = sessionStorage.getItem("bidhub-return");
+            sessionStorage.removeItem("bidhub-return");
+            if (returnPath && /^\/(project\/[a-f\d]{24}|browse|profile|student|client|post)$/.test(returnPath)) {
+              window.history.replaceState({}, "", returnPath);
+              const target = readInitialPage();
+              setPageState((target === "post" || target === "client") && user.role !== "client" ? "student" : target === "student" && user.role !== "student" ? "client" : target);
+            } else setPage(user.role);
+          }
         })
         .catch((err) => {
           if (!active) return;
@@ -81,7 +106,7 @@ export default function App() {
             localStorage.removeItem("token");
             setToken("");
             setCurrentUser(null);
-            setPage("landing");
+            setPage("auth");
           }
         });
     } else {
@@ -97,10 +122,11 @@ export default function App() {
       if (path.length > 1 && path.endsWith("/")) {
         path = path.slice(0, -1);
       }
-      const isPrivate = ["/student", "/client", "/profile", "/post"].includes(path) || path.startsWith("/project/");
+      const isPrivate = ["/student", "/client", "/profile", "/post"].includes(path);
       
       const activeToken = token || localStorage.getItem("token");
       if (isPrivate && !activeToken) {
+        sessionStorage.setItem("bidhub-return", path);
         setPage("auth");
         return;
       }
@@ -121,8 +147,6 @@ export default function App() {
         if (activeToken) {
           if (currentUser) {
             setPage(currentUser.role);
-          } else {
-            setPage("landing");
           }
         } else {
           setPage("auth");
@@ -142,6 +166,7 @@ export default function App() {
   }, [token, currentUser]);
 
   const handleLogout = () => {
+    sessionStorage.removeItem("bidhub-return");
     localStorage.removeItem("token");
     setToken("");
     setCurrentUser(null);
@@ -153,6 +178,8 @@ export default function App() {
   // Helper to ensure authenticated access and role separation
   const requireAuth = (targetPage, action) => {
     if (!token) {
+      const path = targetPage === "detail" ? `/project/${localStorage.getItem("currentProjectId")}` : `/${targetPage}`;
+      if (["post", "profile", "student", "client", "detail"].includes(targetPage)) sessionStorage.setItem("bidhub-return", path);
       setPage("auth");
       return;
     }
@@ -225,11 +252,12 @@ export default function App() {
           token={token}
         />
 
-        <main>
+        <p role="status" className="px-4 py-2 text-center text-xs text-muted-foreground border-b border-border">{capabilities ? (capabilities.mode === "demo" ? "Demo workspace · Funding is simulated. No real payments or payouts." : "Test workspace · Live payments and payouts are disabled.") : "Financial capabilities unavailable · Do not send real money."}</p>
+        <main key={token}>
           {page === "landing" && <Landing setPage={setPage} />}
           {page === "browse" && <Browse setPage={setPage} />}
-          {page === "detail" && <ProjectDetail setPage={setPage} role={role} token={token} currentUser={currentUser} />}
-          {page === "post" && <PostProject token={token} onDone={() => setPage("client")} />}
+          {page === "detail" && <ProjectDetail key={`${routePath}:${token}`} setPage={setPage} role={role} token={token} currentUser={currentUser} />}
+          {page === "post" && <PostProject currentUser={currentUser} token={token} onDone={() => setPage("client")} />}
           {page === "student" && (
             <StudentDashboard
               setPage={setPage}
@@ -246,8 +274,8 @@ export default function App() {
               currentUser={currentUser}
             />
           )}
-          {page === "profile" && <Profile token={token} currentUser={currentUser} />}
-          {page === "auth" && <Auth onDone={(userRole) => setPage(userRole || "landing")} setToken={setToken} />}
+          {page === "profile" && <Profile token={token} currentUser={currentUser} onUserUpdate={setCurrentUser} />}
+          {page === "auth" && <Auth initialRole={role} onDone={() => {}} setToken={setToken} />}
         </main>
 
         <EscrowDrawer open={escrowOpen} onClose={() => setEscrowOpen(false)} token={token} currentUser={currentUser} />

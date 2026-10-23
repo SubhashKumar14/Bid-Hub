@@ -2,7 +2,7 @@ import { Search, SlidersHorizontal, ArrowUpDown } from "lucide-react";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { ProjectRow } from "../ProjectCard";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { BrandState } from "../../brand/BrandState";
 import { BrandIcon } from "../../brand/BrandIcon";
@@ -19,6 +19,7 @@ const categories = [
 ];
 
 export function Browse({ setPage }) {
+  const [error, setError] = useState("");
   const [activeCategory, setActiveCategory] = useState(() => {
     return localStorage.getItem("bidhub_category_filter") || "All";
   });
@@ -27,6 +28,8 @@ export function Browse({ setPage }) {
   });
   const [sortBy, setSortBy] = useState("newest");
   const [locationFilter, setLocationFilter] = useState("all");
+  const [page, setResultPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -40,10 +43,13 @@ export function Browse({ setPage }) {
     }
   }, []);
 
+  const requestSequence = useRef(0);
   const fetchProjects = async () => {
+    const request = ++requestSequence.current;
+    setError("");
     setLoading(true);
     try {
-      let url = "/api/projects?status=OPEN";
+      let url = `/api/projects?status=OPEN&page=${page}&limit=50&sort=${sortBy}&location=${locationFilter}`;
       if (activeCategory && activeCategory !== "All") {
         url += `&category=${encodeURIComponent(activeCategory)}`;
       }
@@ -53,19 +59,24 @@ export function Browse({ setPage }) {
 
       const res = await fetch(url);
       const data = await res.json();
+      if (request !== requestSequence.current) return;
       if (!res.ok) throw new Error(data.message || "Failed to load project index");
+      setTotal(Number(res.headers.get("X-Total-Count")) || 0);
       setProjects(Array.isArray(data) ? data : []);
     } catch (err) {
+      if (request !== requestSequence.current) return;
+      setError(err.message);
       toast.error(err.message);
     } finally {
-      setLoading(false);
+      if (request === requestSequence.current) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchProjects();
-  }, [activeCategory, search]);
+  }, [activeCategory, search, page, locationFilter, sortBy]);
 
+  useEffect(() => setResultPage(1), [activeCategory, search, locationFilter, sortBy]);
   // Client-side filtering & sorting
   const filteredAndSortedProjects = useMemo(() => {
     let result = [...projects];
@@ -73,7 +84,7 @@ export function Browse({ setPage }) {
     if (locationFilter === "remote") {
       result = result.filter((p) => p.remote === true || /remote/i.test(p.location || ""));
     } else if (locationFilter === "onsite") {
-      result = result.filter((p) => p.remote === false || (!p.remote && p.location));
+      result = result.filter((p) => p.remote === false || (p.remote == null && p.location && !/remote/i.test(p.location)));
     }
 
     if (sortBy === "budget-desc") {
@@ -92,18 +103,20 @@ export function Browse({ setPage }) {
 
   return (
     <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 py-10">
+      {error && <div role="alert" className="border border-destructive rounded p-4 text-sm">{error} <Button variant="outline" onClick={() => window.location.reload()}>Retry</Button></div>}
+      <div className="flex gap-3 text-xs"><Button variant="outline" disabled={page === 1 || loading} onClick={() => setResultPage(n => n - 1)}>Previous results</Button><span>Page {page} · {total} projects · filtered results</span><Button variant="outline" disabled={page * 50 >= total || loading} onClick={() => setResultPage(n => n + 1)}>Next results</Button></div>
       {/* Index Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 border-b border-border">
         <div>
           <span className="eyebrow text-xs inline-flex items-center gap-1.5">
             <BrandIcon name="project-index" size={14} className="text-brand-accent" />
-            {loading ? "Loading index…" : `${filteredAndSortedProjects.length} open project briefs`}
+            {error ? "Directory unavailable" : loading ? "Loading index…" : `${filteredAndSortedProjects.length} open project briefs`}
           </span>
           <h1 className="text-3xl font-medium tracking-tight text-foreground mt-1">
             Project Directory
           </h1>
           <p className="text-sm text-muted-foreground mt-1 max-w-xl">
-            Structured technical and creative project briefs with confirmed milestones and escrow deposits.
+            Technical and creative project briefs with clear deliverables and proposed budgets.
           </p>
         </div>
         <Button
@@ -176,7 +189,7 @@ export function Browse({ setPage }) {
 
       {/* Projects Index List */}
       <div className="mt-6">
-        {loading ? (
+        {error ? null : loading ? (
           <div className="space-y-3">
             {[1, 2, 3, 4].map((i) => (
               <div key={i} className="bg-card border border-border rounded-[8px] p-5 animate-pulse space-y-3">

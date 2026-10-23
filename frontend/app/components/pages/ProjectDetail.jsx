@@ -1,3 +1,6 @@
+import { checkout } from "../../../api/checkout";
+import { allocateOffer } from "../../../../backend/lib/offer.js";
+import { ProjectRecovery } from "../ProjectRecovery";
 import { downloadAttachment } from "../../../api/fileApi";
 import { ShieldCheck, ArrowLeft, MapPin, Clock, Paperclip, Star } from "lucide-react";
 import { Button } from "../ui/button";
@@ -6,7 +9,7 @@ import { Textarea } from "../ui/textarea";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Separator } from "../ui/separator";
 import { StatusBadge } from "../StatusBadge";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { PaymentDisclaimerModal } from "../PaymentDisclaimerModal";
 import { PaymentSuccessModal } from "../PaymentSuccessModal";
@@ -24,8 +27,12 @@ const formatCurrency = (val) => {
 };
 
 export function ProjectDetail({ setPage, role, token, currentUser }) {
-  const projectId = localStorage.getItem("currentProjectId");
+  const projectId = window.location.pathname.startsWith("/project/") ? window.location.pathname.split("/").pop() : localStorage.getItem("currentProjectId");
+  const live = useRef(true);
+  useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
+  const [error, setError] = useState("");
   const [project, setProject] = useState(null);
+  const [contract, setContract] = useState(null);
   const [milestones, setMilestones] = useState([]);
   const [bids, setBids] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -51,6 +58,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
   const [bidProposal, setBidProposal] = useState("");
   const [submittingBid, setSubmittingBid] = useState(false);
   const [hasAlreadyBid, setHasAlreadyBid] = useState(false);
+  const [editingBid, setEditingBid] = useState(false);
 
   // Review states
   const [hasAlreadyReviewed, setHasAlreadyReviewed] = useState(false);
@@ -69,6 +77,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
       headers: { Authorization: `Bearer ${token}` },
     });
     const data = await response.json();
+    if (!live.current) return;
     if (!response.ok) {
       setPendingPayment(null);
       throw new Error(data.message || "Failed to load checkout details");
@@ -78,14 +87,20 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
 
   const fetchProjectData = async () => {
     if (!projectId) return;
+    setError("");
     setLoading(true);
     try {
       // 1. Fetch project details
       const projectRes = await fetch(`/api/projects/${projectId}`);
       const projectData = await projectRes.json();
+      if (!live.current) return;
       if (!projectRes.ok) throw new Error(projectData.message || "Failed to load project details");
       setProject(projectData.project);
       setMilestones(projectData.milestones || []);
+      if (token && projectData.project.status !== "OPEN") {
+        const r = await fetch(`/api/projects/${projectId}/contract`, { headers: { Authorization: `Bearer ${token}` } });
+        setContract(r.ok ? await r.json() : null);
+      }
       await fetchPendingCheckout(projectData.project);
 
       // 2. Fetch bids if user is logged in
@@ -95,6 +110,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
           headers: { Authorization: `Bearer ${token}` },
         });
         bidsData = await bidsRes.json();
+        if (!live.current) return;
         if (bidsRes.ok) {
           setBids(bidsData);
           // Check if current user already placed a bid
@@ -134,9 +150,11 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
         }
       }
     } catch (err) {
+      if (!live.current) return;
+      setError(err.message);
       toast.error(err.message);
     } finally {
-      setLoading(false);
+      if (live.current) setLoading(false);
     }
   };
 
@@ -147,6 +165,8 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
       try {
         const projectRes = await fetch(`/api/projects/${projectId}`);
         const projectData = await projectRes.json();
+        if (!live.current) return;
+      if (!live.current) return;
         if (projectRes.ok) {
           setProject(projectData.project);
           setMilestones(projectData.milestones || []);
@@ -158,6 +178,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
             headers: { Authorization: `Bearer ${token}` },
           });
           const bidsData = await bidsRes.json();
+          if (!live.current) return;
           if (bidsRes.ok) {
             setBids(bidsData);
             const myBid = bidsData.find(b => (b.studentId?._id || b.studentId) === currentUser?._id);
@@ -169,6 +190,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
           }
         }
       } catch (err) {
+      if (!live.current) return;
         console.error("Project details polling error:", err);
       }
     }, 8000);
@@ -190,42 +212,34 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
 
     setSubmittingBid(true);
     try {
-      const res = await fetch(`/api/projects/${projectId}/bids`, {
-        method: "POST",
+      const myBid = bids.find(b => (b.studentId?._id || b.studentId) === currentUser?._id);
+      const res = await fetch(myBid ? `/api/bids/${myBid._id}` : `/api/projects/${projectId}/bids`, {
+        method: myBid ? "PATCH" : "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           amount: bidAmount,
+          action: "REVISE",
           timeline: bidTimeline,
           proposal: bidProposal,
         }),
       });
       const data = await res.json();
+      if (!live.current) return;
       if (!res.ok) throw new Error(data.message || "Failed to place bid");
       toast.success("Proposal submitted successfully");
       setHasAlreadyBid(true);
+      setEditingBid(false);
       fetchProjectData();
     } catch (err) {
+      if (!live.current) return;
+      setError(err.message);
       toast.error(err.message);
     } finally {
       setSubmittingBid(false);
     }
-  };
-
-  const loadRazorpay = () => {
-    return new Promise((resolve) => {
-      if (window.Razorpay) {
-        resolve(true);
-        return;
-      }
-      const script = document.createElement("script");
-      script.src = "https://checkout.razorpay.com/v1/checkout.js";
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
   };
 
   const handleAcceptBid = (bidId) => {
@@ -236,90 +250,8 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
   const confirmCheckout = async () => {
     setDisclaimerOpen(false);
     if (!selectedBidId) return;
-    try {
-      const res = await fetch(`/api/payments/checkout-session`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ bidId: selectedBidId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to initiate escrow checkout");
-
-      if (data.provider === "razorpay") {
-        toast.info("Opening payment provider…");
-        if (!(await loadRazorpay())) throw new Error("Payment checkout could not be loaded. Please check your connection.");
-        const options = {
-          key: data.keyId,
-          amount: data.amount,
-          currency: data.currency,
-          name: "Bid·Hub Escrow",
-          description: data.description,
-          order_id: data.orderId,
-          handler: async function (response) {
-            try {
-              const verifyRes = await fetch("/api/payments/verify", {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({
-                  razorpay_order_id: response.razorpay_order_id,
-                  razorpay_payment_id: response.razorpay_payment_id,
-                  razorpay_signature: response.razorpay_signature,
-                }),
-              });
-              const verifyData = await verifyRes.json();
-              if (verifyRes.ok) {
-                setSuccessOpen(true);
-              } else {
-                throw new Error(verifyData.message || "Verification failed");
-              }
-            } catch (vErr) {
-              toast.error("Payment verification failed: " + vErr.message);
-            }
-          },
-          modal: {
-            ondismiss: async function () {
-              toast.warning("Payment window closed.");
-              await fetch("/api/payments/cancel", {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({ sessionId: data.orderId }),
-              });
-              fetchProjectData();
-            },
-          },
-          prefill: {
-            name: currentUser ? currentUser.name : "",
-            email: currentUser ? currentUser.email : "",
-          },
-          theme: { color: "#24231F" },
-        };
-        const rzp = new window.Razorpay(options);
-        rzp.open();
-      } else if (data.provider === "mock") {
-        const simulation = await fetch("/api/payments/simulate-payment", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ sessionId: data.sessionId }),
-        });
-        const result = await simulation.json();
-        if (!simulation.ok) throw new Error(result.message || "Checkout simulation failed");
-        setSuccessOpen(true);
-        fetchProjectData();
-      } else {
-        throw new Error("Unsupported payment provider response.");
-      }
-    } catch (err) {
-      toast.error(err.message);
-    }
+    try { await checkout(selectedBidId, token, currentUser, bids.find(b => b._id === selectedBidId)?.version || contract?.proposalVersion || 1); if (localStorage.getItem("token") !== token) return; setSuccessOpen(true); fetchProjectData(); }
+    catch (error) { if (localStorage.getItem("token") !== token) return; setError(error.message); toast.error(error.message); }
   };
 
   const handleCancelCheckout = async () => {
@@ -336,16 +268,19 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
         }),
       });
       const data = await res.json();
+      if (!live.current) return;
       if (!res.ok) throw new Error(data.message || "Failed to cancel checkout");
-      toast.success("Project reopened for proposals");
+      toast.success("Checkout dismissed. The agreed contract and pending order are retained.");
       fetchProjectData();
     } catch (err) {
+      if (!live.current) return;
+      setError(err.message);
       toast.error(err.message);
     }
   };
 
   const handleResumeCheckout = () => {
-    if (!pendingPayment) return;
+    if (!pendingPayment) { if (contract?.bidId) handleAcceptBid(contract.bidId); else toast.error("Checkout recovery is not ready. Request operator review below."); return; }
     const selectedBid = bids.find(b => (b.studentId?._id || b.studentId) === pendingPayment.studentId);
     if (selectedBid) {
       setSelectedBidId(selectedBid._id);
@@ -392,10 +327,13 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
         }),
       });
       const data = await res.json();
+      if (!live.current) return;
       if (!res.ok) throw new Error(data.message || "Failed to submit review");
       toast.success("Feedback submitted successfully");
       fetchProjectData();
     } catch (err) {
+      if (!live.current) return;
+      setError(err.message);
       toast.error(err.message);
     } finally {
       setSubmittingReview(false);
@@ -410,6 +348,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
     );
   }
 
+  if (error && !project) return <div role="alert" className="p-8"><p>{error}</p><Button onClick={fetchProjectData}>Retry</Button></div>;
   if (!project) {
     return (
       <div className="mx-auto max-w-7xl px-5 lg:px-8 py-20">
@@ -440,16 +379,18 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
         <ArrowLeft className="size-3.5" /> Back to directory
       </button>
 
+      {error && <p role="alert" className="text-sm text-destructive py-3">{error} <Button variant="outline" onClick={fetchProjectData}>Retry</Button></p>}
+      {contract && <section className="border border-border rounded p-4 mb-5 text-sm space-y-2"><h2 className="font-medium">Agreed contract: {formatCurrency(contract.totalPaise / 100)}</h2><p>Proposal version {contract.proposalVersion} · {contract.timeline} · Advertised estimate: {formatCurrency(project.budget)}</p><p>{contract.evidencePolicy}</p><details><summary>Agreed brief and proposal</summary><p className="whitespace-pre-wrap">{contract.brief}</p><p className="whitespace-pre-wrap">{contract.proposal}</p></details></section>}
       {/* Owner Escrow Action Callout */}
-      {project.status === "PENDING_FUNDING" && isOwner && pendingPayment && (
+      {project.status === "PENDING_FUNDING" && isOwner && (
         <div className="mb-6 p-5 rounded-[8px] bg-[var(--status-warning-bg)] border border-[var(--status-warning-border)] flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <h3 className="text-sm font-semibold text-[var(--status-warning-fg)] flex items-center gap-2">
-              <ShieldCheck className="size-4" /> Escrow Deposit Required
+              <ShieldCheck className="size-4" /> Test funding required
             </h3>
             <p className="text-xs text-muted-foreground">
-              You selected a proposal. To begin the contract and lock milestones in escrow, deposit{" "}
-              <span className="font-semibold text-foreground font-mono tabular-nums">{formatCurrency(pendingPayment.amount)}</span>.
+              An immutable offer is agreed. Confirm test funding of{" "}
+              <span className="font-semibold text-foreground font-mono tabular-nums">{formatCurrency(pendingPayment?.amount ?? (contract?.totalPaise / 100))}</span>. An uncertain attempt requires operator review before another order.
             </p>
           </div>
           <div className="flex items-center gap-2.5 shrink-0">
@@ -457,14 +398,14 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
               className="rounded-[5px] bg-primary text-primary-foreground hover:bg-primary/90 text-xs px-5 h-9 font-medium"
               onClick={handleResumeCheckout}
             >
-              Deposit Escrow
+              Resume Test Funding
             </Button>
             <Button
               variant="outline"
               className="rounded-[5px] text-xs px-4 h-9 border-border hover:bg-secondary text-muted-foreground hover:text-foreground"
               onClick={handleCancelCheckout}
             >
-              Cancel Selection
+              Dismiss Checkout
             </Button>
           </div>
         </div>
@@ -474,10 +415,10 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
         <div className="mb-6 p-5 rounded-[8px] bg-[var(--status-danger-bg)] border border-[var(--status-danger-border)] flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <h3 className="text-sm font-semibold text-[var(--status-danger-fg)] flex items-center gap-2">
-              <ShieldCheck className="size-4" /> Escrow Session Expired
+              <ShieldCheck className="size-4" /> Checkout needs attention
             </h3>
             <p className="text-xs text-muted-foreground">
-              The pending deposit session could not be retrieved. Reset this brief to open status to select again.
+              The saved checkout is unavailable or uncertain. Request operator review below; do not create another payable order.
             </p>
           </div>
           <Button
@@ -485,7 +426,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
             className="rounded-[5px] text-xs px-4 h-9 text-[var(--status-danger-fg)] border-[var(--status-danger-border)]"
             onClick={handleCancelCheckout}
           >
-            Reset to Open
+            Dismiss Checkout
           </Button>
         </div>
       )}
@@ -493,10 +434,10 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
       {project.status === "PENDING_FUNDING" && isStudent && pendingPayment && pendingPayment.studentId === currentUser._id && (
         <div className="mb-6 p-5 rounded-[8px] bg-[var(--status-warning-bg)] border border-[var(--status-warning-border)]">
           <h3 className="text-sm font-semibold text-[var(--status-warning-fg)] flex items-center gap-2">
-            <ShieldCheck className="size-4" /> Proposal Selected (Awaiting Client Escrow Deposit)
+            <ShieldCheck className="size-4" /> Proposal agreed · awaiting test funding
           </h3>
           <p className="text-xs text-muted-foreground mt-1">
-            The client has selected your proposal. Work begins once they fund the milestone escrow deposit.
+            The client has selected your proposal. Work begins after test funding is confirmed.
           </p>
         </div>
       )}
@@ -519,7 +460,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
             <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground pt-1">
               <span className="inline-flex items-center gap-1.5"><Clock className="size-3.5" /> Deadline: {project.deadline}</span>
               <span className="inline-flex items-center gap-1.5"><MapPin className="size-3.5" /> Remote</span>
-              <span className="inline-flex items-center gap-1.5 text-foreground"><ShieldCheck className="size-3.5 text-brand-accent" /> Milestone Escrow Protected</span>
+              <span className="inline-flex items-center gap-1.5 text-foreground"><ShieldCheck className="size-3.5 text-brand-accent" /> Demo funding · no legal escrow</span>
             </div>
           </header>
 
@@ -583,6 +524,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
           </section>
 
           {/* Milestone Timeline */}
+          {(isOwner || isStudent) && <ProjectRecovery key={`${project._id}:${token}`} project={project} token={token} participant={isOwner || bids.some(b => b.status === "ACCEPTED" && (b.studentId?._id || b.studentId) === currentUser?._id) || contract?.studentId === currentUser?._id} onUpdate={fetchProjectData} />}
           <section className="space-y-3">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Milestones & Checkpoints</h2>
             <div className="rounded-[8px] bg-card border border-border divide-y divide-border overflow-hidden">
@@ -611,7 +553,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
                           Review Work
                         </Button>
                       ) : (
-                        <StatusBadge tone={m.status === "RELEASED" ? "success" : m.status === "SUBMITTED" ? "info" : "muted"}>
+                        <StatusBadge tone={["RELEASED", "APPROVED"].includes(m.status) ? "success" : m.status === "SUBMITTED" ? "info" : "muted"}>
                           {m.status}
                         </StatusBadge>
                       )}
@@ -795,7 +737,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
                               className="rounded-[5px] bg-primary text-primary-foreground hover:bg-primary/90 text-xs px-4"
                               onClick={handleResumeCheckout}
                             >
-                              Fund Escrow
+                              Accept & Test Fund
                             </Button>
                             <Button
                               size="sm"
@@ -825,22 +767,29 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
                 <div>
                   <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Project Budget</span>
                   <p className="text-3xl font-mono tabular-nums font-semibold text-foreground mt-1">{formatCurrency(project.budget)}</p>
-                  <p className="text-[11px] text-muted-foreground mt-1">Paid through verified milestones upon signoff.</p>
+                  <p className="text-[11px] text-muted-foreground mt-1">Advertised estimate. Your accepted offer sets the contract total.</p>
                 </div>
 
                 <Separator />
 
                 <div>
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Submit Proposal</h3>
-                  {hasAlreadyBid ? (
+                  {hasAlreadyBid && !editingBid ? (
                     <div className="space-y-3 bg-secondary/30 p-4 rounded-[6px] text-left">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-foreground">Your Active Proposal</span>
-                        <StatusBadge tone="info">Active</StatusBadge>
+                        <span className="text-xs font-medium text-foreground">Your Proposal</span>
+                        <StatusBadge tone="info">{bids.find(b => (b.studentId?._id || b.studentId) === currentUser?._id)?.status || "Pending"}</StatusBadge>
                       </div>
                       <p className="text-lg font-mono tabular-nums font-semibold text-foreground">{formatCurrency(bidAmount)}</p>
                       <p className="text-xs text-muted-foreground">Estimated timeline: {bidTimeline}</p>
                       <p className="text-xs text-foreground/80 italic">"{bidProposal}"</p>
+                      {bids.find(b => (b.studentId?._id || b.studentId) === currentUser?._id)?.status === "PENDING" && <div className="flex gap-2">
+                        <Button variant="outline" onClick={() => setEditingBid(true)}>Revise proposal</Button>
+                        <Button variant="outline" onClick={async () => {
+                          const mine = bids.find(b => (b.studentId?._id || b.studentId) === currentUser?._id);
+                          try { const r = await fetch(`/api/bids/${mine._id}`, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ action: "WITHDRAW" }) }); const d = await r.json(); if (!r.ok) throw new Error(d.message); await fetchProjectData(); } catch (e) { toast.error(e.message); }
+                        }}>Withdraw proposal</Button>
+                      </div>}
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -880,9 +829,10 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
                         disabled={submittingBid}
                         className="w-full rounded-[5px] bg-primary text-primary-foreground hover:bg-primary/90 h-10 font-medium text-xs"
                       >
-                        {submittingBid ? "Submitting…" : "Submit Proposal"}
+                        {submittingBid ? "Submitting…" : hasAlreadyBid ? "Save Proposal Revision" : "Submit Proposal"}
                       </Button>
-                      <p className="text-[11px] text-muted-foreground text-center">Funds released on milestone approvals.</p>
+                      <p className="text-xs text-muted-foreground">Your offer uses these checkpoints, proportionally allocated to your price. All evidence links are optional; deliver the described work with notes or attachments.</p>
+                      <ul className="text-xs">{(() => { try { return allocateOffer(bidAmount, milestones).map((m, i) => <li key={i}>{m.title}: {formatCurrency(m.amountPaise / 100)}</li>); } catch { return <li>Enter a valid price to preview your schedule.</li>; } })()}</ul>
                     </div>
                   )}
                 </div>
@@ -939,6 +889,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
       </div>
 
       <PaymentDisclaimerModal
+        offer={bids.find(b => b._id === selectedBidId)}
         open={disclaimerOpen}
         onConfirm={confirmCheckout}
         onCancel={() => setDisclaimerOpen(false)}
@@ -947,7 +898,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
         open={successOpen}
         onClose={() => {
           setSuccessOpen(false);
-          setPage("client");
+          fetchProjectData();
         }}
       />
       <MilestoneReviewModal

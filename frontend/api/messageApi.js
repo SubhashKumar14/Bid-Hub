@@ -1,13 +1,13 @@
 const BASE = "/api/messages";
 
-export async function sendMessage(projectId, content, token) {
+export async function sendMessage(projectId, content, token, requestId) {
   const res = await fetch(BASE, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ projectId, content }),
+    body: JSON.stringify({ projectId, content, requestId }),
   });
   const data = await res.json();
   if (!res.ok) {

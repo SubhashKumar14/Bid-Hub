@@ -1,4 +1,5 @@
 import { downloadAttachment } from "../../api/fileApi";
+import { SubmissionHistory } from "./SubmissionHistory";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { Loader2, Github, Link, FileText, CornerDownRight, ExternalLink, Paperclip } from "lucide-react";
@@ -9,12 +10,14 @@ import { BrandIcon } from "../brand/BrandIcon";
 
 export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitle, token, onSuccess }) {
   const [submission, setSubmission] = useState(null);
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [isRequestingChanges, setIsRequestingChanges] = useState(false);
   const [reviewComment, setReviewComment] = useState("");
 
   const targetRef = useRef("");
+  useEffect(() => () => { targetRef.current = ""; }, []);
   targetRef.current = open ? `${milestoneId}:${token}` : "";
   const fetchSubmission = async () => {
     const target = targetRef.current;
@@ -29,17 +32,19 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
       if (res.ok) {
         setSubmission(data);
       } else {
+        setError(data.message || "Could not load the submission. Close and reopen to retry.");
         setSubmission(null);
       }
     } catch (err) {
-      console.error("Failed to fetch submission details", err);
-      setSubmission(null);
+      if (target === targetRef.current) setError("Could not load the submission. Close and reopen to retry.");
+      if (target === targetRef.current) setSubmission(null);
     } finally {
-      setLoading(false);
+      if (target === targetRef.current) setLoading(false);
     }
   };
 
   useEffect(() => {
+    setError(""); setReviewing(false);
     setSubmission(null);
     if (open) {
       fetchSubmission();
@@ -49,8 +54,10 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
   }, [open, milestoneId, token]);
 
   const handleApprove = async () => {
-    if (!window.confirm("Approve this milestone and release escrow funds to the student?")) return;
+    if (!window.confirm("Approve this submission as completed work? No real payout will be made.")) return;
 
+    const target = targetRef.current;
+    if (reviewing) return;
     setReviewing(true);
     try {
       const res = await fetch(`/api/milestones/${milestoneId}/release`, {
@@ -62,14 +69,17 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
         body: JSON.stringify({ status: "APPROVED", submissionId: submission?._id }),
       });
       const data = await res.json();
+      if (target !== targetRef.current) return;
       if (!res.ok) throw new Error(data.message || "Failed to release milestone");
-      toast.success(data.message || "Milestone approved and escrow released");
+      toast.success(data.message || "Work approved. No real payout was made.");
       onSuccess();
       onClose();
     } catch (err) {
+      if (target !== targetRef.current) return;
+      setError(err.message);
       toast.error(err.message);
     } finally {
-      setReviewing(false);
+      if (target === targetRef.current) setReviewing(false);
     }
   };
 
@@ -80,6 +90,8 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
       return;
     }
 
+    const target = targetRef.current;
+    if (reviewing) return;
     setReviewing(true);
     try {
       const res = await fetch(`/api/milestones/${milestoneId}/release`, {
@@ -95,14 +107,17 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
         }),
       });
       const data = await res.json();
+      if (target !== targetRef.current) return;
       if (!res.ok) throw new Error(data.message || "Failed to request changes");
       toast.success("Revisions requested. Student notified.");
       onSuccess();
       onClose();
     } catch (err) {
+      if (target !== targetRef.current) return;
+      setError(err.message);
       toast.error(err.message);
     } finally {
-      setReviewing(false);
+      if (target === targetRef.current) setReviewing(false);
     }
   };
 
@@ -127,7 +142,7 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
             <div className="py-16 text-center text-xs text-muted-foreground animate-pulse">
               Fetching submitted deliverables…
             </div>
-          ) : !submission ? (
+          ) : error && !submission ? <p className="text-sm text-destructive">Submission unavailable. Close and reopen to retry.</p> : !submission ? (
             <BrandState
               name="no-submissions"
               title="No submission record found"
@@ -152,7 +167,7 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
               </div>
 
               {/* GitHub Link */}
-              <div className="rounded-[6px] border border-border p-3.5 bg-secondary/30 flex items-center justify-between gap-3">
+              {submission.githubUrl && <div className="rounded-[6px] border border-border p-3.5 bg-secondary/30 flex items-center justify-between gap-3">
                 <div className="flex items-start gap-2.5 min-w-0">
                   <Github className="size-4 text-muted-foreground shrink-0 mt-0.5" />
                   <div className="min-w-0">
@@ -170,6 +185,7 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
                 </a>
               </div>
 
+              }
               {/* Live Demo Link */}
               {submission.demoUrl && (
                 <div className="rounded-[6px] border border-border p-3.5 bg-secondary/30 flex items-center justify-between gap-3">
@@ -250,6 +266,7 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
               )}
 
               {/* Feedback comment input box if requesting changes */}
+              <SubmissionHistory key={`${milestoneId}:${token}`} milestoneId={milestoneId} token={token} />
               {isRequestingChanges && (
                 <div className="pt-3 border-t border-border space-y-2">
                   <label htmlFor="revision-feedback" className="text-xs font-medium text-[var(--status-danger-fg)] flex items-center gap-1">
@@ -257,7 +274,7 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
                   </label>
                   <textarea
                     id="revision-feedback"
-                    placeholder="Specify concrete changes needed before escrow approval…"
+                    placeholder="Specify concrete changes needed before work approval…"
                     value={reviewComment}
                     onChange={(e) => setReviewComment(e.target.value)}
                     required
@@ -271,6 +288,7 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
           )}
         </div>
 
+        {error && <p role="alert" className="px-5 py-2 text-sm text-destructive">{error}</p>}
         {/* Footer */}
         <div className="p-4 border-t border-border bg-card flex justify-between items-center gap-2">
           {isRequestingChanges ? (
@@ -314,10 +332,10 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
                 >
                   {reviewing ? (
                     <>
-                      <Loader2 className="size-3.5 mr-1.5 animate-spin" /> Releasing…
+                      <Loader2 className="size-3.5 mr-1.5 animate-spin" /> Approving…
                     </>
                   ) : (
-                    "Approve & Release Escrow"
+                    "Approve Work"
                   )}
                 </Button>
               </div>

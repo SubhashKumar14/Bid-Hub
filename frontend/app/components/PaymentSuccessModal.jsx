@@ -11,10 +11,10 @@ export function PaymentSuccessModal({ open, onClose }) {
             <CheckCircle2 className="size-6" />
           </div>
           <DialogTitle className="text-xl font-medium tracking-tight text-foreground">
-            Payment Verified
+            Test Funding Confirmed
           </DialogTitle>
           <DialogDescription className="text-muted-foreground text-xs leading-relaxed text-center">
-            Escrow deposit confirmed and locked for milestone delivery.
+            The project is assigned. No live payment or legal escrow is provided.
           </DialogDescription>
         </DialogHeader>
 

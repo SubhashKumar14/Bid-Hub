@@ -29,7 +29,7 @@ export function ProjectRow({ project, onOpen }) {
       onClick={onOpen}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onOpen?.(); }}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen?.(); } }}
       className="group w-full text-left bg-card border border-border rounded-[8px] p-4 lg:p-5 transition-colors duration-150 hover:bg-secondary/40 hover:border-input focus-visible:outline-2 focus-visible:outline-[var(--brand-accent)] cursor-pointer"
     >
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -91,7 +91,7 @@ export function ProjectRow({ project, onOpen }) {
         </div>
 
         {/* Details & Budget Columns */}
-        <div className="flex items-center justify-between lg:justify-end gap-6 pt-3 lg:pt-0 border-t lg:border-t-0 border-border/60 shrink-0">
+        <div className="flex flex-wrap lg:flex-nowrap items-center justify-between lg:justify-end gap-3 sm:gap-6 pt-3 lg:pt-0 border-t lg:border-t-0 border-border/60 lg:shrink-0">
           {/* Client & Metadata */}
           <div className="flex items-center gap-2.5">
             <Avatar className="size-8 rounded-[4px] border border-border">
@@ -101,10 +101,10 @@ export function ProjectRow({ project, onOpen }) {
             </Avatar>
             <div className="text-left text-xs">
               <p className="font-medium text-foreground leading-tight">{poster.name}</p>
-              <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+              <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
                 <span className="inline-flex items-center gap-1">
                   <Clock className="size-3" />
-                  {project.deadline || "Open"}
+                  Delivery: {project.deadline || "Not set"}
                 </span>
                 <span>·</span>
                 <span className="inline-flex items-center gap-1">
@@ -119,7 +119,7 @@ export function ProjectRow({ project, onOpen }) {
                       {project.location}
                     </span>
                   </>
-                ) : project.remote !== undefined && (
+                ) : typeof project.remote === "boolean" && (
                   <>
                     <span>·</span>
                     <span className="inline-flex items-center gap-1">

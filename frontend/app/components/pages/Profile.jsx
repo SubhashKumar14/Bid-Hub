@@ -1,4 +1,5 @@
 import { Button } from "../ui/button";
+import { useCapabilities } from "../../../api/capabilities";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { StatusBadge } from "../StatusBadge";
 import { Input } from "../ui/input";
@@ -6,10 +7,14 @@ import { Textarea } from "../ui/textarea";
 import { Star, MapPin, Camera, Plus, X } from "lucide-react";
 import { BrandIcon } from "../../brand/BrandIcon";
 import { BrandState } from "../../brand/BrandState";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 
-export function Profile({ token, currentUser }) {
+export function Profile({ token, currentUser, onUserUpdate }) {
+  const capabilities = useCapabilities();
+  const active = useRef(token);
+  useEffect(() => { active.current = token; return () => { active.current = ""; }; }, [token]);
+  const [error, setError] = useState("");
   const [profile, setProfile] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,10 +29,11 @@ export function Profile({ token, currentUser }) {
 
   const fetchProfileData = async () => {
     if (!currentUser) return;
-    setLoading(true);
+    setError(""); setLoading(true);
     try {
-      const res = await fetch(`/api/users/${currentUser._id}`);
+      const res = await fetch(`/api/users/${currentUser._id}`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
+      if (active.current !== token || localStorage.getItem("token") !== token) return;
       if (!res.ok) throw new Error(data.message || "Failed to load user profile");
       setProfile(data.user);
       setReviews(data.reviews || []);
@@ -35,9 +41,11 @@ export function Profile({ token, currentUser }) {
       setCollege(data.user.college || "");
       setSkills(data.user.skills || []);
     } catch (err) {
+      if (active.current !== token) return;
+      setError(err.message);
       toast.error(err.message);
     } finally {
-      setLoading(false);
+      if (active.current === token) setLoading(false);
     }
   };
 
@@ -56,11 +64,15 @@ export function Profile({ token, currentUser }) {
         body: JSON.stringify({ bio, college, skills }),
       });
       const data = await res.json();
+      if (active.current !== token || localStorage.getItem("token") !== token) return;
       if (!res.ok) throw new Error(data.message || "Failed to save profile changes");
       setProfile(data);
+      onUserUpdate?.(data);
       setIsEditing(false);
       toast.success("Profile updated successfully");
     } catch (err) {
+      if (active.current !== token) return;
+      setError(err.message);
       toast.error(err.message);
     }
   };
@@ -80,14 +92,18 @@ export function Profile({ token, currentUser }) {
         body: formData,
       });
       const data = await res.json();
+      if (active.current !== token || localStorage.getItem("token") !== token) return;
       if (!res.ok) throw new Error(data.message || "Avatar upload failed");
 
       setProfile({ ...profile, avatarUrl: data.avatarUrl });
+      onUserUpdate?.({ ...currentUser, avatarUrl: data.avatarUrl });
       toast.success("Profile photo updated");
     } catch (err) {
+      if (active.current !== token) return;
+      setError(err.message);
       toast.error(err.message);
     } finally {
-      setUploadingAvatar(false);
+      if (active.current === token) setUploadingAvatar(false);
     }
   };
 
@@ -111,6 +127,7 @@ export function Profile({ token, currentUser }) {
     );
   }
 
+  if (error && !profile) return <div role="alert" className="p-8"><p>{error}</p><Button onClick={fetchProfileData}>Retry</Button></div>;
   if (!profile) {
     return (
       <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 py-20 text-center bg-card border border-border rounded-[8px] mt-8">
@@ -127,6 +144,7 @@ export function Profile({ token, currentUser }) {
 
   return (
     <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+      {error && <p role="alert" className="text-sm text-destructive">{error} Your edits are retained; correct or retry saving.</p>}
       {/* Profile Header Card */}
       <header className="bg-card border border-border rounded-[8px] p-6 lg:p-8 grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-4">
@@ -145,17 +163,18 @@ export function Profile({ token, currentUser }) {
                 className="absolute inset-0 bg-foreground/60 text-background grid place-items-center opacity-0 group-hover:opacity-100 focus-within:opacity-100 cursor-pointer transition-opacity"
               >
                 <Camera aria-hidden="true" className="size-5" />
-                <input type="file" className="hidden" aria-label="Update profile photo" onChange={handleAvatarChange} disabled={uploadingAvatar} />
+                <input type="file" className="sr-only" aria-label="Update profile photo" onChange={handleAvatarChange} disabled={uploadingAvatar || !capabilities?.avatarUploads} />
               </label>
             </div>
 
             <div className="min-w-0">
+              {!capabilities?.avatarUploads && <p className="text-xs text-muted-foreground">Photo uploads unavailable; the operator must configure avatar storage.</p>}
               <div className="flex flex-wrap items-center gap-2">
                 <span className="eyebrow text-xs capitalize text-muted-foreground">
                   {profile.role} · {profile.college || "Independent Student"}
                 </span>
                 <StatusBadge tone="success" className="text-[10px] py-0">
-                  Verified Account
+                  Registered Account
                 </StatusBadge>
               </div>
               <h1 className="text-2xl sm:text-3xl font-medium tracking-tight text-foreground mt-1 truncate">
@@ -314,7 +333,7 @@ export function Profile({ token, currentUser }) {
               <BrandState
                 name="no-reviews"
                 title="No reviews recorded yet"
-                description="Completed project milestones automatically generate client feedback records."
+                description="Participants may leave feedback after the project is completed."
                 compact
               />
             ) : (
