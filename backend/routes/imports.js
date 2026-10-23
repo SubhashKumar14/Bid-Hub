@@ -36,7 +36,7 @@ const isIgnored = (filePath) => {
 // Recommended Limits
 const positiveLimit = (name, fallback, max) => { const value = process.env[name] === undefined ? fallback : Number(process.env[name]); if (!Number.isInteger(value) || value < 1 || value > max) throw new Error(`Invalid ${name}`); return value; };
 const MAX_FILES = positiveLimit("MAX_PROJECT_FILES", 20, 1000);
-const MAX_SIZE_MB = positiveLimit("MAX_PROJECT_SIZE_MB", 50, 500);
+const MAX_SIZE_MB = positiveLimit("MAX_PROJECT_SIZE_MB", 50, 50);
 const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
 const MAX_IMAGES = 8;
 

@@ -95,11 +95,9 @@ export function PostProject({ token, currentUser, onDone }) {
 
   // Auto-save draft
   useEffect(() => {
-    if (title || description) {
       localStorage.setItem(draftKey, JSON.stringify({
         title, description, category, budget, deadline, skills, milestones, attachments, location, level, duration, fileManifest, importSource, importRevision, clientRequestId: publishId.current,
       }));
-    }
   }, [title, description, category, budget, deadline, skills, milestones, attachments, location, level, duration, fileManifest, importSource, importRevision]);
 
   const addSkill = (skillToAdd) => {

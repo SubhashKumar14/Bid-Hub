@@ -345,7 +345,7 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
                             <StatusBadge tone="info" className="text-[10px] py-0">In Review</StatusBadge>
                           )}
                           {["RELEASED", "APPROVED"].includes(m.status) && (
-                            <StatusBadge tone="success" className="text-[10px] py-0">Released</StatusBadge>
+                            <StatusBadge tone="success" className="text-[10px] py-0">Work approved</StatusBadge>
                           )}
                         </div>
                       </div>

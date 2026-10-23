@@ -113,7 +113,7 @@ export function Auth({ onDone, setToken, initialRole = "student" }) {
               Good work shouldn't wait for graduation.
             </h1>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Structured project briefs, transparent milestone agreements, and verified delivery evidence for campus talent.
+              Structured project briefs, transparent milestone agreements, and participant-reviewed delivery evidence for campus talent.
             </p>
           </div>
         </div>
@@ -122,10 +122,10 @@ export function Auth({ onDone, setToken, initialRole = "student" }) {
           <div className="p-4 bg-card border border-border rounded-[8px] space-y-2">
             <div className="flex items-center gap-2 text-foreground font-medium text-xs">
               <BrandIcon name="milestone" size={16} className="text-[var(--brand-accent)]" />
-              <span>Milestone Protection</span>
+              <span>Milestone Agreements</span>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Escrow funding is locked before kick-off and released only when submitted deliverables are reviewed and approved.
+              This demonstration records test funding and work approvals separately. Live payments and payouts are disabled; no legal escrow is provided.
             </p>
           </div>
           <p className="text-xs text-muted-foreground">© Bid·Hub · Bengaluru, India</p>

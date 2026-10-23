@@ -20,7 +20,9 @@ try {
     await Bid.updateMany({ version: { $exists: false } }, { version: 1 });
     for await (const user of User.find().select("_id").cursor()) {
       const ratings = await Review.aggregate([{ $match: { revieweeId: user._id } }, { $group: { _id: null, rating: { $avg: "$rating" } } }]);
-      await User.updateOne({ _id: user._id }, { rating: ratings.length ? Number(ratings[0].rating.toFixed(2)) : 0 });
+      const accepted = await Bid.find({ studentId: user._id, status: "ACCEPTED" }).distinct("_id");
+      const completedProjects = await Project.countDocuments({ status: "COMPLETED", $or: [{ clientId: user._id }, { acceptedBidId: { $in: accepted } }] });
+      await User.updateOne({ _id: user._id }, { rating: ratings.length ? Number(ratings[0].rating.toFixed(2)) : 0, completedProjects });
     }
     // Additive only: never syncIndexes (which may drop historical indexes).
     await Promise.all([Project, Bid, Contract, FundingAttempt].map(model => model.createIndexes()));

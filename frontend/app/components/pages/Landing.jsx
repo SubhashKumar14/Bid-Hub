@@ -56,8 +56,8 @@ export function Landing({ setPage }) {
   const displayStats = [
     { k: "Active Student Profiles", v: statsData ? statsData.studentsCount.toLocaleString() : "—" },
     { k: "Open Project Briefs", v: statsData ? statsData.projectsCount.toLocaleString() : "—" },
-    { k: "Completed Checkpoints", v: statsData ? statsData.completedCount.toLocaleString() : "—" },
-    { k: "Milestone Escrow Processed", v: statsData ? `₹${statsData.totalEscrow.toLocaleString("en-IN")}` : "₹0" },
+    { k: "Completed Projects", v: statsData ? statsData.completedCount.toLocaleString() : "—" },
+    { k: "Test Funding Recorded", v: statsData ? `₹${statsData.totalEscrow.toLocaleString("en-IN")}` : "—" },
   ];
 
   return (
@@ -69,7 +69,7 @@ export function Landing({ setPage }) {
             <div className="flex items-center gap-2 mb-4">
               <span className="eyebrow text-xs">An independent student work exchange</span>
               <span className="h-px w-8 bg-border" />
-              <span className="eyebrow text-xs">Verified Milestones</span>
+              <span className="eyebrow text-xs">Agreed Milestones</span>
             </div>
 
             <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl text-foreground font-normal tracking-tight leading-[1.08]">

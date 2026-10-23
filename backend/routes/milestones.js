@@ -63,6 +63,11 @@ router.patch("/:id/submit", protect, requireRole("student"), async (req, res) =>
     }
 
     await mongoose.connection.transaction(async session => {
+      const snapshot = await Milestone.findById(milestone._id).session(session);
+      const prior = await MilestoneSubmission.findById(snapshot?.activeSubmissionId).session(session);
+      if (prior && ["SUBMITTED", "APPROVED"].includes(prior.status) &&
+          prior.description === description && prior.githubUrl === (githubUrl || "") && prior.demoUrl === (demoUrl || "") && prior.videoUrl === (videoUrl || "") &&
+          JSON.stringify(prior.attachments.map(f => ({ name: f.name, url: f.url }))) === JSON.stringify((attachments || []).map(f => ({ name: f.name, url: f.url })))) return;
       const current = await Milestone.findOne({ _id: milestone._id, status: { $in: ["PENDING", "CHANGES_REQUESTED"] } }).session(session);
       const activeProject = await Project.findOne({ _id: project._id, status: { $in: ["ASSIGNED", "IN_PROGRESS"] } }).session(session);
       const allocation = await PaymentLedger.findOne({ milestoneId: milestone._id, studentId: req.user._id, status: "LOCKED" }).session(session);
@@ -97,8 +102,10 @@ router.patch("/:id/release", protect, requireRole("client"), async (req, res) =>
     const result = await mongoose.connection.transaction(async session => {
       const milestone = await Milestone.findById(req.params.id).session(session);
       if (!milestone) throw Object.assign(new Error("Milestone not found."), { status: 404 });
-      const project = await Project.findOne({ _id: milestone.projectId, clientId: req.user._id, status: { $in: ["ASSIGNED", "IN_PROGRESS"] } }).session(session);
-      if (!project || project.recoveryPending || milestone.status !== "SUBMITTED") throw Object.assign(new Error("Project or milestone is not eligible for review or recovery is pending."), { status: 409 });
+      const project = await Project.findOne({ _id: milestone.projectId, clientId: req.user._id }).session(session);
+      const prior = project && String(milestone.activeSubmissionId) === submissionId && await MilestoneSubmission.findById(submissionId).session(session);
+      if (prior && prior.status === status && milestone.status === status && (status === "APPROVED" || prior.reviewComment === reviewComment.trim())) return { milestone, project };
+      if (!project || !["ASSIGNED", "IN_PROGRESS"].includes(project.status) || project.recoveryPending || milestone.status !== "SUBMITTED") throw Object.assign(new Error("Project or milestone is not eligible for review or recovery is pending."), { status: 409 });
       const allocation = await PaymentLedger.findOne({ milestoneId: milestone._id, clientId: req.user._id, status: "PENDING_REVIEW" }).session(session);
       const submission = String(milestone.activeSubmissionId) === submissionId ? await MilestoneSubmission.findOne({ _id: submissionId, milestoneId: milestone._id, status: "SUBMITTED" }).session(session) : null;
       if (!allocation || !submission) throw Object.assign(new Error("Matching funded allocation and submission required."), { status: 409 });
@@ -122,6 +129,7 @@ router.patch("/:id/release", protect, requireRole("client"), async (req, res) =>
         project.status = "COMPLETED";
         await project.save({ session });
         await User.updateOne({ _id: allocation.studentId }, { $inc: { completedProjects: 1 } }, { session });
+        await User.updateOne({ _id: project.clientId }, { $inc: { completedProjects: 1 } }, { session });
       }
       await Notification.create([{ recipientId: allocation.studentId, type: status === "APPROVED" ? "MILESTONE_RELEASED" : "MILESTONE_CHANGES_REQUESTED", message: status === "APPROVED" ? "Work approved. No real money was transferred." : reviewComment.trim(), targetId: project._id }], { session });
       return { milestone, project };

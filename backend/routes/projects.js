@@ -19,7 +19,8 @@ const router = createRouter();
 
 const clarificationAccess = async req => {
   const project = await Project.findById(req.params.id);
-  if (!project || (String(project.clientId) !== String(req.user._id) && !(project.status === "OPEN" && req.user.role === "student"))) throw Object.assign(new Error("Clarifications are available to the owner and prospective students on open briefs."), { status: 403 });
+  const participant = project && await Contract.exists({ projectId: project._id, studentId: req.user._id });
+  if (!project || (String(project.clientId) !== String(req.user._id) && !participant && !(project.status === "OPEN" && req.user.role === "student"))) throw Object.assign(new Error("Clarifications are available to the owner, agreed participant and prospective students on open briefs."), { status: 403 });
   return project;
 };
 router.get("/:id/clarifications", protect, async (req, res) => {
@@ -27,7 +28,8 @@ router.get("/:id/clarifications", protect, async (req, res) => {
   res.json(await Clarification.find({ projectId: req.params.id }).sort({ createdAt: -1 }).limit(100).populate("authorId", "name role"));
 });
 router.post("/:id/clarifications", protect, async (req, res) => {
-  await clarificationAccess(req);
+  const project = await clarificationAccess(req);
+  if (project.status !== "OPEN") return res.status(409).json({ message: "The brief discussion is retained read-only after agreement. Use contract discussion for ongoing work." });
   if (typeof req.body.content !== "string" || !req.body.content.trim() || req.body.content.length > 2000) return res.status(400).json({ message: "Clarification must contain 1 to 2000 characters." });
   const record = await Clarification.create({ projectId: req.params.id, authorId: req.user._id, content: req.body.content.trim() });
   res.status(201).json(record);
@@ -167,7 +169,8 @@ router.get("/student/dashboard", protect, requireRole("student"), async (req, re
           projectId,
           title: b.projectId?.title || "Deleted Project",
           amount: b.amount,
-          status: isPendingEscrow ? "accepted (escrow pending)" : b.status.toLowerCase(),
+          timeline: b.timeline,
+          status: b.projectId?.status === "CANCELLED" ? "project cancelled" : isPendingEscrow ? "agreed (funding pending)" : b.status.toLowerCase(),
         };
       }),
       contracts: projectsWithMilestones.map(item => {
@@ -183,7 +186,7 @@ router.get("/student/dashboard", protect, requireRole("student"), async (req, re
           statusText: p.status === "COMPLETED" ? "Completed" : inReview ? "Milestone in review" : "Active work",
           amount: p.contractTotalPaise != null ? p.contractTotalPaise / 100 : totalAmount || null,
           progress,
-          status: inReview ? "in-review" : "active",
+          status: p.status === "COMPLETED" ? "completed" : inReview ? "in-review" : "active",
           projectStatus: p.status,
           milestones: ms
         };
@@ -273,6 +276,8 @@ router.get("/client/dashboard", protect, requireRole("client"), async (req, res)
       pendingBids,
       milestonesToApprove,
       activeProjects,
+      openProjects: myProjects.filter(p => p.status === "OPEN"),
+      cancelledProjects: myProjects.filter(p => p.status === "CANCELLED"),
       awaitingFunding: myProjects.filter(p => p.status === "PENDING_FUNDING"),
       completedProjects: myProjects.filter(p => p.status === "COMPLETED"),
     });
@@ -489,6 +494,8 @@ router.delete("/:id", protect, requireRole("client"), async (req, res) => {
     if (project.clientId.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: "You are not authorized to delete this project." });
     }
+
+    if (project.status === "CANCELLED") return res.json({ message: "Project already cancelled; history retained." });
 
     if (project.status !== "OPEN") {
       return res.status(400).json({ message: "Only open projects can be deleted. This project is already active or completed." });

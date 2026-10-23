@@ -38,6 +38,7 @@ jobs:
           docker exec workflow-mongo mongosh --quiet --eval 'rs.initiate({_id:"audit",members:[{_id:0,host:"127.0.0.1:27017"}]})'
       - run: npm run test:transactions --prefix backend
       - run: npx playwright install --with-deps chromium
+      - run: npm run build
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v4
         if: always()

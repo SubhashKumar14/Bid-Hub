@@ -35,7 +35,7 @@ Alternatively unset `PRIVATE_STORAGE` and provide an absolute `PRIVATE_UPLOAD_DI
 
 Cloudinary is optional and used only for public profile photos. Supply valid `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` to enable production avatar uploads. Existing avatar URLs remain intact; absent credentials disable new photos without taking down the API. Private evidence is never stored as a public avatar.
 
-Each ordinary file is at most 10 MiB, up to 10 per upload. PDF/Office/image signatures are checked, files download as attachments with `nosniff`, and references must belong to the uploading user. This is format validation, not antivirus scanning. Repository ZIP imports are a separate manifest-only route; compressed ZIP size is at most 10 MiB and expanded content at most the configured size limit. `MAX_PROJECT_FILES` defaults to 20 (1–1000), `MAX_PROJECT_SIZE_MB` to 50 (1–500), and image count to 8. GitHub imports discover default branches and retain the returned commit SHA. They do not store source files or prove executable behavior.
+Each ordinary file is at most 10 MiB, up to 10 per upload. PDF/Office/image signatures are checked, files download as attachments with `nosniff`, and references must belong to the uploading user. This is format validation, not antivirus scanning. Repository ZIP imports are a separate manifest-only route; compressed ZIP size is at most 10 MiB and expanded content at most the configured size limit. `MAX_PROJECT_FILES` defaults to 20 (1–1000), `MAX_PROJECT_SIZE_MB` to 50 (1–50, matching the archive safety ceiling), and image count to 8. GitHub imports discover default branches and retain the returned commit SHA. They do not store source files or prove executable behavior.
 
 ## Additive migration
 
@@ -74,8 +74,8 @@ npm run test:security --prefix backend
 npm run test:frontend
 npm run test:transactions --prefix backend
 npx playwright install chromium
-npm run test:e2e
 npm run build
+npm run test:e2e
 ```
 
 For DB tests provide `TEST_MONGODB_URI` pointing to an **isolated replica-set test database**, or `MONGOD_BINARY` pointing to a local MongoDB executable. The default Windows binary is `C:/Program Files/MongoDB/Server/8.3/bin/mongod.exe`. Transaction/browser harnesses use ports 27128/27129 and temporary DB directories when launching their own instances. Never supply the production database as `TEST_MONGODB_URI`: tests create synthetic users and projects. Missing database/browser infrastructure fails the gate; it is not skipped.

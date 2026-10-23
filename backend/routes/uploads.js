@@ -6,6 +6,7 @@ import { protect } from "../middleware/auth.js";
 import { Upload } from "../models/Upload.js";
 import { Project } from "../models/Project.js";
 import { Bid } from "../models/Bid.js";
+import { Contract } from "../models/Contract.js";
 import { Milestone } from "../models/Milestone.js";
 import { MilestoneSubmission } from "../models/MilestoneSubmission.js";
 import path from "node:path";
@@ -42,15 +43,19 @@ router.get("/files/:filename", protect, requirePrivateUploadStorage, async (req,
   if (!file) return res.status(404).json({ message: "File not found." });
   if (String(file.ownerId) !== String(req.user._id)) {
     const url = `/api/uploads/files/${file.filename}`;
-    let project = await Project.findOne({ "files.url": url, clientId: file.ownerId });
-    if (!project) {
-      const submission = await MilestoneSubmission.findOne({ "attachments.url": url, submittedBy: file.ownerId });
-      const milestone = submission && await Milestone.findById(submission.milestoneId);
-      project = milestone && await Project.findById(milestone.projectId);
+    const publishedBrief = req.user.role === "student" && await Project.exists({ "files.url": url, clientId: file.ownerId, status: "OPEN" });
+    if (!publishedBrief) {
+      // A file can be deliberately reused in more than one authorized association.
+      // Test every linked project instead of trusting whichever findOne returns first.
+      const briefIds = await Project.find({ "files.url": url, clientId: file.ownerId }).distinct("_id");
+      const milestoneIds = await MilestoneSubmission.find({ "attachments.url": url, submittedBy: file.ownerId }).distinct("milestoneId");
+      const workIds = await Milestone.find({ _id: { $in: milestoneIds } }).distinct("projectId");
+      const ids = [...briefIds, ...workIds];
+      const acceptedIds = await Bid.find({ studentId: req.user._id, status: "ACCEPTED", projectId: { $in: ids } }).distinct("_id");
+      const owned = await Project.exists({ _id: { $in: ids }, $or: [{ clientId: req.user._id }, { acceptedBidId: { $in: acceptedIds } }] });
+      const agreed = await Contract.exists({ projectId: { $in: ids }, studentId: req.user._id });
+      if (!owned && !agreed) return res.status(404).json({ message: "File not found." });
     }
-    const publishedBrief = project && project.status === "OPEN" && req.user.role === "student" && project.files.some(f => f.url === url);
-    const bid = project?.acceptedBidId && await Bid.findById(project.acceptedBidId);
-    if (!publishedBrief && (!project || (String(project.clientId) !== String(req.user._id) && String(bid?.studentId) !== String(req.user._id)))) return res.status(404).json({ message: "File not found." });
   }
   res.setHeader("X-Content-Type-Options", "nosniff");
   if (process.env.PRIVATE_STORAGE === "mongodb") return downloadMongoFile(file, res, next);

@@ -133,6 +133,11 @@ test("agreement freezes the offered version, exact schedule and agreed total", {
   assert.equal(contract.totalPaise, 7500); assert.equal(contract.proposalVersion, 2);
   contract.totalPaise = 9000; await contract.save();
   assert.equal((await Contract.findById(contract._id)).totalPaise, 7500);
+  contract.schedule[0].amountPaise = 9000; await contract.save();
+  assert.equal((await Contract.findById(contract._id)).schedule[0].amountPaise, 7500);
+  await Contract.updateOne({ _id: contract._id }, { $set: { "schedule.0.amountPaise": 10000, "schedule.0.title": "Changed scope" } });
+  assert.equal((await Contract.findById(contract._id)).schedule[0].amountPaise, 7500);
+  assert.equal((await Contract.findById(contract._id)).schedule[0].title, "Delivery");
   assert.equal((await Milestone.findById(f.milestone._id)).amount, 75);
   assert.equal((await Project.findById(f.project._id)).budget, 100);
 });
@@ -171,6 +176,40 @@ test("changed allocation schedule fails closed before assignment", {}, async () 
   await Milestone.updateOne({ _id: f.milestone._id }, { amount: 10000 });
   assert.equal(await f.settle(), false);
   assert.equal((await Project.findById(f.project._id)).status, "PENDING_FUNDING");
+});
+
+test("lost submission and approval responses recover the committed version without duplicate effects", async () => {
+  const f = await fixture(); await f.settle();
+  const submit = { params: { id: String(f.milestone._id) }, body: { description: "Evidence retained after a lost HTTP response." }, user: { _id: f.bid.studentId } };
+  assert.deepEqual((await Promise.all([invoke(milestoneRouter, "/:id/submit", "patch", submit), invoke(milestoneRouter, "/:id/submit", "patch", submit)])).map(r=>r.statusCode), [200,200]);
+  assert.equal((await invoke(milestoneRouter, "/:id/submit", "patch", submit)).statusCode, 200);
+  assert.equal(await MilestoneSubmission.countDocuments({ milestoneId: f.milestone._id }), 1);
+  const submission = await MilestoneSubmission.findOne({ milestoneId: f.milestone._id });
+  const approve = { params: submit.params, body: { status: "APPROVED", submissionId: String(submission._id) }, user: { _id: f.project.clientId } };
+  assert.equal((await invoke(milestoneRouter, "/:id/release", "patch", approve)).statusCode, 200);
+  assert.equal((await invoke(milestoneRouter, "/:id/release", "patch", approve)).statusCode, 200);
+  assert.equal(await Notification.countDocuments({ targetId: f.project._id, type: "MILESTONE_RELEASED" }), 1);
+  assert.equal((await Project.findById(f.project._id)).status, "COMPLETED");
+});
+
+test("message retry identity cannot recover a different project's content", async () => {
+  const first = await fixture(), second = await fixture();
+  await Bid.updateOne({ _id: second.bid._id }, { studentId: first.bid.studentId });
+  await PaymentLedger.updateOne({ stripeSessionId: second.orderId }, { studentId: first.bid.studentId });
+  await first.settle(); await second.settle();
+  const req = { body: { projectId: String(first.project._id), content: "First project confidential message.", requestId: crypto.randomUUID() }, user: { _id: first.bid.studentId, name: "Student" } };
+  assert.equal((await invoke(messageRouter, "/", "post", req)).statusCode, 201);
+  const conflict = await invoke(messageRouter, "/", "post", { ...req, body: { ...req.body, projectId: String(second.project._id) } });
+  assert.equal(conflict.statusCode, 409);
+  assert.equal(await Message.countDocuments({ projectId: second.project._id }), 0);
+});
+
+test("ledger account totals sum integer paise rather than floating point rupees", async () => {
+  const f=await fixture();
+  for(const amount of [0.1,0.2]) await PaymentLedger.create({ projectId:f.project._id, milestoneId:new mongoose.Types.ObjectId(), clientId:f.project.clientId, studentId:f.bid.studentId, amount, amountPaise:Math.round(amount*100), status:"LOCKED" });
+  const {default:payments}=await import("../routes/payments.js");
+  const result=await invoke(payments,"/","get",{query:{},user:{_id:f.project.clientId}});
+  assert.equal(result.statusCode,200); assert.equal(result.body.stats.lockedAmount,0.3);
 });
 
 test("simultaneous final work approvals derive one completed project", {}, async () => {

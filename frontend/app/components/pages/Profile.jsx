@@ -317,7 +317,7 @@ export function Profile({ token, currentUser, onUserUpdate }) {
               <h3 className="text-sm font-medium text-foreground">Verified Work Record</h3>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed max-w-lg">
-              Ratings and reviews on Bid·Hub are strictly tied to completed project milestones and authorized escrow releases.
+              Participants may leave one review after all project milestones are approved. Work completion does not imply a real payment or payout.
             </p>
           </div>
         </div>

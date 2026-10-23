@@ -243,7 +243,7 @@ test("student dashboard handles deleted projects with pending checkouts", async 
   assert.equal(result.status, 200);
   assert.equal(result.body.bids[0].title, "Deleted Project");
   assert.equal(result.body.bids[0].status, "pending");
-  assert.equal(result.body.bids[1].status, "accepted (escrow pending)");
+  assert.equal(result.body.bids[1].status, "agreed (funding pending)");
 });
 
 test("authenticated self profile polling preserves views; external visit increments", async t => {

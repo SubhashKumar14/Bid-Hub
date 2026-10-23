@@ -220,9 +220,10 @@ router.post("/simulate-payment", protect, requireRole("client"), async (req, res
       return res.status(404).json({ message: "Payment session not found." });
     }
 
-    if (ledger.status !== "PENDING_CHECKOUT") {
+    if (ledger.status === "LOCKED") {
       return res.json({ message: "Simulated payment already processed." });
     }
+    if (ledger.status !== "PENDING_CHECKOUT") return res.status(409).json({ message: "This order requires operator reconciliation; no funding was simulated." });
 
     const bid = await Bid.findOne({ projectId: ledger.projectId, studentId: ledger.studentId, status: "PENDING" });
     if (!bid) {
@@ -336,8 +337,8 @@ router.get("/", protect, async (req, res) => {
     if (page === null || limit === null) return res.status(400).json({ message: "Invalid ledger pagination." });
     const filter = { $or: [{ clientId: userId }, { studentId: userId }], status: { $ne: "PENDING_CHECKOUT" } };
     const transactions = await PaymentLedger.find(filter).populate("projectId", "title").populate("milestoneId", "title").sort({ updatedAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit);
-    const totals = await PaymentLedger.aggregate([{ $match: { ...filter, milestoneId: { $ne: null } } }, { $group: { _id: "$status", total: { $sum: "$amount" } } }]);
-    const sum = status => totals.find(row => row._id === status)?.total || 0;
+    const totals = await PaymentLedger.aggregate([{ $match: { ...filter, milestoneId: { $ne: null } } }, { $group: { _id: "$status", total: { $sum: { $ifNull: ["$amountPaise", { $round: [{ $multiply: ["$amount", 100] }, 0] }] } } } }]);
+    const sum = status => (totals.find(row => row._id === status)?.total || 0) / 100;
     const lockedAmount = sum("LOCKED"), pendingAmount = sum("PENDING_REVIEW"), releasedAmount = sum("RELEASED");
     const total = await PaymentLedger.countDocuments(filter);
     res.json({

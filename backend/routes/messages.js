@@ -54,7 +54,13 @@ router.post("/", protect, async (req, res) => {
     // Determine recipientId
     const recipientId = isClient ? bid.studentId : project.clientId;
 
-    if (requestId) { const prior = await Message.findOne({ senderId: req.user._id, requestId }); if (prior) return res.json(await Message.findById(prior._id).populate("senderId", "name avatarUrl role")); }
+    if (requestId) {
+      const prior = await Message.findOne({ senderId: req.user._id, requestId });
+      if (prior) {
+        if (String(prior.projectId) !== projectId || prior.content !== content.trim()) return res.status(409).json({ message: "Message request identity belongs to different content or a different project." });
+        return res.json(await Message.findById(prior._id).populate("senderId", "name avatarUrl role"));
+      }
+    }
     const message = await mongoose.connection.transaction(async session => {
     const [message] = await Message.create([{
       requestId,

@@ -11,6 +11,10 @@ const schema = new mongoose.Schema({
   proposal: { type: String, immutable: true },
   brief: { type: String, immutable: true },
   evidencePolicy: { type: String, default: "Describe completed work in notes; attach files or HTTPS links appropriate to the checkpoint. Software links are not universally required.", immutable: true },
-  schedule: { type: [{ milestoneId: mongoose.Schema.Types.ObjectId, title: String, amountPaise: Number }], immutable: true },
+  schedule: { type: [{
+    milestoneId: { type: mongoose.Schema.Types.ObjectId, immutable: true },
+    title: { type: String, immutable: true },
+    amountPaise: { type: Number, immutable: true },
+  }], immutable: true },
 }, { timestamps: true });
 export const Contract = mongoose.model("Contract", schema);

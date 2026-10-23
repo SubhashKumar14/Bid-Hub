@@ -26,6 +26,7 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
   const scrollContainerRef = useRef(null);
 
   const [pollingDisabled, setPollingDisabled] = useState(false);
+  const [error, setError] = useState("");
 
   // Helper to format timestamps nicely
   const formatTime = (isoString) => {
@@ -46,6 +47,7 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
     if (!token || !projectId || !open) return;
     const target = targetRef.current;
     setLoading(true);
+    setError("");
     setPollingDisabled(false);
     try {
       const data = await getMessages(projectId, token, 1, 20);
@@ -55,6 +57,7 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
       setTimeout(() => scrollToBottom("auto"), 100);
     } catch (err) {
       if (targetRef.current !== target) return;
+      setError(err.message || "Failed to load messages");
       toast.error(err.message || "Failed to load messages");
       if (err.status === 400 || err.status === 403) {
         setPollingDisabled(true);
@@ -72,11 +75,13 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
     try {
       const data = await getMessages(projectId, token, 1, 20);
       if (targetRef.current !== target) return;
+      setError("");
       setMessages(prev => Array.from(new Map([...prev, ...data.messages].map(m => [m._id, m])).values()).sort((a,b) => new Date(a.createdAt) - new Date(b.createdAt)));
       setPagination(prev => ({ ...prev, total: data.pagination.total, pages: Math.ceil(data.pagination.total / 20) }));
     } catch (err) {
       if (targetRef.current !== target) return;
       console.error("Polling error:", err);
+      setError(err.message || "Messages may be out of date. Retry to refresh.");
       if (err.status === 400 || err.status === 403) {
         setPollingDisabled(true);
         toast.error("Chat is no longer active or available.");
@@ -108,6 +113,7 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
       }, 50);
     } catch (err) {
       if (targetRef.current !== target) return;
+      setError(err.message || "Failed to load older messages");
       toast.error(err.message || "Failed to load older messages");
     } finally { if (targetRef.current === target) setLoading(false); }
   };
@@ -119,6 +125,7 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
 
     const target = targetRef.current;
     setSending(true);
+    setError("");
     const content = inputText.trim();
     setInputText("");
 
@@ -130,6 +137,7 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
       setTimeout(() => scrollToBottom("smooth"), 50);
     } catch (err) {
       if (targetRef.current !== target) return;
+      setError(err.message || "Failed to send message. Retry using the retained text.");
       toast.error(err.message || "Failed to send message");
       setInputText(content);
     } finally {
@@ -139,6 +147,8 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
 
   useEffect(() => {
     setMessages([]);
+    setError("");
+    sendIdentity.current = null;
     setInputText("");
     setSending(false);
     setPagination({ page: 1, limit: 20, total: 0, pages: 1 });
@@ -173,6 +183,8 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
           </SheetDescription>
         </SheetHeader>
 
+        {error && <p role="alert" className="px-4 py-2 text-sm text-destructive">{error} <Button variant="outline" onClick={fetchMessages}>Retry messages</Button></p>}
+
         {/* Message Stream Area */}
         <div
           ref={scrollContainerRef}
@@ -199,7 +211,7 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
                 </div>
               )}
 
-              {messages.length === 0 ? (
+              {messages.length === 0 && !error ? (
                 <BrandState
                   name="no-messages"
                   title="No messages yet"

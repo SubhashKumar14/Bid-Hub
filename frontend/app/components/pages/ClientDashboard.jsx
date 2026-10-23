@@ -36,6 +36,8 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
   const [milestonesToApprove, setMilestonesToApprove] = useState([]);
   const [activeProjects, setActiveProjects] = useState([]);
   const [awaitingFunding, setAwaitingFunding] = useState([]);
+  const [openProjects, setOpenProjects] = useState([]);
+  const [cancelledProjects, setCancelledProjects] = useState([]);
   const [completedProjects, setCompletedProjects] = useState([]);
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -87,6 +89,8 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
       setMilestonesToApprove(dashData.milestonesToApprove || []);
       setActiveProjects(dashData.activeProjects || []);
       setAwaitingFunding(dashData.awaitingFunding || []);
+      setOpenProjects(dashData.openProjects || []);
+      setCancelledProjects(dashData.cancelledProjects || []);
       setCompletedProjects(dashData.completedProjects || []);
 
       setStats({
@@ -225,7 +229,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
           { k: "Proposals Received", v: stats.bidsReceivedCount },
           { k: "Active Deliveries", v: stats.activeGigsCount },
           { k: "Test funds allocated", v: formatCurrency(stats.lockedEscrow) },
-          { k: "Funds Released", v: formatCurrency(stats.releasedEscrow) },
+          { k: "Simulated releases", v: formatCurrency(stats.releasedEscrow) },
         ].map((s) => (
           <div key={s.k} className="bg-card border border-border rounded-[8px] p-3.5 space-y-1">
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">{s.k}</span>
@@ -376,13 +380,13 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
           {activities.length > 0 && (
             <div className="pt-4 border-t border-border/60 space-y-3">
               <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Recent Workspace Activity
+                Recent Marketplace Activity
               </h3>
               <div className="space-y-2">
                 {activities.slice(0, 5).map((a) => (
                   <div key={a._id} className="text-xs text-muted-foreground flex items-baseline gap-2">
                     <span className="size-1.5 rounded-full bg-[var(--brand-accent)] shrink-0 self-center" />
-                    <span className="text-foreground font-medium">{a.text || a.title}</span>
+                    <span className="text-foreground font-medium">{a.message}</span>
                     <span className="text-[10px] text-muted-foreground shrink-0 ml-auto">
                       {new Date(a.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </span>
@@ -395,9 +399,9 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
       </section>
 
       {/* Dialogs and Drawers */}
-      {[{ title: "Awaiting test funding", projects: awaitingFunding }, { title: "Completed history", projects: completedProjects }].map(group => <section key={group.title} className="space-y-3 py-5 border-t border-border">
+      {[{ title: "Open briefs", projects: openProjects }, { title: "Awaiting test funding", projects: awaitingFunding }, { title: "Completed history", projects: completedProjects }, { title: "Cancelled history", projects: cancelledProjects }].map(group => <section key={group.title} className="space-y-3 py-5 border-t border-border">
         <h2 className="text-lg font-medium">{group.title} ({group.projects.length})</h2>
-        {group.projects.map(p => <Button key={p._id} variant="outline" onClick={() => { localStorage.setItem("currentProjectId", p._id); setPage("detail"); }}>{p.title} · Open workspace</Button>)}
+        {group.projects.map(p => <Button key={p._id} variant="outline" className="max-w-full h-auto whitespace-normal break-words text-left justify-start" onClick={() => { localStorage.setItem("currentProjectId", p._id); setPage("detail"); }}>{p.title} · Open workspace</Button>)}
       </section>)}
       <ChatDrawer
         open={chatOpen}

@@ -1,6 +1,7 @@
 import { checkout } from "../../../api/checkout";
 import { allocateOffer } from "../../../../backend/lib/offer.js";
 import { ProjectRecovery } from "../ProjectRecovery";
+import { SubmissionHistory } from "../SubmissionHistory";
 import { downloadAttachment } from "../../../api/fileApi";
 import { ShieldCheck, ArrowLeft, MapPin, Clock, Paperclip, Star } from "lucide-react";
 import { Button } from "../ui/button";
@@ -381,6 +382,15 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
 
       {error && <p role="alert" className="text-sm text-destructive py-3">{error} <Button variant="outline" onClick={fetchProjectData}>Retry</Button></p>}
       {contract && <section className="border border-border rounded p-4 mb-5 text-sm space-y-2"><h2 className="font-medium">Agreed contract: {formatCurrency(contract.totalPaise / 100)}</h2><p>Proposal version {contract.proposalVersion} · {contract.timeline} · Advertised estimate: {formatCurrency(project.budget)}</p><p>{contract.evidencePolicy}</p><details><summary>Agreed brief and proposal</summary><p className="whitespace-pre-wrap">{contract.brief}</p><p className="whitespace-pre-wrap">{contract.proposal}</p></details></section>}
+      {isOwner && project.status === "OPEN" && <Button variant="outline" className="mb-5" onClick={async () => {
+        if (!window.confirm("Cancel this open brief? Proposals and history will be retained. No funding or refund is involved.")) return;
+        try {
+          const response = await fetch(`/api/projects/${projectId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+          const data = await response.json(); if (!live.current) return;
+          if (!response.ok) throw new Error(data.message);
+          await fetchProjectData();
+        } catch (e) { if (live.current) setError(e.message); }
+      }}>Cancel open brief</Button>}
       {/* Owner Escrow Action Callout */}
       {project.status === "PENDING_FUNDING" && isOwner && (
         <div className="mb-6 p-5 rounded-[8px] bg-[var(--status-warning-bg)] border border-[var(--status-warning-border)] flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -534,7 +544,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
                 <div className="text-center p-6 text-xs text-muted-foreground">No milestones configured for this project.</div>
               ) : (
                 milestones.map((m, i) => (
-                  <div key={m._id} className="flex items-center justify-between px-5 py-3.5">
+                  <div key={m._id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
                     <div className="flex items-center gap-3 min-w-0">
                       <span className="size-6 rounded-[4px] bg-secondary text-foreground text-xs font-mono font-medium flex items-center justify-center shrink-0">
                         {i + 1}
@@ -560,6 +570,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
                         </StatusBadge>
                       )}
                     </div>
+                    {m.activeSubmissionId && (isOwner || contract?.studentId === currentUser?._id) && <SubmissionHistory key={`${m._id}:${m.activeSubmissionId}:${m.status}:${token}`} milestoneId={m._id} token={token} />}
                   </div>
                 ))
               )}
