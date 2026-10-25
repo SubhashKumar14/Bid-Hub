@@ -13,6 +13,13 @@ export function boundedInteger(value, fallback, max) {
   return Number(value);
 }
 
+export function positiveEnvironmentInteger(name, fallback, maximum, environment = process.env) {
+  const value = environment[name];
+  const parsed = boundedInteger(value === "" ? undefined : value, fallback, maximum);
+  if (parsed === null) throw new Error(`${name} must be an integer from 1 to ${maximum}.`);
+  return parsed;
+}
+
 export function httpErrorStatus(error) {
   if (error.status >= 400 && error.status <= 599) return error.status;
   if (["LIMIT_FILE_SIZE", "LIMIT_FILE_COUNT", "LIMIT_UNEXPECTED_FILE"].includes(error.code)) return 413;

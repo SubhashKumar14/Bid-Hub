@@ -256,6 +256,23 @@ test("demo release rolls back all financial writes and requires the viewed submi
   assert.equal(allocation.stripeTransferId, "");
 });
 
+test("test-mode work completion does not assert a financial release or payout", async () => {
+  const f=await fixture(); await f.settle();
+  const submission=await MilestoneSubmission.create({milestoneId:f.milestone._id,submittedBy:f.bid.studentId,description:"Test-funded checkpoint acceptance evidence.",status:"SUBMITTED"});
+  await Milestone.updateOne({_id:f.milestone._id},{status:"SUBMITTED",activeSubmissionId:submission._id});
+  await PaymentLedger.updateMany({projectId:f.project._id},{provider:"razorpay"});
+  await PaymentLedger.updateOne({milestoneId:f.milestone._id},{status:"PENDING_REVIEW"});
+  process.env.PRODUCT_MODE="test";
+  try {
+    const result=await invoke(milestoneRouter,"/:id/release","patch",{params:{id:String(f.milestone._id)},body:{status:"APPROVED",submissionId:String(submission._id)},user:{_id:f.project.clientId}});
+    assert.equal(result.statusCode,200); assert.equal(result.body.simulated,false);
+    assert.equal((await Project.findById(f.project._id)).status,"COMPLETED");
+    assert.equal((await Milestone.findById(f.milestone._id)).status,"APPROVED");
+    const allocation=await PaymentLedger.findOne({milestoneId:f.milestone._id});
+    assert.equal(allocation.status,"LOCKED"); assert.equal(allocation.releasedAt,null); assert.equal(allocation.stripeTransferId,"");
+  } finally {process.env.PRODUCT_MODE="demo";}
+});
+
 test("real verify/webhook handlers converge, reject uncaptured payments and retain cancelled captures", {}, async t => {
   process.env.PRODUCT_MODE = "test";
   process.env.RAZORPAY_KEY_ID = "rzp_test_database_fixture";

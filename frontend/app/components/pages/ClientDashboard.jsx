@@ -1,4 +1,5 @@
 import { checkout } from "../../../api/checkout";
+import { WorkspacePagination } from "../WorkspacePagination";
 import { Button } from "../ui/button";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { StatusBadge } from "../StatusBadge";
@@ -24,6 +25,9 @@ const formatCurrency = (val) => {
 
 export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
   const [error, setError] = useState("");
+  const [projectPage, setProjectPage] = useState(1);
+  const [bidPage, setBidPage] = useState(1);
+  const [pagination, setPagination] = useState({});
   const [stats, setStats] = useState({
     postedCount: 0,
     bidsReceivedCount: 0,
@@ -79,11 +83,12 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
       const lockedEscrow = paymentsData.stats?.lockedAmount || 0;
       const releasedEscrow = paymentsData.stats?.releasedAmount || 0;
 
-      const dashRes = await fetch("/api/projects/client/dashboard", {
+      const dashRes = await fetch(`/api/projects/client/dashboard?projectPage=${projectPage}&bidPage=${bidPage}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const dashData = await dashRes.json();
       if (!dashRes.ok) throw new Error(dashData.message || "Failed to load dashboard data");
+      setPagination(dashData.pagination || {});
 
       setPendingBids(dashData.pendingBids || []);
       setMilestonesToApprove(dashData.milestonesToApprove || []);
@@ -116,7 +121,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
 
   useEffect(() => {
     fetchDashboardData();
-  }, [token, currentUser]);
+  }, [token, currentUser, projectPage, bidPage]);
 
   const handleAcceptBid = (bidId) => {
     setSelectedBidId(bidId);
@@ -174,6 +179,8 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
           </Button>
         </div>
       </header>
+      <WorkspacePagination label="Projects" page={projectPage} pages={pagination.projects?.pages} onPage={setProjectPage} />
+      {pagination.projects?.pages > 1 && <p className="text-xs text-muted-foreground">Milestones, active work and history below show this project page. Summary counts cover your full account.</p>}
 
       {/* Priority 1: Milestones Awaiting Review & Release */}
       {milestonesToApprove.length > 0 && (
@@ -247,8 +254,9 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
               <BrandIcon name="proposal" size={18} className="text-[var(--brand-accent)]" />
               <h2 className="text-base font-medium text-foreground">Proposals to Review</h2>
             </div>
-            <span className="text-xs text-muted-foreground">{pendingBids.length} awaiting response</span>
+            <span className="text-xs text-muted-foreground">{pagination.bids?.total ?? pendingBids.length} awaiting response</span>
           </div>
+          <WorkspacePagination label="Proposals" page={bidPage} pages={pagination.bids?.pages} onPage={setBidPage} />
 
           <div className="space-y-3">
             {pendingBids.length === 0 ? (

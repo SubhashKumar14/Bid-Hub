@@ -1,6 +1,6 @@
 import { capabilities } from "../config/capabilities.js";
 import { validateAttachments } from "../lib/attachments.js";
-import { httpErrorStatus } from "../lib/validation.js";
+import { httpErrorStatus, boundedInteger } from "../lib/validation.js";
 import mongoose from "mongoose";
 import { getActiveProviderName } from "../payments/index.js";
 import express from "express";
@@ -164,7 +164,14 @@ router.get("/:id/submission", protect, async (req, res) => {
       return res.status(403).json({ message: "Not authorized to view this milestone's submissions." });
     }
 
-    if (req.query.history === "true") return res.json(await MilestoneSubmission.find({ milestoneId: req.params.id }).sort({ version: -1 }).limit(100).populate("submittedBy", "name avatarUrl"));
+    if (req.query.history === "true") {
+      const before = boundedInteger(req.query.before, undefined, 1000000000);
+      if (before === null) return res.status(400).json({ message: "Invalid submission history cursor." });
+      const rows = await MilestoneSubmission.find({ milestoneId: req.params.id, ...(before ? { version: { $lt: before } } : {}) }).sort({ version: -1 }).limit(26).populate("submittedBy", "name avatarUrl");
+      const page = rows.slice(0, 25);
+      res.setHeader("X-Next-Cursor", rows.length > 25 ? String(page.at(-1).version) : "");
+      return res.json(page);
+    }
     const submission = await MilestoneSubmission.findOne({ milestoneId: req.params.id }).sort({ version: -1, createdAt: -1 })
       .populate("submittedBy", "name avatarUrl");
 

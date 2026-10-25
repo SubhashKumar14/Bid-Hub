@@ -1,4 +1,4 @@
-import { httpErrorStatus } from "../lib/validation.js";
+import { httpErrorStatus, positiveEnvironmentInteger } from "../lib/validation.js";
 import express from "express";
 import { createRouter } from "../lib/router.js";
 import bcrypt from "bcryptjs";
@@ -10,7 +10,7 @@ import { protect } from "../middleware/auth.js";
 // Rate limit: max 10 auth attempts per 15 minutes per IP (configurable via AUTH_RATE_LIMIT)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: process.env.AUTH_RATE_LIMIT ? parseInt(process.env.AUTH_RATE_LIMIT, 10) : 10,
+  max: positiveEnvironmentInteger("AUTH_RATE_LIMIT", 10, 10000),
   message: { message: "Too many login attempts. Please try again in 15 minutes." },
   standardHeaders: true,
   legacyHeaders: false,

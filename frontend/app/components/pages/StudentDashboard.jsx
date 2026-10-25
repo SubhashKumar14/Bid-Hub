@@ -8,6 +8,7 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { ChatDrawer } from "../ChatDrawer";
 import { MilestoneSubmitModal } from "../MilestoneSubmitModal";
+import { WorkspacePagination } from "../WorkspacePagination";
 
 const formatCurrency = (val) => {
   if (val === undefined || val === null) return "";
@@ -21,6 +22,9 @@ const formatCurrency = (val) => {
 
 export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) {
   const [error, setError] = useState("");
+  const [contractPage, setContractPage] = useState(1);
+  const [bidPage, setBidPage] = useState(1);
+  const [pagination, setPagination] = useState({});
   const [stats, setStats] = useState({
     earnings: 0,
     activeContractsCount: 0,
@@ -72,11 +76,12 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
       const views = profileData.user?.profileViews || 0;
       setReviews(profileData.reviews || []);
 
-      const dashRes = await fetch("/api/projects/student/dashboard", {
+      const dashRes = await fetch(`/api/projects/student/dashboard?contractPage=${contractPage}&bidPage=${bidPage}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const dashData = await dashRes.json();
       if (!dashRes.ok) throw new Error(dashData.message || "Failed to load dashboard data");
+      setPagination(dashData.pagination || {});
 
       setContracts(dashData.contracts || []);
       setBids(dashData.bids || []);
@@ -85,8 +90,8 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
 
       setStats({
         earnings: releasedAmount,
-        activeContractsCount: (dashData.contracts || []).filter(c => c.projectStatus !== "COMPLETED").length,
-        openBidsCount,
+        activeContractsCount: dashData.stats?.activeContractsCount ?? (dashData.contracts || []).filter(c => c.projectStatus !== "COMPLETED").length,
+        openBidsCount: dashData.stats?.openBidsCount ?? openBidsCount,
         profileViews: views,
       });
     } catch (err) {
@@ -99,7 +104,7 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
 
   useEffect(() => {
     fetchDashboardData();
-  }, [token, currentUser]);
+  }, [token, currentUser, contractPage, bidPage]);
 
   // Derive items requiring immediate student attention (Revisions requested or Pending deliverables)
   const attentionItems = [];
@@ -168,6 +173,8 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
           </Button>
         </div>
       </header>
+      <WorkspacePagination label="Contracts" page={contractPage} pages={pagination.contracts?.pages} onPage={setContractPage} />
+      {pagination.contracts?.pages > 1 && <p className="text-xs text-muted-foreground">Attention items and workspaces show this contract page. Summary counts cover your full account.</p>}
 
       {/* Priority: Needs Your Attention Banner */}
       {attentionItems.length > 0 && (
@@ -364,8 +371,9 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
               <BrandIcon name="proposal" size={18} className="text-[var(--brand-accent)]" />
               <h2 className="text-base font-medium text-foreground">Proposals Sent</h2>
             </div>
-            <span className="text-xs text-muted-foreground">{bids.length} total</span>
+            <span className="text-xs text-muted-foreground">{pagination.bids?.total ?? bids.length} total</span>
           </div>
+          <WorkspacePagination label="Proposals" page={bidPage} pages={pagination.bids?.pages} onPage={setBidPage} />
 
           <div className="space-y-3">
             {bids.length === 0 ? (

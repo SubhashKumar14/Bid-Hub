@@ -26,7 +26,7 @@ const { default: milestonesRouter } = await import("../routes/milestones.js");
 const { default: reviewsRouter } = await import("../routes/reviews.js");
 const { default: uploads } = await import("../routes/uploads.js");
 const { validFileContent } = await import("../lib/file-content.js");
-const { amountToPaise } = await import("../lib/validation.js");
+const { amountToPaise, positiveEnvironmentInteger } = await import("../lib/validation.js");
 const { PaymentEvent } = await import("../models/PaymentEvent.js");
 const { getPaymentProvider } = await import("../payments/index.js");
 
@@ -34,7 +34,16 @@ const query = (value) => ({
   select() { return this; },
   populate() { return this; },
   sort() { return this; },
+  skip() { return this; },
+  limit() { return this; },
+  distinct() { return this; },
   then(resolve, reject) { return Promise.resolve(value).then(resolve, reject); },
+});
+
+test("rate limit overrides reject malformed or unbounded values rather than disabling protection", () => {
+  assert.equal(positiveEnvironmentInteger("LIMIT", 10, 10000, {}), 10);
+  assert.equal(positiveEnvironmentInteger("LIMIT", 10, 10000, { LIMIT: "1000" }), 1000);
+  for (const LIMIT of ["bad", "10junk", "0", "-1", "1.5", "Infinity", "10001"]) assert.throws(() => positiveEnvironmentInteger("LIMIT", 10, 10000, { LIMIT }), /must be an integer/);
 });
 const identities = {
   owner: { _id: "owner", role: "client" },
@@ -237,6 +246,9 @@ test("student dashboard handles deleted projects with pending checkouts", async 
     { _id: "pending-bid", projectId: { _id: "pending", title: "Current project" }, amount: "100", status: "PENDING" },
   ]));
   t.mock.method(Project, "find", () => query([]));
+  t.mock.method(Project, "countDocuments", async () => 0);
+  t.mock.method(Bid, "countDocuments", async () => 2);
+  t.mock.method(Bid, "aggregate", async () => [{ total: 1 }]);
   t.mock.method(Milestone, "find", () => query([]));
   t.mock.method(PaymentLedger, "find", () => query([{ projectId: "pending" }]));
   const result = await request("/api/projects/student/dashboard", "student");
@@ -282,11 +294,12 @@ for (const configuration of [
 
 for (const [label, environment, expected] of [
   ["explicit production demo permits only simulated funding", { PRODUCT_MODE: "demo", PAYMENT_PROVIDER: "mock" }, 0],
-  ["production requires an explicit product mode", { PRODUCT_MODE: "", PAYMENT_PROVIDER: "mock" }, 1],
+  ["production outside Render requires an explicit product mode", { PRODUCT_MODE: "", PAYMENT_PROVIDER: "mock" }, 1],
+  ["Render defaults select demo without activating configured live credentials", { RENDER: "true", PRODUCT_MODE: "", PAYMENT_PROVIDER: "razorpay", RAZORPAY_KEY_ID: "rzp_live_synthetic", RAZORPAY_KEY_SECRET: "synthetic-secret" }, 0],
   ["test mode rejects live payment credentials", { PRODUCT_MODE: "test", PAYMENT_PROVIDER: "razorpay", RAZORPAY_KEY_ID: "rzp_live_synthetic", RAZORPAY_KEY_SECRET: "synthetic-secret" }, 1],
 ]) {
   test(label, () => {
-    const child=spawnSync(process.execPath,["--input-type=module","-e",'import { getPaymentProvider } from "./payments/index.js"; getPaymentProvider();'],{cwd:new URL("../",import.meta.url),env:{...process.env,...environment,NODE_ENV:"production"},encoding:"utf8",windowsHide:true,timeout:10000});
+    const child=spawnSync(process.execPath,["--input-type=module","-e",'import { getPaymentProvider } from "./payments/index.js"; import { capabilities } from "./config/capabilities.js"; getPaymentProvider(); if (capabilities().livePayments || capabilities().payouts) throw new Error("Live financial capability must remain disabled");'],{cwd:new URL("../",import.meta.url),env:{...process.env,RENDER:"",...environment,NODE_ENV:"production"},encoding:"utf8",windowsHide:true,timeout:10000});
     assert.equal(child.error,undefined); assert.equal(child.status,expected,child.stderr);
   });
 }

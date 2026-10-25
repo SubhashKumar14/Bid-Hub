@@ -5,12 +5,22 @@ import os from "node:os";
 import path from "node:path";
 import mongoose from "../backend/node_modules/mongoose/index.js";
 import AdmZip from "adm-zip";
+import jwt from "jsonwebtoken";
+import net from "node:net";
 const children = [];
 const api = "http://127.0.0.1:5019/api";
 const serverEnv = { PORT: "5019", NODE_ENV: "production", PRODUCT_MODE: "demo", PAYMENT_PROVIDER: "mock", JWT_SECRET: "synthetic-browser-test-secret-at-least-32-characters", MONGODB_URI: process.env.TEST_MONGODB_URI || "mongodb://127.0.0.1:27129/journey?replicaSet=journey", PRIVATE_STORAGE: "mongodb", CLOUDINARY_CLOUD_NAME: "fixture", CLOUDINARY_API_KEY: "fixture", CLOUDINARY_API_SECRET: "fixture", CLIENT_URL: "http://127.0.0.1:5189", AUTH_RATE_LIMIT: "1000" };
 let apiProcess;
 const run = (exe, args, env = {}) => { const child = spawn(exe, args, { env: { ...process.env, ...env }, windowsHide: true, stdio: "ignore" }); children.push(child); return child; };
 test.beforeAll(async () => {
+  // Never attach to an unrelated process just because it owns a fixture port.
+  for (const port of [...(process.env.TEST_MONGODB_URI ? [] : [27129]), 5019, 5189, 5190]) {
+    await new Promise((resolve, reject) => {
+      const probe=net.createServer();
+      probe.once("error", error=>reject(new Error(`Isolated E2E port ${port} is unavailable; do not run these suites concurrently. ${error.message}`)));
+      probe.listen(port,"127.0.0.1",()=>probe.close(resolve));
+    });
+  }
   if (!process.env.TEST_MONGODB_URI) {
   const binary = process.env.MONGOD_BINARY || "C:/Program Files/MongoDB/Server/8.3/bin/mongod.exe";
   if (!fs.existsSync(binary)) throw new Error("Required E2E replica-set binary missing; set MONGOD_BINARY.");
@@ -25,7 +35,15 @@ test.beforeAll(async () => {
   for (let i=0;i<80;i++) { try { if ((await fetch(api+"/ready")).ok && (await fetch("http://127.0.0.1:5189")).ok) return; } catch {} await new Promise(r=>setTimeout(r,500)); }
   throw new Error("E2E services did not become ready.");
 });
-test.afterAll(async () => { for (const child of children.reverse()) child.kill(); });
+test.afterAll(async () => {
+  for (const child of children.reverse()) {
+    if (!child.pid || child.exitCode !== null || child.signalCode !== null) continue;
+    await new Promise((resolve, reject) => {
+      const timeout=setTimeout(()=>reject(new Error(`Isolated fixture process ${child.pid} did not stop.`)),5000);
+      child.once("exit",()=>{clearTimeout(timeout);resolve();}); child.kill();
+    });
+  }
+});
 async function json(request, method, endpoint, token, data) {
   const response = await request[method](api + endpoint, { headers: token ? { Authorization: "Bearer " + token } : {}, data });
   expect(response.ok(), await response.text()).toBeTruthy(); return response.json();
@@ -89,6 +107,12 @@ test("two-role production demo: different offer, two milestones, revision, appro
   expect((await json(request,"get",`/projects/${project._id}`)).project.status).toBe("COMPLETED");
   const clientDash = await json(request, "get", "/projects/client/dashboard", client.token);
   expect(clientDash.activeGigsCount).toBe(0); expect(clientDash.completedProjects.some(p=>p._id===project._id)).toBeTruthy();
+  const outsider=await json(request,"post","/auth/register",null,{name:"Unrelated reviewer",email:`outside-${suffix}@example.com`,password:"Synthetic123!",role:"student"});
+  const reviewRequest=(token,revieweeId)=>request.post(api+"/reviews",{headers:{Authorization:`Bearer ${token}`},data:{projectId:project._id,revieweeId,rating:5,comment:"A review requires completed-project participation."}});
+  expect((await reviewRequest(client.token,client._id)).status()).toBe(400);
+  expect((await reviewRequest(client.token,outsider._id)).status()).toBe(400);
+  expect((await reviewRequest(outsider.token,student._id)).status()).toBe(403);
+  expect((await request.get(api+`/milestones/${detail.milestones[0]._id}/submission?history=true`,{headers:{Authorization:`Bearer ${outsider.token}`}})).status()).toBe(403);
   expect((await json(request,"get","/projects/student/dashboard",student.token)).contracts.find(c=>c.id===project._id).status).toBe("completed");
   expect((await json(request,"get",`/users/${client._id}`,client.token)).user.completedProjects).toBe(1);
   for (const actor of [owner,page]) {
@@ -103,6 +127,9 @@ test("two-role production demo: different offer, two milestones, revision, appro
     await expect(actor.getByText(comment,{exact:false}).first()).toBeVisible();
     await expect(actor.locator("#review-comment")).toHaveCount(0);
   }
+  const reviews=await json(request,"get",`/reviews/users/${student._id}/reviews`);
+  const repeated=await reviewRequest(client.token,student._id); expect(repeated.ok()).toBeTruthy(); expect((await repeated.json())._id).toBe(reviews[0]._id);
+  expect(await json(request,"get",`/reviews/users/${student._id}/reviews`)).toHaveLength(1);
   for (const route of ["/browse","/student","/client","/post","/profile",`/project/${project._id}`]) { await owner.goto(route); await owner.reload(); await expect(owner.locator("main").first()).toBeVisible(); }
   await owner.setViewportSize({width:390,height:844}); await owner.goto("/browse"); await owner.screenshot({path:"e2e-results/mobile-directory.png",fullPage:true});
   await context.close(); await ownerContext.close();
@@ -350,4 +377,94 @@ test("final independent review: restart recovery, remaining category journeys, c
   const apiResponse=await request.get("http://127.0.0.1:5190/api/capabilities"); expect(apiResponse.headers()["content-type"]).toContain("application/json");
   for(const file of ["vercel.json","frontend/vercel.json"]) { const config=JSON.parse(fs.readFileSync(file,"utf8")); expect(config.rewrites[0].source).toBe("/api/:path*"); expect(config.rewrites.at(-1).destination).toBe("/"); }
   await Promise.all(contexts.map(context=>context.close()));
+});
+
+test("retained history pages beyond one hundred records with participant-only evidence", async ({ browser, request }) => {
+  const suffix=Date.now();
+  const register=role=>json(request,"post","/auth/register",null,{name:`History ${role}`,email:`history-${role}-${suffix}@example.com`,password:"Synthetic123!",role});
+  const client=await register("client"), student=await register("student");
+  const project=await json(request,"post","/projects",client.token,{title:`History pagination ${suffix}`,description:"A brief with retained historical discussions and submission evidence.",category:"Writing & Content",budget:100,deadline:"2027-12-31",milestones:[{title:"Delivery",amount:100}]});
+  const bid=await json(request,"post",`/projects/${project._id}/bids`,student.token,{amount:80,timeline:"one week",proposal:"A reviewed writing deliverable."});
+  const order=await json(request,"post","/payments/checkout-session",client.token,{bidId:bid._id,proposalVersion:1});
+  await json(request,"post","/payments/simulate-payment",client.token,{sessionId:order.sessionId});
+  const milestone=(await json(request,"get",`/projects/${project._id}`)).milestones[0];
+  await json(request,"patch",`/milestones/${milestone._id}/submit`,student.token,{description:"The latest writing evidence version."});
+  // Seed a historical volume fixture in this isolated DB. The operation under
+  // test is real authorized retrieval/pagination, not 102 human review rounds.
+  const connection=await new mongoose.mongo.MongoClient(serverEnv.MONGODB_URI).connect();
+  try {
+    const db=connection.db(), milestoneId=new mongoose.Types.ObjectId(milestone._id), projectId=new mongoose.Types.ObjectId(project._id), studentId=new mongoose.Types.ObjectId(student._id);
+    await db.collection("milestonesubmissions").updateOne({milestoneId},{$set:{version:102}});
+    await db.collection("milestonesubmissions").insertMany(Array.from({length:101},(_,i)=>({milestoneId,submittedBy:studentId,version:i+1,status:"CHANGES_REQUESTED",description:`Retained evidence version ${i+1}.`,demoUrl:`https://example.com/evidence/${i+1}`,githubUrl:"",videoUrl:"",attachments:[],reviewComment:"Historical revision feedback."})));
+    await db.collection("clarifications").insertMany(Array.from({length:102},(_,i)=>({projectId,authorId:studentId,content:`Historical clarification ${i+1}.`,createdAt:new Date()})));
+  } finally { await connection.close(); }
+  const headers={Authorization:`Bearer ${client.token}`};
+  const initial=await request.get(api+`/milestones/${milestone._id}/submission?history=true`,{headers}); expect((await initial.json())).toHaveLength(25); expect(initial.headers()["x-next-cursor"]).toBe("78");
+  expect((await request.get(api+`/milestones/${milestone._id}/submission?history=true&before=invalid`,{headers})).status()).toBe(400);
+  expect((await request.get(api+`/milestones/${milestone._id}/submission?history=true`)).status()).toBe(401);
+  expect((await request.get(api+`/projects/${project._id}/clarifications?before=invalid`,{headers})).status()).toBe(400);
+  const context=await browser.newContext(); await context.addInitScript(token=>localStorage.setItem("token",token),client.token);
+  const page=await context.newPage(); await page.goto(`/project/${project._id}`);
+  await page.locator("summary").filter({hasText:"Submission history"}).click();
+  for(let i=0;i<4;i++) { await page.getByRole("button",{name:"Load earlier submissions",exact:true}).click(); await expect(page.locator("summary").filter({hasText:"Submission history"})).toContainText(String(Math.min(102,(i+2)*25))); }
+  await expect(page.getByRole("link",{name:"Deliverable: https://example.com/evidence/1",exact:true})).toBeVisible();
+  await expect(page.getByRole("button",{name:"Load earlier submissions",exact:true})).toHaveCount(0);
+  await page.locator("summary").filter({hasText:"Retained brief clarifications"}).click();
+  for(let i=0;i<4;i++) { await page.getByRole("button",{name:"Load earlier clarifications",exact:true}).click(); await expect(page.locator("summary").filter({hasText:"Retained brief clarifications"})).toContainText(String(Math.min(102,(i+2)*25))); }
+  await expect(page.getByText("Historical clarification 1.",{exact:false})).toBeVisible();
+  await expect(page.getByRole("button",{name:"Load earlier clarifications",exact:true})).toHaveCount(0);
+  await context.close();
+});
+
+test("dashboard pages bound growing lists while counts and money remain account-wide", async ({ browser, request }) => {
+  const suffix=Date.now();
+  const register=role=>json(request,"post","/auth/register",null,{name:`Volume ${role}`,email:`volume-${role}-${suffix}@example.com`,password:"Synthetic123!",role});
+  const client=await register("client"), student=await register("student");
+  const connection=await new mongoose.mongo.MongoClient(serverEnv.MONGODB_URI).connect();
+  try {
+    const db=connection.db(), clientId=new mongoose.Types.ObjectId(client._id), studentId=new mongoose.Types.ObjectId(student._id), projects=[], bids=[], milestones=[], ledgers=[];
+    // Historical volume fixture only. Normal publication/funding is exercised
+    // by the other browser journeys; no operation being paginated is replaced.
+    for(let i=0;i<52;i++) {
+      const projectId=new mongoose.Types.ObjectId(), bidId=new mongoose.Types.ObjectId(), active=i<26;
+      projects.push({_id:projectId,clientId,title:`Volume ${active?"active":"open"} ${i}`,description:"Synthetic retained workspace for pagination.",category:"Writing & Content",budget:20,deadline:"2027-12-31",status:active?"ASSIGNED":"OPEN",acceptedBidId:active?bidId:null,contractTotalPaise:active?1000:undefined,bidsCount:1,files:[],skillsRequired:[],createdAt:new Date()});
+      bids.push({_id:bidId,projectId,studentId,amount:10,timeline:"one week",proposal:"Synthetic offer for historical pagination.",status:active?"ACCEPTED":"PENDING",version:1,schedule:[],createdAt:new Date()});
+      const milestoneId=new mongoose.Types.ObjectId(); milestones.push({_id:milestoneId,projectId,title:"Delivery",amount:active?10:20,status:"PENDING"});
+      if(active) ledgers.push({projectId,milestoneId,clientId,studentId,amount:10,amountPaise:1000,provider:"mock",status:"LOCKED"});
+    }
+    await db.collection("projects").insertMany(projects); await db.collection("bids").insertMany(bids); await db.collection("milestones").insertMany(milestones); await db.collection("paymentledgers").insertMany(ledgers);
+  } finally { await connection.close(); }
+  for(const contractPage of [1,2]) {
+    const dashboard=await json(request,"get",`/projects/student/dashboard?contractPage=${contractPage}&bidPage=1`,student.token);
+    expect(dashboard.contracts).toHaveLength(contractPage===1?25:1); expect(dashboard.bids).toHaveLength(25);
+    expect(dashboard.stats).toEqual({activeContractsCount:26,openBidsCount:26}); expect(dashboard.pagination.bids.total).toBe(52);
+  }
+  const ownerPage=await json(request,"get","/projects/client/dashboard?projectPage=1&bidPage=2",client.token);
+  expect(ownerPage.pendingBids).toHaveLength(1); expect(ownerPage.postedCount).toBe(52); expect(ownerPage.activeGigsCount).toBe(26); expect(ownerPage.bidsReceivedCount).toBe(52);
+  expect(ownerPage.pagination.projects.pages).toBe(3); expect((await json(request,"get","/payments?limit=1",client.token)).stats.lockedAmount).toBe(260);
+  for(const [role,account] of [["client",client],["student",student]]) {
+    const context=await browser.newContext(); await context.addInitScript(token=>localStorage.setItem("token",token),account.token); const page=await context.newPage(); await page.goto(`/${role}`);
+    if(role==="client") await expect(page.getByText("26 awaiting response",{exact:true})).toBeVisible();
+    const label=role==="client"?"projects":"contracts", pages=role==="client"?3:2;
+    for(let i=2;i<=pages;i++) { await page.getByRole("button",{name:`Next ${label}`,exact:true}).click(); await expect(page.getByText(`${label[0].toUpperCase()+label.slice(1)} page ${i} of ${pages}`,{exact:true})).toBeVisible(); }
+    await expect(page.getByRole("heading",{name:role==="client"?"Volume active 0":"Volume client · Volume active 0",exact:true})).toBeVisible();
+    await page.getByRole("button",{name:"Next proposals",exact:true}).click(); await expect(page.getByText("Proposals page 2 of "+(role==="client"?2:3),{exact:true})).toBeVisible();
+    await context.close();
+  }
+  expect((await request.get(api+"/projects/student/dashboard?bidPage=0",{headers:{Authorization:`Bearer ${student.token}`}})).status()).toBe(400);
+});
+
+test("expired browser session returns to the intended brief after real sign-in", async ({ browser, request }) => {
+  const suffix=Date.now();
+  const client=await json(request,"post","/auth/register",null,{name:"Expiry client",email:`expiry-client-${suffix}@example.com`,password:"Synthetic123!",role:"client"});
+  const email=`expiry-student-${suffix}@example.com`;
+  const student=await json(request,"post","/auth/register",null,{name:"Expiry student",email,password:"Synthetic123!",role:"student"});
+  const project=await json(request,"post","/projects",client.token,{title:`Session return ${suffix}`,description:"A public brief remains the intended destination after session expiry.",category:"Writing & Content",budget:100,deadline:"2027-12-31",milestones:[{title:"Delivery",amount:100}]});
+  const expired=jwt.sign({id:student._id},serverEnv.JWT_SECRET,{expiresIn:-1});
+  expect((await request.get(api+"/auth/me",{headers:{Authorization:`Bearer ${expired}`}})).status()).toBe(401);
+  const context=await browser.newContext(); await context.addInitScript(token=>{if(!sessionStorage.getItem("expiry-initialized")){localStorage.setItem("token",token);sessionStorage.setItem("expiry-initialized","yes");}},expired);
+  const page=await context.newPage(); await page.goto(`/project/${project._id}`);
+  await page.locator("#login-email").fill(email); await page.locator("#login-password").fill("Synthetic123!"); await page.getByRole("button",{name:"Sign In",exact:true}).click();
+  await expect(page).toHaveURL(new RegExp(`/project/${project._id}$`)); await expect(page.getByText(project.title,{exact:true}).first()).toBeVisible();
+  await context.close();
 });

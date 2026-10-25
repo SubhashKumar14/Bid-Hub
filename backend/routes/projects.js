@@ -25,7 +25,12 @@ const clarificationAccess = async req => {
 };
 router.get("/:id/clarifications", protect, async (req, res) => {
   await clarificationAccess(req);
-  res.json(await Clarification.find({ projectId: req.params.id }).sort({ createdAt: -1 }).limit(100).populate("authorId", "name role"));
+  const before = req.query.before;
+  if (before !== undefined && (typeof before !== "string" || !/^[a-f\d]{24}$/i.test(before))) return res.status(400).json({ message: "Invalid clarification cursor." });
+  const rows = await Clarification.find({ projectId: req.params.id, ...(before ? { _id: { $lt: before } } : {}) }).sort({ _id: -1 }).limit(26).populate("authorId", "name role");
+  const page = rows.slice(0, 25);
+  res.setHeader("X-Next-Cursor", rows.length > 25 ? String(page.at(-1)._id) : "");
+  res.json(page);
 });
 router.post("/:id/clarifications", protect, async (req, res) => {
   const project = await clarificationAccess(req);
@@ -125,29 +130,35 @@ router.get("/", async (req, res) => {
 // @route   GET /api/projects/student/dashboard
 // @access  Private (Student only)
 router.get("/student/dashboard", protect, requireRole("student"), async (req, res) => {
+  const bidPage = boundedInteger(req.query.bidPage, 1, 10000), contractPage = boundedInteger(req.query.contractPage, 1, 10000), limit = 25;
+  if (bidPage === null || contractPage === null) return res.status(400).json({ message: "Invalid dashboard pagination." });
   try {
     // 1. Find all bids by this student
     const studentBids = await Bid.find({ studentId: req.user._id })
       .populate("projectId", "title category budget status deadline clientId")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1, _id: -1 }).skip((bidPage - 1) * limit).limit(limit);
 
     // 2. Filter projects where student is accepted
-    const acceptedProjectIds = studentBids
-      .filter(b => b.status === "ACCEPTED" && b.projectId)
-      .map(b => b.projectId._id || b.projectId);
+    const acceptedProjectIds = await Bid.find({ studentId: req.user._id, status: "ACCEPTED" }).distinct("projectId");
 
     // 3. Fetch these projects populated with milestones and client details
     const activeProjects = await Project.find({ _id: { $in: acceptedProjectIds } })
-      .populate("clientId", "name avatarUrl rating completedProjects college");
+      .populate("clientId", "name avatarUrl rating completedProjects college")
+      .sort({ createdAt: -1, _id: -1 }).skip((contractPage - 1) * limit).limit(limit);
 
     // Fetch milestones for all active projects
-    const milestones = await Milestone.find({ projectId: { $in: acceptedProjectIds } });
+    const milestones = await Milestone.find({ projectId: { $in: activeProjects.map(p => p._id) } });
 
     // Fetch pending checkout ledgers involving this student
     const pendingLedgers = await PaymentLedger.find({
       studentId: req.user._id,
+      projectId: { $in: studentBids.map(b => b.projectId?._id ?? b.projectId).filter(Boolean) },
       status: "PENDING_CHECKOUT"
     });
+    const bidTotal = await Bid.countDocuments({ studentId: req.user._id });
+    const contractTotal = await Project.countDocuments({ _id: { $in: acceptedProjectIds } });
+    const activeContractsCount = await Project.countDocuments({ _id: { $in: acceptedProjectIds }, status: { $in: ["ASSIGNED", "IN_PROGRESS"] } });
+    const pendingCount = await Bid.aggregate([{ $match: { studentId: req.user._id, status: "PENDING" } }, { $lookup: { from: "projects", localField: "projectId", foreignField: "_id", as: "project" } }, { $match: { "project.status": "OPEN" } }, { $count: "total" }]);
 
     // Map milestones to their respective projects
     const projectsWithMilestones = activeProjects.map(proj => {
@@ -159,6 +170,8 @@ router.get("/student/dashboard", protect, requireRole("student"), async (req, re
     });
 
     res.json({
+      stats: { activeContractsCount, openBidsCount: pendingCount[0]?.total || 0 },
+      pagination: { bids: { page: bidPage, pages: Math.max(1, Math.ceil(bidTotal / limit)), total: bidTotal }, contracts: { page: contractPage, pages: Math.max(1, Math.ceil(contractTotal / limit)), total: contractTotal } },
       bids: studentBids.map(b => {
         const projectId = b.projectId?._id ?? b.projectId;
         const isPendingEscrow = projectId != null && pendingLedgers.some(l =>
@@ -202,11 +215,13 @@ router.get("/student/dashboard", protect, requireRole("student"), async (req, re
 // @route   GET /api/projects/client/dashboard
 // @access  Private (Client only)
 router.get("/client/dashboard", protect, requireRole("client"), async (req, res) => {
+  const projectPage = boundedInteger(req.query.projectPage, 1, 10000), bidPage = boundedInteger(req.query.bidPage, 1, 10000), limit = 25;
+  if (projectPage === null || bidPage === null) return res.status(400).json({ message: "Invalid dashboard pagination." });
   try {
     // 1. Fetch all projects posted by this client
     const myProjects = await Project.find({ clientId: req.user._id })
       .populate("clientId", "name avatarUrl rating completedProjects college")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1, _id: -1 }).skip((projectPage - 1) * limit).limit(limit);
 
     const projectIds = myProjects.map(p => p._id);
 
@@ -214,22 +229,24 @@ router.get("/client/dashboard", protect, requireRole("client"), async (req, res)
     const milestones = await Milestone.find({ projectId: { $in: projectIds } });
 
     // 3. Fetch all bids for these projects if status is OPEN
-    const openProjectIds = myProjects.filter(p => p.status === "OPEN").map(p => p._id);
-    const bids = await Bid.find({ projectId: { $in: openProjectIds } })
-      .populate("studentId", "name avatarUrl rating completedProjects college skills");
+    const allProjectIds = await Project.find({ clientId: req.user._id }).distinct("_id");
+    const openProjectIds = await Project.find({ clientId: req.user._id, status: "OPEN" }).distinct("_id");
+    const pendingFilter = { projectId: { $in: openProjectIds }, status: "PENDING" };
+    const bids = await Bid.find(pendingFilter)
+      .populate("studentId", "name avatarUrl rating completedProjects college skills").populate("projectId", "title")
+      .sort({ createdAt: -1, _id: -1 }).skip((bidPage - 1) * limit).limit(limit);
+    const pendingTotal = await Bid.countDocuments(pendingFilter);
 
     // Format milestones to approve and active projects
     const milestonesToApprove = [];
     const activeProjects = [];
-    let bidsReceivedCount = 0;
-    let activeGigsCount = 0;
+    const bidsReceivedCount = await Bid.countDocuments({ projectId: { $in: allProjectIds } });
+    const activeGigsCount = await Project.countDocuments({ clientId: req.user._id, status: { $in: ["ASSIGNED", "IN_PROGRESS"] } });
 
     myProjects.forEach(p => {
-      bidsReceivedCount += p.bidsCount || 0;
       const ms = milestones.filter(m => m.projectId.toString() === p._id.toString());
 
       if (["ASSIGNED", "IN_PROGRESS"].includes(p.status)) {
-        activeGigsCount++;
         const totalAmount = ms.reduce((n,m) => n + m.amount, 0);
         const progress = totalAmount > 0 ? Math.round(ms.filter(m => ["RELEASED", "APPROVED"].includes(m.status)).reduce((n,m) => n + m.amount, 0) / totalAmount * 100) : 0;
 
@@ -259,9 +276,9 @@ router.get("/client/dashboard", protect, requireRole("client"), async (req, res)
       .filter(b => b.status === "PENDING")
       .map(b => ({
         id: b._id,
-        projectId: b.projectId,
+        projectId: b.projectId?._id || b.projectId,
         studentName: b.studentId?.name || "Student",
-        projectTitle: myProjects.find(p => p._id.toString() === b.projectId.toString())?.title || "Project",
+        projectTitle: b.projectId?.title || "Project",
         amount: b.amount,
         timeline: b.timeline,
         proposal: b.proposal,
@@ -270,7 +287,8 @@ router.get("/client/dashboard", protect, requireRole("client"), async (req, res)
       }));
 
     res.json({
-      postedCount: myProjects.length,
+      postedCount: allProjectIds.length,
+      pagination: { projects: { page: projectPage, pages: Math.max(1, Math.ceil(allProjectIds.length / limit)), total: allProjectIds.length }, bids: { page: bidPage, pages: Math.max(1, Math.ceil(pendingTotal / limit)), total: pendingTotal } },
       bidsReceivedCount,
       activeGigsCount,
       pendingBids,

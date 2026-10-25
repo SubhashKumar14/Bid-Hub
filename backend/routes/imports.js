@@ -1,4 +1,4 @@
-import { httpErrorStatus } from "../lib/validation.js";
+import { httpErrorStatus, positiveEnvironmentInteger } from "../lib/validation.js";
 import { validFileContent } from "../lib/file-content.js";
 import express from "express";
 import { createRouter } from "../lib/router.js";
@@ -13,7 +13,7 @@ const router = createRouter();
 // Rate limit: 5 import calls per 15 minutes per IP (configurable via IMPORT_RATE_LIMIT)
 const importLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: process.env.IMPORT_RATE_LIMIT ? parseInt(process.env.IMPORT_RATE_LIMIT, 10) : 5,
+  max: positiveEnvironmentInteger("IMPORT_RATE_LIMIT", 5, 10000),
   message: { message: "Too many import requests. Please wait 15 minutes before trying again." },
   standardHeaders: true,
   legacyHeaders: false,
