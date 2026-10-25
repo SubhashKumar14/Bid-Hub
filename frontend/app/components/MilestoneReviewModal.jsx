@@ -54,8 +54,6 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
   }, [open, milestoneId, token]);
 
   const handleApprove = async () => {
-    if (!window.confirm("Approve this submission as completed work? No real payout will be made.")) return;
-
     const target = targetRef.current;
     if (reviewing) return;
     setReviewing(true);
@@ -129,7 +127,7 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
           <div>
             <span className="text-xs uppercase tracking-wider font-mono text-muted-foreground inline-flex items-center gap-1.5">
               <BrandIcon name="handover" size={14} className="text-brand-accent" />
-              Milestone Checkpoint & Handover
+              Review milestone work
             </span>
             <DialogTitle className="text-lg font-semibold tracking-tight text-foreground mt-1">{milestoneTitle}</DialogTitle>
             <DialogDescription id="milestone-review-description" className="sr-only">Review submitted deliverables and sign off or request changes.</DialogDescription>
@@ -140,17 +138,18 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
           {loading ? (
             <div className="py-16 text-center text-xs text-muted-foreground animate-pulse">
-              Fetching submitted deliverables…
+              Loading the student's submission…
             </div>
           ) : error && !submission ? <p className="text-sm text-destructive">Submission unavailable. Close and reopen to retry.</p> : !submission ? (
             <BrandState
               name="no-submissions"
-              title="No submission record found"
-              description="The student has not yet submitted deliverables for this milestone checkpoint."
+              title="Nothing submitted for this milestone yet"
+              description="The student's work will appear here after they submit it for review."
               compact
             />
           ) : (
             <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">You are reviewing version {submission.version}. Approving accepts this version of the work. The project is completed after every milestone is approved. No payout is sent.</p>
               {/* Submitted By */}
               <div className="flex items-center gap-3 pb-3 border-b border-border">
                 <div className="size-8 rounded-[4px] bg-secondary flex items-center justify-center text-xs font-medium text-foreground overflow-hidden">
@@ -161,7 +160,7 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
                   )}
                 </div>
                 <div>
-                  <p className="text-[11px] text-muted-foreground">Submitted by</p>
+                  <p className="text-xs text-muted-foreground">Submitted by</p>
                   <p className="text-sm font-medium text-foreground">{submission.submittedBy?.name || "Student"}</p>
                 </div>
               </div>
@@ -192,7 +191,7 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
                   <div className="flex items-start gap-2.5 min-w-0">
                     <Link className="size-4 text-muted-foreground shrink-0 mt-0.5" />
                     <div className="min-w-0">
-                      <p className="text-xs font-medium text-muted-foreground">Live Demo / Deliverable</p>
+                      <p className="text-xs font-medium text-muted-foreground">Work or preview</p>
                       <p className="text-xs text-foreground truncate font-mono mt-0.5">{submission.demoUrl}</p>
                     </div>
                   </div>
@@ -274,7 +273,7 @@ export function MilestoneReviewModal({ open, onClose, milestoneId, milestoneTitl
                   </label>
                   <textarea
                     id="revision-feedback"
-                    placeholder="Specify concrete changes needed before work approval…"
+                    placeholder="List the changes you need and explain how you will check them."
                     value={reviewComment}
                     onChange={(e) => setReviewComment(e.target.value)}
                     required

@@ -29,14 +29,14 @@ export class ErrorBoundary extends React.Component {
           <div className="max-w-md w-full space-y-4 rounded-[12px] border border-border bg-card p-8 shadow-sm">
             <BrandState
               name="error"
-              title="Something went wrong"
-              description="An unexpected error occurred while rendering this interface. Reloading will restore your workspace."
+              title="This page could not load"
+              description="Reload the page to try again. Saved projects and submissions will still be available; changes you have not saved may need to be entered again."
               action={
                 <button
                   onClick={this.handleReset}
                   className="inline-flex min-h-[44px] w-full items-center justify-center rounded-[5px] bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-medium transition-colors cursor-pointer mt-2"
                 >
-                  Reload Application
+                  Reload page
                 </button>
               }
             />

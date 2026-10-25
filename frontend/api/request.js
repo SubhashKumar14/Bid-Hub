@@ -16,7 +16,11 @@ export function installRequestTimeouts() {
       const response=new Response([204,205,304].includes(received.status)?null:bytes,{status:received.status,statusText:received.statusText,headers:received.headers});
       if(response.ok && !["GET","HEAD"].includes((options.method || "GET").toUpperCase())) window.dispatchEvent(new Event("bidhub:refresh"));
       return response;
-    } catch(error) { if(timedOut) throw new Error("The request timed out. Refresh to check the saved result before retrying this action."); throw error; }
+    } catch(error) {
+      if(timedOut) throw new Error("This request is taking too long. Refresh to check whether your changes were saved before trying again.");
+      if(!external?.aborted && error instanceof TypeError) throw new Error(["GET","HEAD"].includes((options.method || "GET").toUpperCase()) ? "Could not reach Bid·Hub. Check your connection and try again." : "The connection was interrupted. Your changes may have been saved. Refresh to check before trying again.");
+      throw error;
+    }
     finally {clearTimeout(timer);external?.removeEventListener("abort",abort);}
   };
 }

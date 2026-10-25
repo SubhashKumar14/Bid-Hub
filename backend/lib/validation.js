@@ -1,9 +1,9 @@
 export function amountToPaise(value) {
   const text = typeof value === "number" ? String(value) : value;
-  if (typeof text !== "string" || !/^\d{1,9}(\.\d{1,2})?$/.test(text)) throw Object.assign(new Error("Amount must be a positive decimal with at most two decimal places."), { status: 400 });
+  if (typeof text !== "string" || !/^\d{1,9}(\.\d{1,2})?$/.test(text)) throw Object.assign(new Error("Enter an amount greater than zero, using no more than two decimal places."), { status: 400 });
   const [whole, fraction = ""] = text.split(".");
   const paise = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
-  if (!Number.isSafeInteger(paise) || paise <= 0) throw Object.assign(new Error("Amount out of range."), { status: 400 });
+  if (!Number.isSafeInteger(paise) || paise <= 0) throw Object.assign(new Error("Enter an amount between ₹0.01 and ₹999,999,999.99."), { status: 400 });
   return paise;
 }
 

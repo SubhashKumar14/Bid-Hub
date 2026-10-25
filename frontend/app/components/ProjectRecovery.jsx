@@ -6,6 +6,7 @@ export function ProjectRecovery({ project, token, participant, onUpdate }) {
   const [items, setItems] = useState([]);
   const [text, setText] = useState("");
   const [error, setError] = useState("");
+  const [errorSource, setErrorSource] = useState("load");
   const [busy, setBusy] = useState(false);
   const [next, setNext] = useState("");
   const [loading, setLoading] = useState(false);
@@ -17,7 +18,7 @@ export function ProjectRecovery({ project, token, participant, onUpdate }) {
       const rows = await response.json(); if (signal?.aborted) return;
       setNext(response.headers.get("X-Next-Cursor") || "");
       setItems(prev => before ? Array.from(new Map([...prev, ...rows].map(item => [item._id, item])).values()) : rows);
-    } catch (e) { if (!signal?.aborted) setError(e.message); }
+    } catch (e) { if (!signal?.aborted) { setError(e.message); setErrorSource("load"); } }
     finally { if (!signal?.aborted) setLoading(false); }
   };
   useEffect(() => {
@@ -37,20 +38,20 @@ export function ProjectRecovery({ project, token, participant, onUpdate }) {
       const data = await response.json(); if (!response.ok) throw new Error(data.message);
       if (open) setItems(prev => [{ ...data, authorId: { name: "You" } }, ...prev]); else onUpdate();
       setText("");
-    } catch (e) { setError(e.message); } finally { setBusy(false); }
+    } catch (e) { setError(e.message); setErrorSource("submit"); } finally { setBusy(false); }
   };
   return <section className="space-y-3 border-t border-border py-5">
-    {!open && <details><summary className="text-sm">Retained brief clarifications ({items.length})</summary>{items.map(item => <p key={item._id} className="text-sm border-b border-border py-2"><strong>{item.authorId?.name || "Participant"}: </strong>{item.content}</p>)}<p className="text-xs text-muted-foreground">Read-only record of the pre-agreement discussion.</p></details>}
+    {!open && <details><summary className="text-sm cursor-pointer py-2">Earlier questions and answers ({items.length})</summary>{items.map(item => <p key={item._id} className="text-sm border-b border-border py-2"><strong>{item.authorId?.name || "Participant"}: </strong>{item.content}</p>)}<p className="text-xs text-muted-foreground">These messages were posted before the agreement. They are saved here for reference.</p></details>}
     {(open || recoverable) && <>
-    <h2 className="text-lg font-medium">{open ? "Brief clarifications" : "Contract recovery"}</h2>
-    <p className="text-xs text-muted-foreground">{open ? "Visible to the client and other signed-in prospective students. Do not share private work or contact details. Changes to your offer require a proposal revision." : "Request operator help for termination, a funding problem or a dispute. Work pauses while reviewed; no automatic refund or payout is available."}</p>
-    {project.recoveryPending ? <p role="status">Recovery is pending operator review. Evidence and discussion remain available.</p> : <>
-      <label htmlFor="project-question" className="text-sm">{open ? "Question or clarification" : "Recovery reason"}</label>
-      <Textarea id="project-question" value={text} onChange={e => setText(e.target.value)} maxLength={open ? 2000 : 5000} />
+    <h2 className="text-lg font-medium">{open ? "Questions about this project" : "Need help with this project?"}</h2>
+    <p className="text-xs text-muted-foreground">{open ? "The client and other signed-in students can read these messages. Keep private work and contact details out of this discussion. Change your proposal or send a counteroffer to update the terms." : "Use this for a funding problem, disagreement or an early end to the project. Sending a request pauses submissions and approvals until an operator reviews it. It does not issue a refund."}</p>
+    {project.recoveryPending ? <p role="status">Work is paused while an operator reviews the request. Your files, submissions and messages are still available.</p> : <>
+      <label htmlFor="project-question" className="text-sm">{open ? "Your question or answer" : "Explain the problem"}</label>
+      <Textarea id="project-question" value={text} disabled={busy} onChange={e => setText(e.target.value)} placeholder={open ? "Ask about the scope, requirements or delivery date." : "Describe what happened and what you need help with. Include at least 10 characters."} maxLength={open ? 2000 : 5000} />
       <Button variant="outline" disabled={busy || text.trim().length < (open ? 1 : 10)} onClick={submit}>{open ? "Post clarification" : "Request operator review"}</Button>
     </>}
     </>}
-    {error && <p role="alert" className="text-sm text-destructive">{error} <Button variant="outline" disabled={loading} onClick={() => loadClarifications()}>Retry clarifications</Button></p>}
+    {error && <p role="alert" className="text-sm text-destructive">{error} <Button variant="outline" disabled={loading || busy} onClick={() => errorSource === "submit" ? submit() : loadClarifications()}>Try again</Button></p>}
     {open && items.map(item => <p key={item._id} className="text-sm border-b border-border py-2"><strong>{item.authorId?.name || "Participant"}: </strong>{item.content}</p>)}
     {next && <Button variant="outline" disabled={loading} onClick={() => loadClarifications(next)}>Load earlier clarifications</Button>}
   </section>;

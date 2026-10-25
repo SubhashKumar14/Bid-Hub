@@ -8,10 +8,10 @@ import { BrandIcon } from "../../brand/BrandIcon";
 import { useState, useEffect } from "react";
 
 const steps = [
-  { n: "01", t: "Publish or explore", d: "Clients publish clear, milestone-driven briefs. Students compare scope, deadlines, and budgets along a consistent index." },
-  { n: "02", t: "Propose with intent", d: "Submit a focused proposal outlining your delivery approach, schedule, and relevant portfolio evidence." },
-  { n: "03", t: "Confirm test funding", d: "Accept an exact proposal and confirm Razorpay sandbox funding before work begins. No live payments or payouts." },
-  { n: "04", t: "Deliver and approve", d: "Submit checkpoints for client review. Participants may leave feedback after work is completed. Approval never asserts a real payout." },
+  { n: "01", t: "Start with a clear brief", d: "Clients describe the work, budget and delivery date. Students find projects that match their skills." },
+  { n: "02", t: "Work out the details", d: "Send a proposal with your price and milestone breakdown. The client can accept it or send a counteroffer." },
+  { n: "03", t: "Confirm test funding", d: "After both sides agree, the client completes Razorpay test checkout. Work opens once payment is verified. No real money moves." },
+  { n: "04", t: "Share work and review it", d: "Review each milestone, ask for changes when needed, then approve the finished work. Both participants can leave a review after completion." },
 ];
 
 const categories = CATEGORIES;
@@ -55,8 +55,8 @@ export function Landing({ setPage }) {
   }, []);
 
   const displayStats = [
-    { k: "Active Student Profiles", v: statsData ? statsData.studentsCount.toLocaleString() : "—" },
-    { k: "Open Project Briefs", v: statsData ? statsData.projectsCount.toLocaleString() : "—" },
+    { k: "Student profiles", v: statsData ? statsData.studentsCount.toLocaleString() : "—" },
+    { k: "Open projects", v: statsData ? statsData.projectsCount.toLocaleString() : "—" },
     { k: "Completed Projects", v: statsData ? statsData.completedCount.toLocaleString() : "—" },
     { k: "Test Funding Recorded", v: statsData ? `₹${statsData.totalEscrow.toLocaleString("en-IN")}` : "—" },
   ];
@@ -70,7 +70,7 @@ export function Landing({ setPage }) {
             <div className="flex items-center gap-2 mb-4">
               <span className="eyebrow text-xs">An independent student work exchange</span>
               <span className="h-px w-8 bg-border" />
-              <span className="eyebrow text-xs">Agreed Milestones</span>
+              <span className="eyebrow text-xs">Projects, proposals and milestones</span>
             </div>
 
             <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl text-foreground font-normal tracking-tight leading-[1.08]">
@@ -78,7 +78,7 @@ export function Landing({ setPage }) {
             </h1>
 
             <p className="mt-5 text-muted-foreground text-base sm:text-lg leading-relaxed max-w-2xl">
-              Bid·Hub bridges ambitious college students with clients who value craftsmanship. Compare structured project briefs, propose directly, and collaborate with clear, agreed milestones.
+              Find a project you can take on, or post one you need help with. Agree on the price, milestones and delivery dates before work starts.
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3">
@@ -99,7 +99,7 @@ export function Landing({ setPage }) {
             </div>
 
             <div className="mt-8 pt-6 border-t border-border flex items-center gap-4 text-xs text-muted-foreground">
-              <p>Designed for student engineers, designers, researchers, and writers delivering real work.</p>
+              <p>Software, design, writing, research and more. Start with the skills you already have.</p>
             </div>
           </div>
 
@@ -108,7 +108,7 @@ export function Landing({ setPage }) {
             <div className="lg:col-span-5 relative">
               <div className="bg-card border border-border rounded-[8px] p-6 shadow-xs relative">
                 <div className="flex items-center justify-between pb-3 border-b border-border/70">
-                  <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--brand-accent)]">
+                  <span className="text-xs font-medium uppercase tracking-wider text-[var(--brand-accent)]">
                     Latest project
                   </span>
                   <span className="text-xs text-muted-foreground font-mono">#OPEN</span>
@@ -117,6 +117,7 @@ export function Landing({ setPage }) {
                 <h3 className="text-xl font-medium mt-4 leading-snug text-foreground">
                   {featuredProject.title}
                 </h3>
+                {featuredProject.sampleData && <p className="text-xs text-muted-foreground mt-2">Sample project. Shown to help you try the app.</p>}
 
                 <p className="text-xs text-muted-foreground mt-2 line-clamp-3 leading-relaxed">
                   {featuredProject.description}
@@ -124,13 +125,13 @@ export function Landing({ setPage }) {
 
                 <div className="mt-5 grid grid-cols-2 gap-3 text-sm p-3 bg-secondary/40 rounded-[5px] border border-border/50">
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Budget</p>
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground">Budget</p>
                     <p className="text-base font-medium num mt-0.5 text-foreground">
                       ₹{featuredProject.budget?.toLocaleString("en-IN") || featuredProject.budget}
                     </p>
                   </div>
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Category</p>
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground">Category</p>
                     <p className="text-sm font-medium mt-0.5 truncate text-foreground">
                       {featuredProject.category}
                     </p>
@@ -140,7 +141,7 @@ export function Landing({ setPage }) {
                 {featuredProject.skillsRequired?.length > 0 && (
                   <div className="mt-4 flex flex-wrap gap-1.5">
                     {featuredProject.skillsRequired.slice(0, 4).map((s) => (
-                      <span key={s} className="text-[11px] px-2 py-0.5 rounded-[3px] bg-secondary text-foreground font-mono">
+                      <span key={s} className="text-xs px-2 py-0.5 rounded-[3px] bg-secondary text-foreground font-mono">
                         {s}
                       </span>
                     ))}
@@ -162,7 +163,7 @@ export function Landing({ setPage }) {
                       <p className="font-medium text-foreground truncate max-w-[140px]">
                         {featuredProject.clientId?.name || "Client"}
                       </p>
-                      <p className="text-[11px] text-muted-foreground">
+                      <p className="text-xs text-muted-foreground">
                         {featuredProject.clientId?.college || "Client"}
                       </p>
                     </div>
@@ -203,10 +204,10 @@ export function Landing({ setPage }) {
           <div className="lg:col-span-4 space-y-3">
             <span className="eyebrow text-xs">Process</span>
             <h2 className="text-2xl sm:text-3xl font-medium tracking-tight text-foreground leading-tight">
-              A straightforward process from brief to release.
+              Agree first. Work in milestones.
             </h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Every assignment is anchored by agreed deliverables and review checkpoints, so students and clients stay aligned.
+              Decide what needs doing and how it will be reviewed. Keep the agreement, submissions and feedback together in the project.
             </p>
           </div>
           <ol className="lg:col-span-8 grid sm:grid-cols-2 gap-x-8 gap-y-6">
@@ -227,8 +228,8 @@ export function Landing({ setPage }) {
       <section className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 pb-16">
         <div className="flex items-end justify-between mb-6 pb-2 border-b border-border">
           <div>
-            <span className="eyebrow text-xs">Project Directory</span>
-            <h2 className="text-2xl font-medium tracking-tight mt-1 text-foreground">Explore by Discipline</h2>
+            <span className="eyebrow text-xs">Find a project</span>
+            <h2 className="text-2xl font-medium tracking-tight mt-1 text-foreground">What do you like working on?</h2>
           </div>
           <button
             onClick={() => setPage("browse")}
@@ -259,17 +260,17 @@ export function Landing({ setPage }) {
           {
             icon: <BrandIcon name="project-brief" size={20} className="text-[var(--brand-accent)]" />,
             eyebrow: "For Students",
-            title: "Build verified experience while studying.",
-            body: "Review technical and creative briefs, propose your terms, and complete projects that produce demonstrable work evidence.",
-            cta: "View student workspace",
-            page: "student",
+            title: "Put your skills to work.",
+            body: "Pick a project you understand, explain how you would do it, and agree on a manageable schedule. Your completed work and client reviews stay on your profile.",
+            cta: "Find a project",
+            page: "browse",
           },
           {
             icon: <BrandIcon name="contract" size={20} className="text-[var(--brand-accent)]" />,
             eyebrow: "For Clients",
-            title: "Delegate scoped work to campus talent.",
-            body: "Define deliverables and milestones in minutes. Proposals arrive with student portfolios; work is approved per checkpoint; funding uses Razorpay test mode.",
-            cta: "Post a project brief",
+            title: "Get help with a specific project.",
+            body: "Describe what you need and review student proposals. Settle the details together, then review the work one milestone at a time.",
+            cta: "Post a project",
             page: "post",
           },
         ].map((j, i) => (
@@ -313,7 +314,7 @@ export function Landing({ setPage }) {
                   </Avatar>
                   <div className="text-left text-xs">
                     <p className="font-medium text-foreground">{r.reviewerId?.name || "Client"}</p>
-                    <p className="text-muted-foreground text-[11px]">
+                    <p className="text-muted-foreground text-xs">
                       {r.reviewerId?.college || "Client"} · {r.rating} / 5 Rating
                     </p>
                   </div>
@@ -330,7 +331,7 @@ export function Landing({ setPage }) {
           <div className="space-y-2">
             <BrandLogo width={132} decorative />
             <p className="text-xs text-muted-foreground">
-              An independent student work exchange. Built in Bengaluru.
+              Project work for students. Clear agreements for everyone.
             </p>
           </div>
           <div className="flex flex-wrap gap-6 text-xs text-muted-foreground">

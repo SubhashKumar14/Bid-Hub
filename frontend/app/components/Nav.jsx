@@ -14,7 +14,7 @@ import { BrandState } from "../brand/BrandState";
 const links = [
   { label: "Find a project", page: "browse" },
   { label: "Post a project", page: "post" },
-  { label: "Workspace", page: "student" },
+  { label: "Your projects", page: "student" },
 ];
 
 const notifMeta = {
@@ -29,6 +29,8 @@ const notifMeta = {
   REVIEW_RECEIVED: { label: "New Review", color: "bg-[var(--status-info)]" },
   PROJECT_ASSIGNED: { label: "Assigned", color: "bg-[var(--status-info)]" },
   MESSAGE_RECEIVED: { label: "New Message", color: "bg-[var(--status-warning)]" },
+  COUNTEROFFER_RECEIVED: { label: "New counteroffer", color: "bg-[var(--status-info)]" },
+  COUNTEROFFER_UPDATED: { label: "Proposal update", color: "bg-[var(--status-info)]" },
 };
 
 function NotificationBell({ token, setPage }) {
@@ -100,7 +102,7 @@ function NotificationBell({ token, setPage }) {
         <Button variant="ghost" size="icon" aria-label="Notifications" className="relative rounded-[5px]">
           <Bell className="size-4" />
           {unreadCount > 0 && (
-            <span className="absolute top-2 right-2 min-w-[16px] h-4 px-1 rounded-full bg-[var(--brand-accent)] text-white text-[10px] font-medium flex items-center justify-center leading-none">
+            <span className="absolute top-2 right-2 min-w-[16px] h-4 px-1 rounded-full bg-[var(--brand-accent)] text-white text-xs font-medium flex items-center justify-center leading-none">
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}
@@ -154,11 +156,11 @@ function NotificationBell({ token, setPage }) {
                     <span className={cn("block size-2 rounded-full", meta.color, n.read && "opacity-30")} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                       {meta.label}
                     </p>
                     <p className="text-xs leading-relaxed mt-0.5 line-clamp-2 text-foreground">{n.message}</p>
-                    <p className="text-[11px] text-muted-foreground mt-1">
+                    <p className="text-xs text-muted-foreground mt-1">
                       {new Date(n.createdAt).toLocaleDateString("en-IN", {
                         day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
                       })}
@@ -236,8 +238,8 @@ export function Nav({ page, setPage, role, setRole, theme, toggleTheme, onOpenEs
             <Input
               value={navSearch}
               onChange={(e) => setNavSearch(e.target.value)}
-              aria-label="Search project index"
-              placeholder="Search project index by title, skill…"
+              aria-label="Search projects"
+              placeholder="Search projects, skills or clients"
               className="pl-9 h-9 text-xs bg-card border-input focus:border-[var(--brand-accent)]"
             />
           </form>
@@ -265,9 +267,9 @@ export function Nav({ page, setPage, role, setRole, theme, toggleTheme, onOpenEs
             variant="ghost"
             size="icon"
             onClick={onOpenEscrow}
-            aria-label="Test funding ledger"
+            aria-label="Test payment history"
             className="hidden sm:inline-flex rounded-[5px]"
-            title="Test funding ledger"
+            title="Test payment history"
           >
             <Wallet className="size-4" />
           </Button>
@@ -307,13 +309,13 @@ export function Nav({ page, setPage, role, setRole, theme, toggleTheme, onOpenEs
                 </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setPage("profile")} className="cursor-pointer">
-                  Profile & Evidence
+                  Your profile
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setPage(currentUser.role)} className="cursor-pointer">
-                  Workspace Dashboard
+                  Your projects
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={onOpenEscrow} className="cursor-pointer">
-                  Escrow & Milestone Funds
+                  Test payments
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={onLogout} className="cursor-pointer text-destructive focus:text-destructive">

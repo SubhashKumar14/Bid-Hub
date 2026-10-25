@@ -1,5 +1,7 @@
 # BidHub final independent workflow review
 
+This is the historical 23/25 October review. The [26 October negotiation and copy follow-up](negotiation-and-copy.md) adds custom milestone allocations and structured counteroffers; its [current verification results](verification-results.md) supersede the older counts and negotiation limits below.
+
 Reviewed locally on 23 and 25 October 2026. Review branch: `codex/workflow-repair`. The earlier review baseline was `2e33a66`; earlier committed repairs were preserved. The 25 October follow-up changes are currently uncommitted. Nothing was pushed, merged, or deployed, and no production database was used.
 
 ## Verdict
@@ -103,7 +105,7 @@ The detailed per-visible-action mapping remains in `workflow-spec.md`: publishin
 2. **BLOCKED: deployment verification.** No Vercel/Render dashboard or deployment was touched. Confirm the intended revision, repository-root build, `dist`, environment and actual clean-URL/API/asset responses on the target host. Vite preview is not the Vercel routing engine.
 3. **BLOCKED: remote file operations.** Local GridFS authorization and bytes work. Remote quotas, database permissions/durability, historical-byte migration, retention, malware scanning and backup restoration require operator verification. Cloudinary avatar delivery requires actual credentials; it was not exercised against Cloudinary.
 4. **PARTIAL: operational dispute lifecycle.** An operator-visible case and pause work; evidence is retained. Automated dispute decisions, compensation, refunds and reviewed resumption/termination tooling are not implemented. An uncertain remotely-created order must not be deleted merely to enable another checkout.
-5. **PARTIAL: richer negotiation.** The supported offer scales the posted checkpoints proportionally and freezes a reviewed student version. Custom checkpoint reallocation and a separate structured client-counteroffer editor are absent. Substantial scope changes require clarification plus a revised student offer or a new brief.
+5. **Completed in the 26 October follow-up: richer negotiation.** Custom milestone amounts/dates and structured client counteroffers are implemented and covered by database/browser tests. Sent terms are retained, stale versions fail, and exact accepted terms are frozen before funding. Replacing the published scope or milestone list still requires a new brief.
 6. **PARTIAL: compatibility and capacity.** No complete WCAG/screen-reader audit, Safari/Firefox/real-device run, peak-load test, remote CI execution or disaster-recovery exercise. Profile review collections and account-wide membership/count queries still require high-volume capacity analysis; bounded dashboard response pages are not proof of unlimited scale.
 7. **BLOCKED: historical certainty.** Synthetic migration checks cannot establish original consent or integrity of real legacy agreements. Back up and review actual historical records before enabling writes. No historical contract is invented from guesses.
 

@@ -179,7 +179,7 @@ export function PostProject({ token, currentUser, onDone }) {
       setImportRevision(data.commitSha || "");
       setFileManifest(data.manifest);
       setManifestStats({ fileCount: data.fileCount, totalSize: data.totalSize });
-      toast.success(`ZIP manifest parsed: ${data.fileCount} files indexed.`);
+      toast.success(`Added a list of ${data.fileCount} files. The source files were not uploaded.`);
     } catch (err) {
       if (active.current !== token) return;
       setError(err.message);
@@ -213,7 +213,7 @@ export function PostProject({ token, currentUser, onDone }) {
       setImportRevision(data.commitSha || "");
       setFileManifest(data.manifest);
       setManifestStats({ fileCount: data.fileCount, totalSize: data.totalSize });
-      toast.success("GitHub repository manifest indexed successfully");
+      toast.success("Repository file list added. Check it before publishing.");
     } catch (err) {
       if (active.current !== token) return;
       setError(err.message);
@@ -296,7 +296,7 @@ export function PostProject({ token, currentUser, onDone }) {
           <span className="eyebrow text-xs">New project brief</span>
           <h1 className="text-3xl font-medium tracking-tight text-foreground mt-1">Post a Project</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Publish a structured brief with clear checkpoints so student talent can review scope and bid accurately.
+            Explain what you need, when it is due and how you will review it. Students will propose their own price and milestone breakdown.
           </p>
         </header>
 
@@ -313,7 +313,7 @@ export function PostProject({ token, currentUser, onDone }) {
             </label>
             <Input
               id="project-title"
-              placeholder="e.g. Redesign onboarding flow for campus fintech platform"
+              placeholder="e.g. Design a sign-up flow for a student club website"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
@@ -420,7 +420,7 @@ export function PostProject({ token, currentUser, onDone }) {
 
             {/* Suggested Skills for chosen category */}
             {SUGGESTED_SKILLS[category] && (
-              <div className="text-[11px] text-muted-foreground flex flex-wrap items-center gap-1.5 pt-1">
+              <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-1.5 pt-1">
                 <span>Suggested:</span>
                 {SUGGESTED_SKILLS[category].map((s) => (
                   <button
@@ -476,7 +476,7 @@ export function PostProject({ token, currentUser, onDone }) {
               <p className="text-xs font-medium mt-2 text-foreground">
                 {uploadingFiles ? "Uploading attachments…" : capabilities?.privateAttachments ? "Click to upload brief materials (visible to signed-in prospective students)" : "Attachments unavailable; private storage must be configured."}
               </p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">PDF, DOCX, PPTX, PNG, JPG · 10 MB per file, up to 10 files</p>
+              <p className="text-xs text-muted-foreground mt-0.5">PDF, DOCX, PPTX, PNG, JPG · 10 MB per file, up to 10 files</p>
             </div>
             {attachments.length > 0 && (
               <div className="mt-2.5 flex flex-wrap gap-2">
@@ -493,18 +493,18 @@ export function PostProject({ token, currentUser, onDone }) {
           <div className="border border-border rounded-[6px] p-4 space-y-3 bg-secondary/15">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-medium text-foreground inline-flex items-center gap-1.5">
-                <Github className="size-3.5" /> Link Existing Codebase / Manifest (Optional)
+                <Github className="size-3.5" /> Existing project files (optional)
               </h3>
             </div>
-            <p className="text-[11px] text-muted-foreground leading-relaxed">
-              If this project builds on an existing repository, you can index a file manifest for student reference.
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Add a file list from a ZIP or public GitHub repository. File names will be visible in the brief; the source files themselves are not uploaded. Attach any files the student needs separately.
             </p>
 
             <div className="grid sm:grid-cols-2 gap-3 pt-1">
               <div className="border border-border/80 rounded-[5px] p-3 bg-card flex flex-col justify-between">
                 <div>
-                  <p className="text-xs font-medium text-foreground">1. Upload Repository ZIP</p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">Parse repository structure without copying bulk binaries.</p>
+                  <p className="text-xs font-medium text-foreground">Project ZIP file</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Read the file names from a ZIP. This does not share the source files.</p>
                 </div>
                 <div className="mt-3 relative">
                   <input
@@ -523,8 +523,8 @@ export function PostProject({ token, currentUser, onDone }) {
 
               <div className="border border-border/80 rounded-[5px] p-3 bg-card flex flex-col justify-between">
                 <div>
-                  <p className="text-xs font-medium text-foreground">2. Import GitHub URL</p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">Index public GitHub repository tree.</p>
+                  <p className="text-xs font-medium text-foreground">Public GitHub repository</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Add the repository's current file list.</p>
                 </div>
                 <div className="mt-2.5 flex gap-1.5">
                   <Input
@@ -536,21 +536,21 @@ export function PostProject({ token, currentUser, onDone }) {
                     onChange={(e) => setGithubUrl(e.target.value)}
                   />
                   <Button variant="outline" size="sm" className="h-8 text-xs shrink-0" onClick={handleGithubImport} disabled={importingSource}>
-                    Index
+                    Read file list
                   </Button>
                 </div>
               </div>
             </div>
 
             {importingSource && (
-              <p className="text-xs text-[var(--brand-accent)] animate-pulse">Indexing codebase file tree…</p>
+              <p className="text-xs text-muted-foreground" role="status">Reading the file list…</p>
             )}
 
             {manifestStats && (
               <div className="text-xs bg-secondary/50 p-2.5 rounded-[5px] border border-border flex items-center justify-between">
                 <div>
-                  <span className="font-medium text-foreground capitalize">Indexed: {importSource}</span>
-                  <span className="text-muted-foreground text-[11px] block">{manifestStats.fileCount} source files documented</span>
+                  <span className="font-medium text-foreground capitalize">File list from {importSource}</span>
+                  <span className="text-muted-foreground text-xs block">{manifestStats.fileCount} files listed. Source content is not stored.</span>
                 </div>
                 <div className="text-right">
                   <span className="font-mono text-xs">{(manifestStats.totalSize / (1024 * 1024)).toFixed(2)} MB</span>
@@ -607,20 +607,20 @@ export function PostProject({ token, currentUser, onDone }) {
         {/* Section 4: Milestones */}
         <section id="milestones" className="bg-card border border-border rounded-[8px] p-6 space-y-4">
           <div className="flex items-center justify-between pb-2 border-b border-border/60">
-            <h2 className="text-base font-medium text-foreground">Milestones & Checkpoints</h2>
+            <h2 className="text-base font-medium text-foreground">Milestones</h2>
             <Button variant="outline" size="sm" className="rounded-[4px] text-xs h-7 px-2.5" onClick={addMilestone}>
-              + Add checkpoint
+              + Add milestone
             </Button>
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Describe the required work in each checkpoint. Funding uses Razorpay test mode; live payments and payouts are disabled.
+            Give each milestone a clear result and an amount. The amounts must add up to your budget. Students can propose a different split before you agree.
           </p>
 
           <div className="space-y-3 pt-1">
             {milestones.map((m, idx) => (
               <div key={idx} className="grid sm:grid-cols-[1fr_130px_36px] gap-2 items-end">
                 <div>
-                  <label htmlFor={`milestone-title-${idx}`} className="text-[11px] text-muted-foreground block mb-0.5">
+                  <label htmlFor={`milestone-title-${idx}`} className="text-xs text-muted-foreground block mb-0.5">
                     Checkpoint {idx + 1} Deliverable
                   </label>
                   <Input
@@ -632,7 +632,7 @@ export function PostProject({ token, currentUser, onDone }) {
                   />
                 </div>
                 <div>
-                  <label htmlFor={`milestone-amount-${idx}`} className="text-[11px] text-muted-foreground block mb-0.5">
+                  <label htmlFor={`milestone-amount-${idx}`} className="text-xs text-muted-foreground block mb-0.5">
                     Amount (₹)
                   </label>
                   <Input
@@ -679,20 +679,20 @@ export function PostProject({ token, currentUser, onDone }) {
           <div className="bg-card border border-border rounded-[8px] p-5 space-y-3">
             <div className="flex items-center gap-1.5 text-foreground font-medium text-xs">
               <Lightbulb className="size-4 text-[var(--brand-accent)]" />
-              <span>Editorial Guidelines</span>
+              <span>A useful project brief</span>
             </div>
             <ul className="space-y-3 text-xs text-muted-foreground leading-relaxed">
               <li>
-                <strong className="text-foreground block font-medium">State the acceptance criteria:</strong>
-                Define what a completed checkpoint looks like (e.g. Figma file, deployed URL, test coverage).
+                <strong className="text-foreground block font-medium">Say what you want to receive.</strong>
+                Name the deliverable, such as a Figma file, a working page or an edited article. Explain what you will check before approving it.
               </li>
               <li>
-                <strong className="text-foreground block font-medium">Be explicit about dependencies:</strong>
-                Mention any APIs, accounts, brand assets, or references the student will need.
+                <strong className="text-foreground block font-medium">Share what the student will need.</strong>
+                Mention existing designs, accounts, APIs or reference material. Do not put passwords or private credentials in the brief.
               </li>
               <li>
-                <strong className="text-foreground block font-medium">Fair milestone sizing:</strong>
-                Keep checkpoints balanced so students can submit increments rather than one massive delivery.
+                <strong className="text-foreground block font-medium">Leave room for feedback.</strong>
+                Break the work into parts you can review separately. Allow time for a revision before the final delivery date.
               </li>
             </ul>
           </div>

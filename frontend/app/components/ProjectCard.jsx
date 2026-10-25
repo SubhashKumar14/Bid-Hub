@@ -36,7 +36,7 @@ export function ProjectRow({ project, onOpen }) {
         {/* Main Brief Info */}
         <div className="flex-1 min-w-0 space-y-1.5">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
               {project.category || "General"}
             </span>
             {project.level && (
@@ -52,7 +52,7 @@ export function ProjectRow({ project, onOpen }) {
                   project.status === "COMPLETED" ? "success" :
                   project.status === "ASSIGNED" || project.status === "IN_PROGRESS" ? "info" : "warning"
                 }
-                className="text-[10px] py-0"
+                className="text-xs py-0"
               >
                 {project.status}
               </StatusBadge>
@@ -74,17 +74,17 @@ export function ProjectRow({ project, onOpen }) {
           {/* Skills metadata line */}
           {skillsList.length > 0 && (
             <div className="pt-0.5 flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] text-muted-foreground/70">Skills:</span>
+              <span className="text-xs text-muted-foreground/70">Skills:</span>
               {skillsList.slice(0, 5).map((s) => (
                 <span
                   key={s}
-                  className="inline-block text-[11px] px-1.5 py-0.5 rounded-[3px] bg-secondary text-foreground font-mono"
+                  className="inline-block text-xs px-1.5 py-0.5 rounded-[3px] bg-secondary text-foreground font-mono"
                 >
                   {s}
                 </span>
               ))}
               {skillsList.length > 5 && (
-                <span className="text-[11px] text-muted-foreground font-mono">
+                <span className="text-xs text-muted-foreground font-mono">
                   +{skillsList.length - 5}
                 </span>
               )}
@@ -97,13 +97,13 @@ export function ProjectRow({ project, onOpen }) {
           {/* Client & Metadata */}
           <div className="flex items-center gap-2.5">
             <Avatar className="size-8 rounded-[4px] border border-border">
-              <AvatarFallback className="text-[11px] font-medium bg-secondary text-foreground rounded-[4px]">
+              <AvatarFallback className="text-xs font-medium bg-secondary text-foreground rounded-[4px]">
                 {poster.initials}
               </AvatarFallback>
             </Avatar>
             <div className="text-left text-xs">
               <p className="font-medium text-foreground leading-tight">{poster.name}</p>
-              <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mt-0.5">
                 <span className="inline-flex items-center gap-1">
                   <Clock className="size-3" />
                   Delivery: {project.deadline || "Not set"}
@@ -139,7 +139,7 @@ export function ProjectRow({ project, onOpen }) {
             <p className="text-lg font-medium text-foreground num leading-tight">
               {formatCurrency(project.budget)}
             </p>
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground mt-0.5">
               Client Budget
             </p>
           </div>

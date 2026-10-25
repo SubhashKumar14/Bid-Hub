@@ -1,8 +1,30 @@
 # Workflow verification results
 
-## Current follow-up, 25 October 2026
+## Current follow-up, 26 October 2026
 
-This evidence supersedes earlier counts below. Current branch: `codex/workflow-repair`; this follow-up has **uncommitted local changes**. Nothing was pushed, merged, deployed, or run against production data.
+Custom milestone allocations, structured client counteroffers and app copy/usability changes were prepared on `codex/negotiation-and-copy`, based on `437c4aa`. This section records local verification before publication; it does not verify deployed behavior. See [negotiation-and-copy.md](negotiation-and-copy.md) for the API, state rules, compatibility notes and scope.
+
+| Gate | Result |
+|---|---|
+| `npm run build` | Passed; the existing >500 kB main-chunk warning remains |
+| `npm run test:frontend` | 3 passed |
+| `npm run test:security --prefix backend` | 44 passed, 0 failed, 0 skipped on the final standalone run |
+| `npm run test:transactions --prefix backend` | 24 passed, 0 failed, 0 skipped against an actual disposable replica set |
+| `npm run test:e2e -- --reporter=line` | 11 passed, 0 skipped, including the existing integration programs and new negotiation journey |
+| `npx playwright test -g "custom milestone proposals" --reporter=line` | Final follow-up passed after visual polish; actual theme toggling preserves the counteroffer draft and dark date controls report the correct native color scheme |
+| `git diff --check` | Passed |
+
+Final build output is 558.60 kB for the main JS file (161.46 kB gzip). Light and dark 390px counteroffer screenshots were inspected; 360px counteroffer review and the existing five-width/both-theme layout checks passed. No changes were made to brand assets, fonts or theme color tokens.
+
+New database cases validate exact custom allocations, invalid/foreign/duplicate milestone rows, expired dates, revision identity/version checks, counteroffer ownership and participant decisions, declined/withdrawn/replaced offers, atomic agreement creation, notification-failure rollback, competing acceptances and duplicate settlement of custom amounts. The browser journey submits a non-proportional split, rejects an invalid sum, declines a first client counteroffer, accepts the next, loses save/accept responses, recovers the same saved result, funds the contract, approves both milestones and leaves both participant reviews. Dashboard state is checked before any checkout order exists. Existing flows continue through both checkout entry points.
+
+The browser uses Chromium, real local APIs and isolated MongoDB. The mock payment provider is used only in the explicitly isolated automated environment. This follow-up does not repeat real Razorpay capture or hosted deployment checks; the user reports completing the earlier external setup/verification steps. Those reported results are not counted as independently executed tests here.
+
+The first browser pass stopped three scenarios at obsolete text assertions or the old assumption that editing a total silently replaces milestone amounts. The scenarios were updated to the new visible text and explicit breakdown step, with confirmed API responses, then the full suite passed. One storage-fixture child process timed out during a parallel security/build/database run; the unchanged full security suite passed standalone. Failed runs are not included in passing counts.
+
+## Previous follow-up, 25 October 2026
+
+This historical snapshot preceded commit `437c4aa`, now the baseline on main. The code was subsequently committed and pushed to `codex/workflow-repair`. The checks below used no production data; no manual deployment was performed by this review.
 
 | Gate | Result |
 |---|---|

@@ -96,20 +96,20 @@ export function Browse({ setPage }) {
 
   return (
     <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 py-10">
-      {error && <div role="alert" className="border border-destructive rounded p-4 text-sm">{error} <Button variant="outline" onClick={() => window.location.reload()}>Retry</Button></div>}
+      {error && <div role="alert" className="border border-destructive rounded p-4 text-sm">{error} <Button variant="outline" onClick={fetchProjects} disabled={loading}>Retry</Button></div>}
       <div className="flex gap-3 text-xs"><Button variant="outline" disabled={page === 1 || loading} onClick={() => setResultPage(n => n - 1)}>Previous results</Button><span>Page {page} · {total} projects · filtered results</span><Button variant="outline" disabled={page * 50 >= total || loading} onClick={() => setResultPage(n => n + 1)}>Next results</Button></div>
       {/* Index Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 border-b border-border">
         <div>
           <span className="eyebrow text-xs inline-flex items-center gap-1.5">
             <BrandIcon name="project-index" size={14} className="text-brand-accent" />
-            {error ? "Directory unavailable" : loading ? "Loading index…" : `${filteredAndSortedProjects.length} open project briefs`}
+            {error ? "Projects could not be loaded" : loading ? "Loading projects…" : `${total} open projects`}
           </span>
           <h1 className="text-3xl font-medium tracking-tight text-foreground mt-1">
-            Project Directory
+            Find a project
           </h1>
           <p className="text-sm text-muted-foreground mt-1 max-w-xl">
-            Technical and creative project briefs with clear deliverables and proposed budgets.
+            Compare the work, budget and delivery date. Open a project to ask a question or send a proposal.
           </p>
         </div>
         <Button
@@ -204,8 +204,8 @@ export function Browse({ setPage }) {
           <div className="bg-card border border-border rounded-[8px] mt-4">
             <BrandState
               name="no-projects"
-              title="No matching project briefs"
-              description="No briefs matched your filter parameters. Try clearing your search keyword or selecting All categories."
+              title="No projects match your search"
+              description="Try a different skill or keyword, choose another category, or clear the filters."
               action={
                 <Button
                   variant="outline"
@@ -217,7 +217,7 @@ export function Browse({ setPage }) {
                   }}
                   className="rounded-[5px] text-xs h-8 px-4"
                 >
-                  Reset directory filters
+                  Clear filters
                 </Button>
               }
             />

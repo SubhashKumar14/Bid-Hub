@@ -85,7 +85,7 @@ router.post("/checkout-session", protect, requireRole("client"), async (req, res
     res.json(checkoutData);
   } catch (error) {
     console.error("Escrow checkout initiation error:", error);
-    res.status(httpErrorStatus(error)).json({ message: "Failed to initiate payment checkout. Please try again." });
+    res.status(httpErrorStatus(error)).json({ message: error.status < 500 ? error.message : "Checkout could not be opened. Your agreement is saved. Refresh its funding status before trying again." });
   }
 });
 

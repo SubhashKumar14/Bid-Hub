@@ -1,5 +1,8 @@
 import { cn } from "./ui/utils";
 
+const labels = { OPEN: "Open", PENDING: "Pending", PENDING_FUNDING: "Awaiting test funding", PENDING_CHECKOUT: "Awaiting test payment", ASSIGNED: "Ready to start", IN_PROGRESS: "In progress", COMPLETED: "Completed", CANCELLED: "Cancelled", SUBMITTED: "In review", CHANGES_REQUESTED: "Changes requested", APPROVED: "Approved", ACCEPTED: "Accepted", REJECTED: "Not selected", WITHDRAWN: "Withdrawn", LOCKED: "Test funds allocated", UNVERIFIED: "Needs review", RELEASED: "Legacy record", FAILED: "Failed", REFUNDED: "Refund recorded" };
+export const statusLabel = value => typeof value === "string" ? labels[value.toUpperCase()] || value : value;
+
 const tones = {
   // Semantic status pairs defined in design specification
   success: "bg-[var(--status-success-bg)] text-[var(--status-success)] border-[var(--status-success-border)]",
@@ -40,7 +43,7 @@ export function StatusBadge({
       resolvedTone, className
     )}>
       <span className="size-1.5 rounded-full bg-current opacity-80" />
-      {children}
+      {statusLabel(children)}
     </span>
   );
 }

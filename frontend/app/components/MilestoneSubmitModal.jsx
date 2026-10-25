@@ -103,7 +103,7 @@ export function MilestoneSubmitModal({ open, onClose, milestoneId, milestoneTitl
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (description.trim().length < 10) {
-      toast.error("Submission notes must be at least 10 characters");
+      setError("Explain what you delivered in at least 10 characters so the client knows what to review.");
       return;
     }
 
@@ -149,7 +149,7 @@ export function MilestoneSubmitModal({ open, onClose, milestoneId, milestoneTitl
           <div>
             <span className="text-xs uppercase tracking-wider font-mono text-muted-foreground">Milestone Deliverable</span>
             <DialogTitle className="text-lg font-semibold tracking-tight text-foreground mt-1">{milestoneTitle}</DialogTitle>
-            <DialogDescription id="milestone-submit-description" className="sr-only">Submit deliverables for this milestone.</DialogDescription>
+            <DialogDescription id="milestone-submit-description" className="text-xs text-muted-foreground mt-2">Explain what you finished and add any files or links the client needs to review it. Your earlier submissions stay in the history.</DialogDescription>
           </div>
         </div>
 
@@ -158,21 +158,25 @@ export function MilestoneSubmitModal({ open, onClose, milestoneId, milestoneTitl
           {/* Changes Requested Callout */}
           {previousSubmission && previousSubmission.status === "CHANGES_REQUESTED" && (
             <div className="bg-[var(--status-danger-bg)] border border-[var(--status-danger-border)] rounded-[8px] p-4 text-xs space-y-1">
-              <span className="font-semibold text-[var(--status-danger-fg)] uppercase tracking-wider text-[10px]">Changes Requested by Client</span>
+              <span className="font-semibold text-[var(--status-danger-fg)] uppercase tracking-wider text-xs">Changes Requested by Client</span>
               <p className="text-xs text-foreground/90 italic">"{previousSubmission.reviewComment}"</p>
             </div>
           )}
 
           {loading ? (
             <div className="py-16 text-center text-xs text-muted-foreground animate-pulse">
-              Loading submission record…
+              Loading your latest submission…
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-1.5">
+                <label htmlFor="milestone-notes" className="text-sm font-medium text-foreground">What did you deliver?</label>
+                <textarea id="milestone-notes" required minLength={10} maxLength={20000} rows={4} placeholder="Describe the finished work, where to find it and anything the client should check. For a revision, explain what you changed." value={description} onChange={event => setDescription(event.target.value)} disabled={submitting} className="w-full rounded-[5px] bg-input-background border border-input px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring focus:border-ring" />
+              </div>
               {/* GitHub URL */}
               <div className="space-y-1.5">
                 <label htmlFor="milestone-github-url" className="text-xs font-medium text-foreground flex items-center gap-1.5">
-                  <Github className="size-3.5 text-muted-foreground" /> Repository URL
+                  <Github className="size-3.5 text-muted-foreground" /> Repository link (optional)
                 </label>
                 <input
                   id="milestone-github-url"
@@ -188,12 +192,12 @@ export function MilestoneSubmitModal({ open, onClose, milestoneId, milestoneTitl
               {/* Demo URL */}
               <div className="space-y-1.5">
                 <label htmlFor="milestone-demo-url" className="text-xs font-medium text-foreground flex items-center gap-1.5">
-                  <Link className="size-3.5 text-muted-foreground" /> Deliverable / Live Demo URL
+                  <Link className="size-3.5 text-muted-foreground" /> Work or preview link (optional)
                 </label>
                 <input
                   id="milestone-demo-url"
                   type="url"
-                  placeholder="https://project.vercel.app or Figma share link"
+                  placeholder="A link to your document, design or working project"
                   value={demoUrl}
                   onChange={(e) => setDemoUrl(e.target.value)}
                   disabled={submitting}
@@ -204,7 +208,7 @@ export function MilestoneSubmitModal({ open, onClose, milestoneId, milestoneTitl
               {/* Video URL */}
               <div className="space-y-1.5">
                 <label htmlFor="milestone-video-url" className="text-xs font-medium text-foreground flex items-center gap-1.5">
-                  <Link className="size-3.5 text-muted-foreground" /> Walkthrough Video URL (Loom/YouTube/Drive)
+                  <Link className="size-3.5 text-muted-foreground" /> Walkthrough video (optional)
                 </label>
                 <input
                   id="milestone-video-url"
@@ -213,22 +217,6 @@ export function MilestoneSubmitModal({ open, onClose, milestoneId, milestoneTitl
                   value={videoUrl}
                   onChange={(e) => setVideoUrl(e.target.value)}
                   disabled={submitting}
-                  className="w-full rounded-[5px] bg-input-background border border-input px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring focus:border-ring"
-                />
-              </div>
-
-              {/* Description / Notes */}
-              <div className="space-y-1.5">
-                <label htmlFor="milestone-notes" className="text-xs font-medium text-foreground flex items-center gap-1.5">
-                  <FileText className="size-3.5 text-muted-foreground" /> Summary Notes
-                </label>
-                <textarea
-                  id="milestone-notes"
-                  placeholder="Describe your implementation details, verify completed features, or leave comments (min 10 characters)…"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  disabled={submitting}
-                  rows={3}
                   className="w-full rounded-[5px] bg-input-background border border-input px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring focus:border-ring"
                 />
               </div>
@@ -256,8 +244,8 @@ export function MilestoneSubmitModal({ open, onClose, milestoneId, milestoneTitl
                     ) : (
                       <>
                         <Upload className="size-5 mx-auto text-muted-foreground" />
-                        <p className="text-xs text-foreground font-medium">{capabilities?.privateAttachments ? "Click to attach files" : "Attachments unavailable; ask the operator to configure private storage."}</p>
-                        <p className="text-[10px] text-muted-foreground">PDF, DOCX, PPTX, PNG, JPG</p>
+                        <p className="text-xs text-foreground font-medium">{capabilities?.privateAttachments ? "Click to attach files" : "File uploads are unavailable right now. Add a link to your work, or try uploading again later."}</p>
+                        <p className="text-xs text-muted-foreground">PDF, DOCX, PPTX, PNG, JPG</p>
                       </>
                     )}
                   </div>

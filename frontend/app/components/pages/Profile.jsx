@@ -122,7 +122,7 @@ export function Profile({ token, currentUser, onUserUpdate }) {
   if (loading) {
     return (
       <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 py-20 text-center animate-pulse">
-        <p className="text-sm text-muted-foreground">Retrieving profile and work evidence…</p>
+        <p className="text-sm text-muted-foreground">Loading your profile…</p>
       </div>
     );
   }
@@ -144,7 +144,7 @@ export function Profile({ token, currentUser, onUserUpdate }) {
 
   return (
     <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 py-10 space-y-8">
-      {error && <p role="alert" className="text-sm text-destructive">{error} Your edits are retained; correct or retry saving.</p>}
+      {error && <p role="alert" className="text-sm text-destructive">{error} Your changes are still in the form. Check them and try saving again.</p>}
       {/* Profile Header Card */}
       <header className="bg-card border border-border rounded-[8px] p-6 lg:p-8 grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-4">
@@ -168,12 +168,12 @@ export function Profile({ token, currentUser, onUserUpdate }) {
             </div>
 
             <div className="min-w-0">
-              {!capabilities?.avatarUploads && <p className="text-xs text-muted-foreground">Photo uploads unavailable; the operator must configure avatar storage.</p>}
+              {!capabilities?.avatarUploads && <p className="text-xs text-muted-foreground">Photo uploads are unavailable right now. You can still update the rest of your profile.</p>}
               <div className="flex flex-wrap items-center gap-2">
                 <span className="eyebrow text-xs capitalize text-muted-foreground">
                   {profile.role} · {profile.college || (profile.role === "student" ? "Student" : "Client")}
                 </span>
-                <StatusBadge tone="success" className="text-[10px] py-0">
+                <StatusBadge tone="success" className="text-xs py-0">
                   Registered Account
                 </StatusBadge>
               </div>
@@ -198,10 +198,11 @@ export function Profile({ token, currentUser, onUserUpdate }) {
               </div>
               <div>
                 <label htmlFor="profile-bio" className="text-xs font-medium text-foreground block mb-1">
-                  Brief Bio & Specialization
+                  About you
                 </label>
                 <Textarea
                   id="profile-bio"
+                  placeholder="Describe the work you do, what you enjoy working on and any experience you would like to share."
                   rows={3}
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
@@ -220,12 +221,9 @@ export function Profile({ token, currentUser, onUserUpdate }) {
           ) : (
             <>
               <p className="text-sm text-muted-foreground leading-relaxed mt-2 max-w-xl">
-                {profile.bio || "No biography provided yet. Add your technical disciplines, coursework, and specialties."}
+                {profile.bio || "Tell people what you do and what you would like to work on. Choose Edit profile to add an introduction."}
               </p>
               <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground pt-1">
-                <span className="inline-flex items-center gap-1.5">
-                  <MapPin className="size-3.5 text-muted-foreground" /> India
-                </span>
                 <span className="inline-flex items-center gap-1.5">
                   <Star className="size-3.5 fill-[var(--brand-accent)] text-[var(--brand-accent)]" />
                   {actualRating ? (
@@ -247,13 +245,13 @@ export function Profile({ token, currentUser, onUserUpdate }) {
         {/* Portfolio Numbers */}
         <div className="grid grid-cols-2 gap-3 self-start">
           {[
-            { k: "Completed Briefs", v: profile.completedProjects || 0 },
-            { k: "Verified Reviews", v: reviews.length },
+            { k: "Completed projects", v: profile.completedProjects || 0 },
+            { k: "Participant reviews", v: reviews.length },
             { k: "Profile Views", v: profile.profileViews || 0 },
-            { k: "Active Skills", v: skills.length },
+            { k: "Skills listed", v: skills.length },
           ].map((s) => (
             <div key={s.k} className="border border-border rounded-[6px] p-3.5 bg-secondary/30">
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">{s.k}</span>
+              <span className="text-xs uppercase tracking-wider text-muted-foreground block">{s.k}</span>
               <p className="text-xl font-medium mt-1 num text-foreground">{s.v}</p>
             </div>
           ))}
@@ -265,7 +263,7 @@ export function Profile({ token, currentUser, onUserUpdate }) {
         {/* Skills area */}
         <div className="lg:col-span-2 bg-card border border-border rounded-[8px] p-6 space-y-4">
           <div className="flex items-center justify-between pb-2 border-b border-border/60">
-            <h2 className="text-base font-medium text-foreground">Skills & Specializations</h2>
+            <h2 className="text-base font-medium text-foreground">Skills</h2>
           </div>
 
           <div className="flex flex-wrap gap-1.5 pt-1">
@@ -294,7 +292,7 @@ export function Profile({ token, currentUser, onUserUpdate }) {
             <div className="flex gap-2 max-w-sm pt-2">
               <Input
                 aria-label="Add skill tag"
-                placeholder="New skill tag…"
+                placeholder="Add a skill, such as Figma or Python"
                 className="h-9 text-xs"
                 value={newSkill}
                 onChange={(e) => setNewSkill(e.target.value)}
@@ -314,10 +312,10 @@ export function Profile({ token, currentUser, onUserUpdate }) {
           <div className="pt-6 border-t border-border/60 space-y-2">
             <div className="flex items-center gap-2">
               <BrandIcon name="work-record" size={18} className="text-[var(--brand-accent)]" />
-              <h3 className="text-sm font-medium text-foreground">Verified Work Record</h3>
+              <h3 className="text-sm font-medium text-foreground">Completed work</h3>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed max-w-lg">
-              Participants may leave one review after all project milestones are approved. Work completion does not imply a real payment or payout.
+              Your completed projects and reviews help other people understand your experience. Reviews become available after every milestone in a project is approved.
             </p>
           </div>
         </div>
@@ -332,8 +330,8 @@ export function Profile({ token, currentUser, onUserUpdate }) {
             {reviews.length === 0 ? (
               <BrandState
                 name="no-reviews"
-                title="No reviews recorded yet"
-                description="Participants may leave feedback after the project is completed."
+                title="No reviews yet"
+                description="After a project is completed, you and the other participant can review your experience."
                 compact
               />
             ) : (
@@ -344,15 +342,15 @@ export function Profile({ token, currentUser, onUserUpdate }) {
                       {r.reviewerId?.avatarUrl ? (
                         <img src={r.reviewerId.avatarUrl} alt="" className="size-full rounded-[4px] object-cover" />
                       ) : (
-                        <AvatarFallback className="text-[10px] bg-secondary text-foreground font-medium rounded-[4px]">
+                        <AvatarFallback className="text-xs bg-secondary text-foreground font-medium rounded-[4px]">
                           {(r.reviewerId?.name || "C").split(" ").map((x) => x[0]).slice(0, 2).join("")}
                         </AvatarFallback>
                       )}
                     </Avatar>
                     <div className="text-xs leading-tight">
                       <p className="font-medium text-foreground">{r.reviewerId?.name || "Client"}</p>
-                      <p className="text-[11px] text-[var(--brand-accent)] mt-0.5">
-                        {"★".repeat(r.rating || 5)}
+                      <p className="text-xs text-[var(--brand-accent)] mt-0.5">
+                        {"★".repeat(r.rating || 0)}
                       </p>
                     </div>
                   </div>

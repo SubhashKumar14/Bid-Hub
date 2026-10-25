@@ -14,16 +14,16 @@ export function PaymentSuccessModal({ open, onClose }) {
             Test Funding Confirmed
           </DialogTitle>
           <DialogDescription className="text-muted-foreground text-xs leading-relaxed text-center">
-            The project is assigned. No live payment or legal escrow is provided.
+            Funding is confirmed and the student can start work. This was a test transaction. No real money was transferred.
           </DialogDescription>
         </DialogHeader>
 
         <div className="my-3 text-xs space-y-2 leading-relaxed text-muted-foreground text-center px-1">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-[4px] bg-[var(--status-success-bg)] border border-[var(--status-success-border)] text-[var(--status-success)] font-medium text-xs">
-            Status: Confirmed & Assigned
+            Ready to start
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            The project assignment has been locked. Development can begin immediately according to the project brief.
+            Open the project to check the agreed milestones, share work and leave feedback.
           </p>
         </div>
 

@@ -173,6 +173,7 @@ router.get("/student/dashboard", protect, requireRole("student"), async (req, re
       status: "PENDING_CHECKOUT"
     });
     const bidTotal = await Bid.countDocuments({ studentId: req.user._id });
+    const agreedBidIds = studentBids.some(bid => bid.projectId?.status === "PENDING_FUNDING") ? await Contract.find({ studentId: req.user._id }).distinct("bidId") : [];
     const contractTotal = await Project.countDocuments({ _id: { $in: acceptedProjectIds } });
     const activeContractsCount = await Project.countDocuments({ _id: { $in: acceptedProjectIds }, status: { $in: ["ASSIGNED", "IN_PROGRESS"] } });
     const pendingCount = await Bid.aggregate([{ $match: { studentId: req.user._id, status: "PENDING" } }, { $lookup: { from: "projects", localField: "projectId", foreignField: "_id", as: "project" } }, { $match: { "project.status": "OPEN" } }, { $count: "total" }]);
@@ -200,7 +201,8 @@ router.get("/student/dashboard", protect, requireRole("student"), async (req, re
           title: b.projectId?.title || "Deleted Project",
           amount: b.amount,
           timeline: b.timeline,
-          status: b.projectId?.status === "CANCELLED" ? "project cancelled" : isPendingEscrow ? "agreed (funding pending)" : b.status.toLowerCase(),
+          status: b.projectId?.status === "CANCELLED" ? "project cancelled" : (b.projectId?.status === "PENDING_FUNDING" && agreedBidIds.some(id => String(id) === String(b._id))) || isPendingEscrow ? "agreed (funding pending)" : b.status.toLowerCase(),
+          counterofferPending: b.projectId?.status === "OPEN" && b.counteroffers?.some(offer => offer.status === "PENDING"),
         };
       }),
       contracts: projectsWithMilestones.map(item => {
@@ -302,6 +304,7 @@ router.get("/client/dashboard", protect, requireRole("client"), async (req, res)
         proposal: b.proposal,
         schedule: b.schedule,
         version: b.version,
+        counterofferPending: b.counteroffers?.some(offer => offer.status === "PENDING"),
       }));
 
     res.json({
@@ -550,10 +553,13 @@ router.delete("/:id", protect, requireRole("client"), async (req, res) => {
       return res.status(400).json({ message: "Only open projects can be deleted. This project is already active or completed." });
     }
 
-    const changed = await Project.updateOne({ _id: project._id, clientId: req.user._id, status: "OPEN" }, { status: "CANCELLED" });
-    if (changed.modifiedCount !== 1) return res.status(409).json({ message: "Project state changed." });
+    await mongoose.connection.transaction(async session => {
+      const changed = await Project.updateOne({ _id: project._id, clientId: req.user._id, status: "OPEN" }, { status: "CANCELLED" }, { session });
+      if (changed.modifiedCount !== 1) throw Object.assign(new Error("The project changed while you were cancelling it. Reload to check its status."), { status: 409 });
+      await Bid.updateMany({ projectId: project._id }, { $set: { "counteroffers.$[offer].status": "SUPERSEDED", "counteroffers.$[offer].decidedAt": new Date() } }, { arrayFilters: [{ "offer.status": "PENDING" }], session });
+    });
 
-    res.json({ message: "Project removed successfully." });
+    res.json({ message: "Project cancelled. Proposals and discussion are saved for reference." });
   } catch (error) {
     console.error("Delete project error:", error);
     res.status(httpErrorStatus(error)).json({ message: "Failed to delete project. Please try again." });

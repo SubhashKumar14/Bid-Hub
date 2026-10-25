@@ -6,6 +6,9 @@ const schema = new mongoose.Schema({
   studentId: { type: mongoose.Schema.Types.ObjectId, required: true, immutable: true },
   bidId: { type: mongoose.Schema.Types.ObjectId, required: true, immutable: true },
   proposalVersion: { type: Number, required: true, immutable: true },
+  counterofferId: { type: mongoose.Schema.Types.ObjectId, immutable: true },
+  counterofferVersion: { type: Number, immutable: true },
+  acceptedBy: { type: mongoose.Schema.Types.ObjectId, immutable: true },
   totalPaise: { type: Number, required: true, immutable: true },
   currency: { type: String, default: "INR", immutable: true },
   timeline: { type: String, immutable: true },
@@ -17,7 +20,7 @@ const schema = new mongoose.Schema({
   skillsRequired: { type: [String], immutable: true },
   deliveryDeadline: { type: String, immutable: true },
   advertisedBudgetPaise: { type: Number, immutable: true },
-  evidencePolicy: { type: String, default: "Describe completed work in notes; attach files or HTTPS links appropriate to the checkpoint. Software links are not universally required.", immutable: true },
+  evidencePolicy: { type: String, default: "Explain what you delivered for each milestone. Add files or links when they help the client review your work.", immutable: true },
   schedule: { type: [{
     milestoneId: { type: mongoose.Schema.Types.ObjectId, immutable: true },
     title: { type: String, immutable: true },

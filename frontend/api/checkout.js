@@ -10,7 +10,7 @@ function loadSdk() {
   if (window.Razorpay) return Promise.resolve();
   return sdk ||= new Promise((resolve, reject) => {
     const script = document.createElement("script"); script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    const failed = () => { clearTimeout(timer); sdk = null; script.remove(); reject(new Error("Checkout could not load. Your order is retained; retry safely.")); };
+    const failed = () => { clearTimeout(timer); sdk = null; script.remove(); reject(new Error("Razorpay checkout could not load. Your agreement and order are saved. Try opening checkout again.")); };
     const timer = setTimeout(failed, 15000);
     script.onload = () => { clearTimeout(timer); if (!window.Razorpay) return failed(); resolve(); };
     script.onerror = failed;
@@ -30,9 +30,9 @@ export function checkout(bidId, token, currentUser, proposalVersion) {
     return new Promise((resolve, reject) => {
       const modal = new window.Razorpay({ key: order.keyId, amount: order.amount, currency: order.currency, order_id: order.orderId, name: "Bid-Hub test checkout", prefill: { name: currentUser?.name, email: currentUser?.email },
         handler: response => post("/api/payments/verify", response, token).then(resolve, reject),
-        modal: { ondismiss: () => reject(new Error("Checkout dismissed. The saved order remains recoverable; no payment was assumed cancelled.")) },
+        modal: { ondismiss: () => reject(new Error("You closed checkout. Your agreement and order are saved. Check the funding status before paying again.")) },
       });
-      modal.on("payment.failed", () => { modal.close(); reject(new Error("Razorpay test payment failed. The agreed order is retained; refresh its status before retrying.")); });
+      modal.on("payment.failed", () => { modal.close(); reject(new Error("Razorpay could not confirm this test payment. Your agreement is saved. Refresh the funding status before trying again.")); });
       modal.open();
     });
   })().finally(() => running.delete(key));

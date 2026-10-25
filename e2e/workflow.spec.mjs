@@ -153,8 +153,8 @@ test(`${sandbox ? "two-role production Razorpay sandbox" : "two-role isolated te
   for (const actor of [owner,page]) {
     await actor.goto(`/project/${project._id}`);
     await actor.locator("summary").filter({hasText:"Submission history"}).first().click();
-    await expect(actor.getByText("Version 1 · CHANGES_REQUESTED",{exact:true})).toBeVisible();
-    await expect(actor.getByText("Version 2 · APPROVED",{exact:true})).toBeVisible();
+    await expect(actor.getByText("Version 1 · Changes requested",{exact:true})).toBeVisible();
+    await expect(actor.getByText("Version 2 · Approved",{exact:true})).toBeVisible();
     await expect(actor.getByRole("link",{name:"Deliverable: https://example.com/original-writing",exact:true}).first()).toBeVisible();
   }
   for(const [actor,comment] of [[owner,"Clear writing and responsive revisions."],[page,"Useful scope and specific feedback."]]) {
@@ -195,7 +195,7 @@ test("detail checkout, proposal versions, private GridFS files, capabilities and
   await json(request,"post",`/projects/${project._id}/clarifications`,client.token,{content:"Yes; provide a PDF with notes and the source link if available."});
   expect((await json(request,"get",`/projects/${project._id}/clarifications`,student.token))).toHaveLength(2);
   const bid=await json(request,"post",`/projects/${project._id}/bids`,student.token,{amount:1000,timeline:"4 weeks",proposal:"Two design concepts with PDF and notes."});
-  const revised=await json(request,"patch",`/bids/${bid._id}`,student.token,{action:"REVISE",amount:800,timeline:"3 weeks",proposal:"Two design checkpoints with a documented revision."});
+  const revised=await json(request,"patch",`/bids/${bid._id}`,student.token,{action:"REVISE",proposalVersion:1,requestId:crypto.randomUUID(),amount:800,timeline:"3 weeks",proposal:"Two design checkpoints with a documented revision."});
   expect(revised.version).toBe(2); expect(revised.history).toHaveLength(1);
   expect((await request.post(api+"/payments/checkout-session",{headers:headers(client.token),data:{bidId:bid._id,proposalVersion:1}})).status()).toBe(409);
   expect((await request.post(api+"/payments/checkout-session",{headers:headers(stranger.token),data:{bidId:bid._id,proposalVersion:2}})).ok()).toBeFalsy();
@@ -210,7 +210,7 @@ test("detail checkout, proposal versions, private GridFS files, capabilities and
   expect(await json(request,"get",`/projects/${project._id}/clarifications`,student.token)).toHaveLength(2);
   expect((await request.post(api+`/projects/${project._id}/clarifications`,{headers:headers(student.token),data:{content:"Cannot change agreed terms here."}})).status()).toBe(409);
   expect((await request.get(api+`/projects/${project._id}/clarifications`,{headers:headers(other.token)})).status()).toBe(403);
-  await owner.locator("summary").filter({hasText:"Retained brief clarifications"}).click();
+  await owner.locator("summary").filter({hasText:"Earlier questions and answers"}).click();
   await expect(owner.getByText("Does the final poster need print-ready PDF?",{exact:false})).toBeVisible();
   expect((await request.get(api+`/projects/${project._id}/contract`,{headers:headers(other.token)})).status()).toBe(404);
   expect((await request.patch(api+`/bids/${bid._id}`,{headers:headers(student.token),data:{action:"WITHDRAW"}})).status()).toBe(409);
@@ -235,13 +235,13 @@ test("detail checkout, proposal versions, private GridFS files, capabilities and
   const sent=await json(request,"post","/messages",student.token,msg); expect((await json(request,"post","/messages",student.token,msg))._id).toBe(sent._id);
   const forbidden=await request.get(api+`/messages/${project._id}`,{headers:headers(other.token)}); expect(forbidden.status()).toBe(403);
   await owner.goto(`/project/${project._id}`); await owner.locator("#project-question").fill("Please review this contract before further work."); await owner.getByRole("button",{name:"Request operator review"}).click();
-  await expect(owner.getByText("Recovery is pending operator review.",{exact:false})).toBeVisible();
+  await expect(owner.getByText("Work is paused while an operator reviews the request.",{exact:false})).toBeVisible();
   expect((await request.patch(api+`/milestones/${detail.milestones[1]._id}/submit`,{headers:headers(student.token),data:{description:"Work must not advance during recovery."}})).status()).toBe(409);
   // An API outage must remain visible; it must not look like a zero balance.
   await owner.route("**/api/payments",route=>route.fulfill({status:503,contentType:"application/json",body:JSON.stringify({message:"synthetic outage"})}));
-  await owner.goto("/client"); await expect(owner.locator("main h1").first()).toContainText("Client Dashboard"); await expect(owner.getByRole("alert")).toContainText("Financial data unavailable. Work data remains available"); await expect(owner.getByRole("button",{name:"Retry unavailable data"})).toBeVisible();
+  await owner.goto("/client"); await expect(owner.locator("main h1").first()).toContainText("Client Dashboard"); await expect(owner.getByRole("alert")).toContainText("Test payment records could not be loaded"); await expect(owner.getByRole("button",{name:"Retry unavailable data"})).toBeVisible();
   await owner.route("**/api/projects?*",route=>route.fulfill({status:503,contentType:"application/json",body:JSON.stringify({message:"synthetic directory outage"})}));
-  await owner.goto("/browse"); await expect(owner.getByRole("alert")).toContainText("synthetic directory outage"); await expect(owner.getByText("No matching project briefs",{exact:true})).toHaveCount(0);
+  await owner.goto("/browse"); await expect(owner.getByRole("alert")).toContainText("synthetic directory outage"); await expect(owner.getByText("No projects match your search",{exact:true})).toHaveCount(0);
   await owner.goto("/profile"); await owner.getByRole("button",{name:"Edit profile",exact:true}).click(); await owner.locator("#profile-bio").fill("Profile edits retained through a failed save.");
   await owner.route(`**/api/users/${client._id}`,route=>route.request().method()==="PATCH" ? route.fulfill({status:503,contentType:"application/json",body:JSON.stringify({message:"synthetic profile outage"})}) : route.continue());
   await owner.getByRole("button",{name:"Save Changes",exact:true}).click(); await expect(owner.getByRole("alert")).toContainText("synthetic profile outage"); await expect(owner.locator("#profile-bio")).toHaveValue("Profile edits retained through a failed save.");
@@ -264,7 +264,7 @@ test("software checkpoints: duplicate checkout, late demo funding, stale modal r
   const ledger=await json(request,"get","/payments",client.token); expect(ledger.transactions).toHaveLength(3);
   const context=await browser.newContext(); await context.addInitScript(token=>{if(!localStorage.getItem("token"))localStorage.setItem("token",token);},student.token);
   const page=await context.newPage(); await page.goto("/student");
-  await page.setViewportSize({width:360,height:844}); await expect(page.getByRole("heading",{name:"Workspace: Software student",exact:true})).toBeVisible();
+  await page.setViewportSize({width:360,height:844}); await expect(page.getByRole("heading",{name:"Your work: Software student",exact:true})).toBeVisible();
   await assertLayout(page,360,"student");
   // Delay A, switch to B, type B's draft, then complete A's old request.
   let release, delayedUrl; const gate=new Promise(resolve=>release=resolve);
@@ -305,7 +305,7 @@ test("software checkpoints: duplicate checkout, late demo funding, stale modal r
   }
   const asset=await request.get("http://127.0.0.1:5189/brand/bidhub/fonts/ibm-plex-sans-variable.woff2"); expect(asset.ok()).toBeTruthy(); expect(asset.headers()["content-type"]).toContain("font");
   const anonymous=await browser.newContext(); const login=await anonymous.newPage(); await login.goto(`/project/${project._id}`);
-  await login.getByRole("button",{name:"Sign in to Bid",exact:true}).click();
+  await login.getByRole("button",{name:"Sign in to propose",exact:true}).click();
   await login.locator("#login-email").fill(`softwarestudent${suffix}@example.com`); await login.locator("#login-password").fill("Synthetic123!");
   await login.getByRole("button",{name:"Sign In",exact:true}).click();
   await expect(login).toHaveURL(new RegExp(`/project/${project._id}$`)); await expect(login.getByText("Software checkpoint fixture",{exact:true}).first()).toBeVisible(); await anonymous.close();
@@ -359,7 +359,8 @@ test("final independent review: restart recovery, remaining category journeys, c
     if(current._id!==project._id) {
       await worker.goto(`/project/${current._id}`); await worker.locator("#bid-price").fill("900"); await worker.locator("#bid-timeline").fill("two weeks"); await worker.locator("#bid-proposal").fill("Discovery notes and software implementation evidence."); await worker.getByRole("button",{name:"Submit Proposal",exact:true}).click();
       await expect(worker.getByRole("button",{name:"Revise proposal",exact:true})).toBeVisible();
-      await worker.getByRole("button",{name:"Revise proposal",exact:true}).click(); await worker.locator("#bid-price").fill("600"); await worker.getByRole("button",{name:"Save Proposal Revision",exact:true}).click();
+      await worker.getByRole("button",{name:"Revise proposal",exact:true}).click(); await worker.locator("#bid-price").fill("600"); await worker.getByRole("button",{name:"Use suggested split",exact:true}).click();
+      const savedRevision=worker.waitForResponse(response=>response.url().includes("/api/bids/") && response.request().method()==="PATCH"); await worker.getByRole("button",{name:"Save Proposal Revision",exact:true}).click(); expect((await savedRevision).ok()).toBeTruthy(); await expect(worker.getByRole("button",{name:"Revise proposal",exact:true})).toBeVisible();
       await owner.goto(`/project/${current._id}`); await owner.getByRole("button",{name:"Accept Proposal",exact:true}).click(); await expect(owner.getByRole("dialog")).toContainText("version 2"); await owner.getByRole("button",{name:"Continue to Checkout"}).click(); await owner.getByRole("button",{name:"Go to Project Workspace"}).click();
     }
     for(let i=0;i<2;i++) {
@@ -373,7 +374,7 @@ test("final independent review: restart recovery, remaining category journeys, c
     expect((await json(request,"get",`/projects/${current._id}`)).project.status).toBe("COMPLETED");
     for(const actor of [owner,worker]) {
       await actor.goto(`/project/${current._id}`); await actor.locator("#review-comment").fill(`Factual ${current.category} collaboration review.`); await actor.getByRole("button",{name:"Submit Review",exact:true}).click(); await expect(actor.locator("#review-comment")).toHaveCount(0);
-      await actor.locator("summary").filter({hasText:"Submission history"}).first().click(); await expect(actor.getByText("Version 1 · APPROVED",{exact:true}).first()).toBeVisible();
+      await actor.locator("summary").filter({hasText:"Submission history"}).first().click(); await expect(actor.getByText("Version 1 · Approved",{exact:true}).first()).toBeVisible();
     }
   }
   // Real message commit followed by a dropped browser response must retry the original ID.
@@ -443,8 +444,8 @@ test("retained history pages beyond one hundred records with participant-only ev
   for(let i=0;i<4;i++) { await page.getByRole("button",{name:"Load earlier submissions",exact:true}).click(); await expect(page.locator("summary").filter({hasText:"Submission history"})).toContainText(String(Math.min(102,(i+2)*25))); }
   await expect(page.getByRole("link",{name:"Deliverable: https://example.com/evidence/1",exact:true})).toBeVisible();
   await expect(page.getByRole("button",{name:"Load earlier submissions",exact:true})).toHaveCount(0);
-  await page.locator("summary").filter({hasText:"Retained brief clarifications"}).click();
-  for(let i=0;i<4;i++) { await page.getByRole("button",{name:"Load earlier clarifications",exact:true}).click(); await expect(page.locator("summary").filter({hasText:"Retained brief clarifications"})).toContainText(String(Math.min(102,(i+2)*25))); }
+  await page.locator("summary").filter({hasText:"Earlier questions and answers"}).click();
+  for(let i=0;i<4;i++) { await page.getByRole("button",{name:"Load earlier clarifications",exact:true}).click(); await expect(page.locator("summary").filter({hasText:"Earlier questions and answers"})).toContainText(String(Math.min(102,(i+2)*25))); }
   await expect(page.getByText("Historical clarification 1.",{exact:false})).toBeVisible();
   await expect(page.getByRole("button",{name:"Load earlier clarifications",exact:true})).toHaveCount(0);
   await context.close();
@@ -517,9 +518,9 @@ test("mounted browse search, canonical brief retries, real ledger pages, clipboa
   for(const query of [`search=RarePracticalSkill`,`search=Searchable%20Client`,`skills=RarePracticalSkill`,`category=Writing%20%26%20Editing`]) {
     const response=await request.get(api+`/projects?status=OPEN&${query}`); expect(response.ok()).toBeTruthy(); expect((await response.json()).some(p=>p._id===published._id)).toBeTruthy();
   }
-  await owner.goto("/browse"); const navSearch=owner.getByRole("textbox",{name:"Search project index"}); await navSearch.fill("RarePracticalSkill"); await navSearch.press("Enter");
+  await owner.goto("/browse"); const navSearch=owner.getByRole("textbox",{name:"Search projects"}); await navSearch.fill("RarePracticalSkill"); await navSearch.press("Enter");
   await expect(owner.getByText(published.title,{exact:true})).toBeVisible();
-  await owner.goto("/profile"); await owner.getByRole("button",{name:"Edit profile",exact:true}).click(); await owner.locator("#profile-bio").fill("Unsaved text should be discarded."); await owner.getByRole("button",{name:"Cancel",exact:true}).click(); await expect(owner.getByText("No biography provided yet. Add your technical disciplines, coursework, and specialties.",{exact:true})).toBeVisible();
+  await owner.goto("/profile"); await owner.getByRole("button",{name:"Edit profile",exact:true}).click(); await owner.locator("#profile-bio").fill("Unsaved text should be discarded."); await owner.getByRole("button",{name:"Cancel",exact:true}).click(); await expect(owner.getByText("Tell people what you do and what you would like to work on. Choose Edit profile to add an introduction.",{exact:true})).toBeVisible();
   const mongo=new mongoose.mongo.MongoClient(serverEnv.MONGODB_URI); await mongo.connect();
   try {
     const now=new Date(), rows=Array.from({length:26},(_,i)=>{const id=new mongoose.Types.ObjectId(); return {_id:id,projectId:new mongoose.Types.ObjectId(published._id),clientId:new mongoose.Types.ObjectId(client._id),studentId:new mongoose.Types.ObjectId(),amount:1,amountPaise:100,provider:"razorpay",status:"LOCKED",stripeSessionId:`order_fixture_${suffix}_${i}`,transactionRef:`TXN-fixture-${suffix}-${i}`,receiptRef:`TEST-RECEIPT-${id}`,createdAt:new Date(now.getTime()-i),updatedAt:now,sampleData:false};});
@@ -528,12 +529,76 @@ test("mounted browse search, canonical brief retries, real ledger pages, clipboa
     expect(first.transactions).toHaveLength(25); expect(second.transactions).toHaveLength(1); expect(first.pagination.total).toBe(26);
     const refs=[...first.transactions,...second.transactions].map(t=>t.receiptRef); expect(new Set(refs).size).toBe(26); expect(refs.every(ref=>ref.startsWith("TEST-RECEIPT-"))).toBeTruthy();
   } finally { await mongo.close(); }
-  await ownerContext.grantPermissions(["clipboard-read","clipboard-write"]); await owner.goto("/client"); await owner.getByRole("button",{name:"Funding ledger",exact:true}).click();
-  await expect(owner.getByText("Test Funding Ledger",{exact:true})).toBeVisible();
-  const receiptButton=owner.getByRole("button",{name:/Copy transaction reference TEST-RECEIPT-/}).first(); await receiptButton.click(); await expect(owner.getByText(/Copied internal test receipt:/)).toBeVisible();
+  await ownerContext.grantPermissions(["clipboard-read","clipboard-write"]); await owner.goto("/client"); await owner.getByRole("button",{name:"Test payments",exact:true}).click();
+  await expect(owner.getByText("Test payment history",{exact:true})).toBeVisible();
+  const receiptButton=owner.getByRole("button",{name:/Copy transaction reference TEST-RECEIPT-/}).first(); await receiptButton.click(); await expect(owner.getByText(/Reference copied:/)).toBeVisible();
   const failingContext=await browser.newContext(); await failingContext.addInitScript(()=>Object.defineProperty(navigator,"clipboard",{configurable:true,value:{writeText:async()=>{throw new Error("denied");}}})); await failingContext.addInitScript(token=>localStorage.setItem("token",token),client.token);
-  const failingPage=await failingContext.newPage(); await failingPage.goto("/client"); await failingPage.getByRole("button",{name:"Funding ledger",exact:true}).click(); await failingPage.getByRole("button",{name:/Copy transaction reference TEST-RECEIPT-/}).first().click(); await expect(failingPage.getByRole("alert")).toContainText("Clipboard access failed");
+  const failingPage=await failingContext.newPage(); await failingPage.goto("/client"); await failingPage.getByRole("button",{name:"Test payments",exact:true}).click(); await failingPage.getByRole("button",{name:/Copy transaction reference TEST-RECEIPT-/}).first().click(); await expect(failingPage.getByRole("alert")).toContainText("Could not copy the reference");
   await failingContext.close(); await ownerContext.close();
+});
+
+test("custom milestone proposals and client counteroffers survive lost responses and complete the agreed work", async ({browser,request}) => {
+  const suffix=Date.now();
+  const client=await json(request,"post","/auth/register",null,{name:"Counteroffer client",email:`counter-client-${suffix}@example.com`,password:"Synthetic123!",role:"client"});
+  const student=await json(request,"post","/auth/register",null,{name:"Counteroffer student",email:`counter-student-${suffix}@example.com`,password:"Synthetic123!",role:"student"});
+  const outsider=await json(request,"post","/auth/register",null,{name:"Another student",email:`counter-other-${suffix}@example.com`,password:"Synthetic123!",role:"student"});
+  const project=await json(request,"post","/projects",client.token,{title:`Custom writing terms ${suffix}`,description:"Write an outline, then deliver an edited article with source notes.",category:"Writing & Content",budget:1000,deadline:"2027-12-31",milestones:[{title:"Outline",amount:400},{title:"Edited article",amount:600}]});
+  const contexts=await Promise.all([browser.newContext(),browser.newContext()]);
+  for(const [index,actor] of [client,student].entries()) await contexts[index].addInitScript(token=>localStorage.setItem("token",token),actor.token);
+  const owner=await contexts[0].newPage(),worker=await contexts[1].newPage();owner.on("dialog",dialog=>dialog.accept());
+  await worker.goto(`/project/${project._id}`); await worker.locator("#bid-price").fill("800"); await worker.locator("#bid-timeline").fill("Two weeks"); await worker.locator("#bid-proposal").fill("An outline followed by an edited article and source notes.");
+  await worker.locator("#proposal-amount-0").fill("100"); await worker.locator("#proposal-amount-1").fill("699");
+  await worker.getByRole("button",{name:"Submit Proposal",exact:true}).click(); await expect(worker.getByRole("alert")).toContainText("add up"); expect(await json(request,"get",`/projects/${project._id}/bids`,student.token)).toHaveLength(0);
+  await worker.locator("#proposal-amount-1").fill("700");
+  await worker.getByRole("button",{name:"Submit Proposal",exact:true}).click(); await expect(worker.getByRole("button",{name:"Revise proposal",exact:true})).toBeVisible();
+  let bid=(await json(request,"get",`/projects/${project._id}/bids`,student.token))[0]; expect(bid.schedule.map(row=>row.amountPaise)).toEqual([10000,70000]);
+  await owner.goto(`/project/${project._id}`); await owner.getByRole("button",{name:"Make a counteroffer",exact:true}).click();
+  await owner.locator(`#counter-price-${bid._id}`).fill("900"); await owner.locator(`#counter-timeline-${bid._id}`).fill("Three weeks"); await owner.locator(`#counter-${bid._id}-amount-0`).fill("300"); await owner.locator(`#counter-${bid._id}-amount-1`).fill("600");
+  await owner.locator(`#counter-note-${bid._id}`).fill("Please allow more time for source checks.");
+  await owner.setViewportSize({width:390,height:844}); await assertLayout(owner,390,"Counteroffer form");
+  await owner.screenshot({path:"e2e-results/counteroffer-light-390.png",fullPage:true,animations:"disabled"});
+  await owner.getByRole("button",{name:"Toggle theme appearance",exact:true}).click();await expect(owner.locator("html")).toHaveClass(/dark/);
+  await expect.poll(()=>owner.locator(`#counter-price-${bid._id}`).evaluate(element=>getComputedStyle(element).backgroundColor)).toBe("rgb(34, 33, 30)");await expect(owner.locator(`#counter-price-${bid._id}`)).toHaveValue("900");
+  expect(await owner.locator(`#counter-${bid._id}-date-0`).evaluate(element=>getComputedStyle(element).colorScheme)).toBe("dark");
+  await owner.screenshot({path:"e2e-results/counteroffer-dark-390.png",fullPage:true,animations:"disabled"});await owner.getByRole("button",{name:"Toggle theme appearance",exact:true}).click();await expect(owner.locator("html")).not.toHaveClass(/dark/);
+  let dropped=false;
+  await owner.route(`**/api/bids/${bid._id}/counteroffers`,async route=>{if(dropped || route.request().method()!=="POST")return route.continue();dropped=true;expect((await route.fetch()).ok()).toBeTruthy();await route.abort("failed");});
+  await owner.getByRole("button",{name:"Send counteroffer",exact:true}).click(); await expect(owner.getByRole("alert").last()).toBeVisible();
+  await expect(owner.locator(`#counter-price-${bid._id}`)).toHaveValue("900");
+  await owner.getByRole("button",{name:"Send counteroffer",exact:true}).click(); await expect(owner.getByText("Client counteroffer 1",{exact:true})).toBeVisible();
+  bid=(await json(request,"get",`/projects/${project._id}/bids`,student.token))[0]; expect(bid.counteroffers).toHaveLength(1);
+  await owner.goto("/client");await expect(owner.getByRole("button",{name:"Waiting for student",exact:true})).toBeDisabled();await owner.getByRole("button",{name:"Review proposal and terms",exact:true}).click();
+  await worker.reload(); await worker.getByRole("button",{name:"Decline counteroffer",exact:true}).click();
+  await expect(worker.getByText("Declined",{exact:true}).first()).toBeVisible();
+  await owner.reload(); await owner.getByRole("button",{name:"Make a counteroffer",exact:true}).click(); await owner.locator(`#counter-price-${bid._id}`).fill("900"); await owner.locator(`#counter-timeline-${bid._id}`).fill("Three weeks");
+  await owner.locator(`#counter-${bid._id}-amount-0`).fill("250"); await owner.locator(`#counter-${bid._id}-amount-1`).fill("650");
+  const date=new Date(Date.now()+20*86400000).toISOString().slice(0,10); await owner.locator(`#counter-${bid._id}-date-0`).fill(date);
+  await owner.getByRole("button",{name:"Send counteroffer",exact:true}).click(); await expect(owner.getByText("Client counteroffer 2",{exact:true})).toBeVisible();
+  bid=(await json(request,"get",`/projects/${project._id}/bids`,student.token))[0]; const offer=bid.counteroffers[1];
+  const decision={action:"ACCEPT",proposalVersion:1,counterofferVersion:2};
+  expect((await request.patch(api+`/bids/${bid._id}/counteroffers/${offer._id}`,{headers:{Authorization:`Bearer ${outsider.token}`},data:decision})).status()).toBe(403);
+  expect((await request.patch(api+`/bids/${bid._id}/counteroffers/${bid.counteroffers[0]._id}`,{headers:{Authorization:`Bearer ${student.token}`},data:{...decision,counterofferVersion:1}})).status()).toBe(409);
+  await worker.reload(); await worker.setViewportSize({width:360,height:800}); await assertLayout(worker,360,"Counteroffer review");
+  await expect(worker.getByRole("button",{name:"Accept counteroffer",exact:true})).toBeDisabled();
+  await worker.getByRole("checkbox",{name:"I agree to these counteroffer terms."}).check();
+  let lostAcceptance=false;
+  await worker.route(`**/api/bids/${bid._id}/counteroffers/${offer._id}`,async route=>{if(lostAcceptance)return route.continue();lostAcceptance=true;expect((await route.fetch()).ok()).toBeTruthy();await route.abort("failed");});
+  await worker.getByRole("button",{name:"Accept counteroffer",exact:true}).click();
+  await expect.poll(async()=>(await json(request,"get",`/projects/${project._id}`)).project.status).toBe("PENDING_FUNDING");
+  await worker.reload(); await expect(worker.getByText("Accepted client counteroffer 2",{exact:false})).toBeVisible();
+  expect((await json(request,"patch",`/bids/${bid._id}/counteroffers/${offer._id}`,student.token,decision)).replayed).toBe(true);
+  const contract=await json(request,"get",`/projects/${project._id}/contract`,student.token);expect(contract.totalPaise).toBe(90000);expect(contract.schedule.map(row=>row.amountPaise)).toEqual([25000,65000]); expect(contract.schedule[0].dueDate).toBe(date);
+  const studentDashboard=await json(request,"get","/projects/student/dashboard",student.token);expect(studentDashboard.bids[0].status).toBe("agreed (funding pending)");
+  expect((await json(request,"get",`/projects/${project._id}`)).project.budget).toBe(1000);
+  await owner.goto("/client");await owner.getByRole("button",{name:`${project.title} · Open workspace`,exact:true}).click();await expect(owner.getByText("Checkout needs attention",{exact:true})).toHaveCount(0);await owner.getByRole("button",{name:"Resume Test Funding",exact:true}).click();await owner.getByRole("button",{name:"Continue to Checkout",exact:true}).click();await owner.getByRole("button",{name:"Go to Project Workspace",exact:true}).click();
+  for(let index=0;index<2;index++) {
+    await worker.goto("/student");await worker.getByRole("button",{name:"Submit Deliverable",exact:true}).first().click();await worker.locator("#milestone-notes").fill(`Writing milestone ${index+1}: finished work and source notes for review.`);await worker.getByRole("dialog").getByRole("button",{name:"Submit Deliverable",exact:true}).click();await expect(worker.getByRole("dialog")).toHaveCount(0);
+    await owner.goto(`/project/${project._id}`);await owner.getByRole("button",{name:"Review Work",exact:true}).first().click();await owner.getByRole("button",{name:"Approve Work",exact:true}).click();await expect(owner.getByRole("dialog")).toHaveCount(0);
+  }
+  expect((await json(request,"get",`/projects/${project._id}`)).project.status).toBe("COMPLETED");
+  const ledger=await json(request,"get","/payments",client.token);expect(ledger.transactions.filter(row=>row.milestoneId).map(row=>row.amountPaise).sort((a,b)=>a-b)).toEqual([25000,65000]);expect(ledger.stats.releasedAmount).toBe(0);
+  for(const actor of [owner,worker]){await actor.goto(`/project/${project._id}`);await actor.locator("#review-comment").fill("Clear agreed milestones and useful feedback during the work.");await actor.getByRole("button",{name:"Submit Review",exact:true}).click();await expect(actor.locator("#review-comment")).toHaveCount(0);}
+  await Promise.all(contexts.map(context=>context.close()));
 });
 
 test("patched body parsers survive malformed compressed requests in the actual isolated backend",async({request})=>{

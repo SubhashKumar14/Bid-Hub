@@ -92,7 +92,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
       releasedEscrow = paymentsData.stats?.releasedAmount || 0;
 
         if(target!==targetRef.current)return; setFinancialError("");
-      } catch { if(target!==targetRef.current)return;setFinancialError("Financial data unavailable. Work data remains available; retry to refresh the ledger."); }
+      } catch { if(target!==targetRef.current)return;setFinancialError("Test payment records could not be loaded. Your projects are still available. Try loading payments again."); }
 
       const dashRes = await fetch(`/api/projects/client/dashboard?projectPage=${projectPage}&bidPage=${bidPage}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -153,13 +153,13 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
     catch (error) { if (localStorage.getItem("token") !== token) return; setError(error.message); toast.error(error.message); }
   };
 
-  if (error && !loading) return <div role="alert" className="max-w-xl mx-auto p-8 space-y-4"><h1 className="text-xl">Workspace data unavailable</h1><p>{error}</p><Button onClick={fetchDashboardData}>Retry</Button></div>;
+  if (error && !loading) return <div role="alert" className="max-w-xl mx-auto p-8 space-y-4"><h1 className="text-xl">Your projects could not be loaded</h1><p>{error}</p><Button onClick={fetchDashboardData}>Retry</Button></div>;
 
   if (loading) {
     return (
       <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 py-20 text-center animate-pulse">
       {error && <div role="alert" className="border border-destructive rounded p-4 text-sm">{error} <Button variant="outline" onClick={() => window.location.reload()}>Retry</Button></div>}
-        <p className="text-sm text-muted-foreground">Syncing client workspace…</p>
+        <p className="text-sm text-muted-foreground">Loading your projects…</p>
       </div>
     );
   }
@@ -170,7 +170,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 border-b border-border">
         <div>
           <span className="eyebrow text-xs text-muted-foreground">
-            Client Workspace · {currentUser?.college || "Project Client"}
+            Client account · {currentUser?.college || "Project Client"}
           </span>
           <h1 className="text-3xl font-medium tracking-tight text-foreground mt-1">
             Client Dashboard
@@ -192,7 +192,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
             variant="outline"
             className="rounded-[5px] text-xs h-9 px-4 font-medium"
           >
-            <ShieldCheck className="size-3.5 mr-1" /> Funding ledger
+            <ShieldCheck className="size-3.5 mr-1" /> Test payments
           </Button>
         </div>
       </header>
@@ -202,7 +202,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
 
       {/* Priority 1: Milestones Awaiting Review & Release */}
       {milestonesToApprove.length > 0 && (
-        <section className="bg-card border-l-4 border-l-[var(--brand-accent)] border border-border rounded-[8px] p-5 space-y-3">
+        <section className="bg-card border border-border rounded-[8px] p-5 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <BrandIcon name="milestone" size={18} className="text-[var(--brand-accent)]" />
@@ -213,7 +213,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
             <span className="text-xs text-muted-foreground">Action Required</span>
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Students have submitted completed deliverables for these checkpoints. Review files, test demos, and approve completed work or request revisions.
+            Open a submission, check the files and notes, then approve the work or ask for changes.
           </p>
 
           <div className="space-y-2 pt-1">
@@ -224,11 +224,11 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
               >
                 <div className="text-xs min-w-0">
                   <div className="flex items-center gap-2">
-                    <StatusBadge tone="review" className="text-[10px] py-0">Submitted</StatusBadge>
+                    <StatusBadge tone="review" className="text-xs py-0">Submitted</StatusBadge>
                     <span className="font-medium text-foreground truncate">{m.title}</span>
                   </div>
-                  <p className="text-muted-foreground text-[11px] mt-0.5">
-                    Checkpoint Escrow: <span className="num font-mono font-medium text-foreground">{formatCurrency(m.amount)}</span>
+                  <p className="text-muted-foreground text-xs mt-0.5">
+                    Milestone amount: <span className="num font-mono font-medium text-foreground">{formatCurrency(m.amount)}</span>
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -257,7 +257,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
           { k: "Real payouts", v: "Disabled" },
         ].map((s) => (
           <div key={s.k} className="bg-card border border-border rounded-[8px] p-3.5 space-y-1">
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">{s.k}</span>
+            <span className="text-xs uppercase tracking-wider text-muted-foreground block">{s.k}</span>
             <p className="text-xl font-medium num text-foreground pt-0.5">{s.v}</p>
           </div>
         ))}
@@ -281,7 +281,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
               <BrandState
                 name="no-proposals"
                 title="No proposals awaiting review"
-                description="Post a new brief or check back as student applications arrive."
+                description="Proposals for your open projects will appear here. You can review each student's work before agreeing to their terms."
                 compact
               />
             ) : (
@@ -299,7 +299,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
                       </Avatar>
                       <div className="text-xs">
                         <p className="font-medium text-foreground leading-tight">{b.studentName}</p>
-                        <p className="text-muted-foreground text-[11px] mt-0.5 truncate max-w-[200px] sm:max-w-xs">
+                        <p className="text-muted-foreground text-xs mt-0.5 truncate max-w-[200px] sm:max-w-xs">
                           {b.projectTitle}
                         </p>
                       </div>
@@ -310,7 +310,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
                       <p className="text-base font-medium num text-foreground leading-tight">
                         {formatCurrency(b.amount)}
                       </p>
-                      <p className="text-[10px] text-muted-foreground">{b.timeline || "Proposed deadline"}</p>
+                      <p className="text-xs text-muted-foreground">{b.timeline || "Proposed deadline"}</p>
                     </div>
                   </div>
 
@@ -324,15 +324,16 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
                         setPage("detail");
                       }}
                     >
-                      <Eye className="size-3 mr-1" /> View Brief & Full Proposal
+                      <Eye className="size-3 mr-1" /> Review proposal and terms
                     </Button>
                     <Button
                       size="sm"
                       variant="default"
                       className="rounded-[4px] text-xs h-8 px-3"
                       onClick={() => handleAcceptBid(b.id)}
+                      disabled={b.counterofferPending}
                     >
-                      Accept & Resume Test Funding
+                      {b.counterofferPending ? "Waiting for student" : "Accept proposal"}
                     </Button>
                   </div>
                 </div>
@@ -356,7 +357,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
               <BrandState
                 name="no-contracts"
                 title="No active projects in progress"
-                description="Once you accept a proposal and fund escrow, projects appear here."
+                description="Projects appear here after both sides agree and test funding is confirmed."
                 compact
               />
             ) : (
@@ -373,7 +374,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
                       >
                         {p.title}
                       </h3>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">{p.statusText}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{p.statusText}</p>
                     </div>
                     <span className="text-xs font-medium num text-foreground shrink-0">
                       {formatCurrency(p.budget)}
@@ -386,12 +387,12 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
                       style={{ width: `${p.progress}%` }}
                     />
                   </div>
-                  <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
                     <span>{p.progress}% completed</span>
                     <Button
                       size="xs"
                       variant="outline"
-                      className="rounded-[4px] text-[11px] h-6 px-2"
+                      className="rounded-[4px] text-xs h-6 px-2"
                       onClick={() => openChat(p.id, p.title)}
                     >
                       <MessageSquare className="size-3 mr-1" /> Discussion
@@ -406,14 +407,14 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
           {activities.length > 0 && (
             <div className="pt-4 border-t border-border/60 space-y-3">
               <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Recent Marketplace Activity
+                Recent project activity
               </h3>
               <div className="space-y-2">
                 {activities.slice(0, 5).map((a) => (
                   <div key={a._id} className="text-xs text-muted-foreground flex items-baseline gap-2">
                     <span className="size-1.5 rounded-full bg-[var(--brand-accent)] shrink-0 self-center" />
                     <span className="text-foreground font-medium">{a.message}</span>
-                    <span className="text-[10px] text-muted-foreground shrink-0 ml-auto">
+                    <span className="text-xs text-muted-foreground shrink-0 ml-auto">
                       {new Date(a.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </span>
                   </div>

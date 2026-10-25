@@ -1,5 +1,7 @@
 import { checkout } from "../../../api/checkout";
-import { allocateOffer } from "../../../../backend/lib/offer.js";
+import { offerSchedule } from "../../../../backend/lib/offer.js";
+import { MilestoneAllocationEditor, allocationDraft, currentAllocations, OfferSchedule } from "../MilestoneAllocationEditor";
+import { ProposalNegotiation } from "../ProposalNegotiation";
 import { ProjectRecovery } from "../ProjectRecovery";
 import { CandidateProfile } from "../CandidateProfile";
 import { SubmissionHistory } from "../SubmissionHistory";
@@ -62,6 +64,10 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
   const [submittingBid, setSubmittingBid] = useState(false);
   const [hasAlreadyBid, setHasAlreadyBid] = useState(false);
   const [editingBid, setEditingBid] = useState(false);
+  const [bidSchedule, setBidSchedule] = useState(null);
+  const [editingVersion, setEditingVersion] = useState(null);
+  const [proposalError, setProposalError] = useState("");
+  const proposalIdentity = useRef(null);
 
   // Review states
   const [hasAlreadyReviewed, setHasAlreadyReviewed] = useState(false);
@@ -91,7 +97,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
   const fetchProjectData = async () => {
     if (!projectId) return;
     setError("");
-    setLoading(true);
+    setLoading(!project);
     try {
       // 1. Fetch project details
       const projectRes = await fetch(`/api/projects/${projectId}`);
@@ -120,9 +126,11 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
           const myBid = bidsData.find(b => (b.studentId?._id || b.studentId) === currentUser?._id);
           if (myBid) {
             setHasAlreadyBid(true);
-            setBidAmount(myBid.amount);
-            setBidTimeline(myBid.timeline);
-            setBidProposal(myBid.proposal);
+            if (!editingBid) {
+              setBidAmount(myBid.amount);
+              setBidTimeline(myBid.timeline);
+              setBidProposal(myBid.proposal);
+            }
           }
         }
       }
@@ -174,6 +182,12 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
           setProject(projectData.project);
           setMilestones(projectData.milestones || []);
           await fetchPendingCheckout(projectData.project);
+          if (token && projectData.project.status !== "OPEN") {
+            const response = await fetch(`/api/projects/${projectId}/contract`, { headers: { Authorization: `Bearer ${token}` } });
+            const agreement = response.ok ? await response.json() : null;
+            if (!live.current) return;
+            setContract(agreement);
+          }
         }
 
         if (token) {
@@ -209,36 +223,37 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
     }
 
     if (!bidAmount || !bidTimeline || !bidProposal) {
-      toast.error("Please fill in price, timeline, and proposal");
+      setProposalError("Add your price, timeline and approach before sending the proposal.");
       return;
     }
 
     setSubmittingBid(true);
+    setProposalError("");
     try {
       const myBid = bids.find(b => (b.studentId?._id || b.studentId) === currentUser?._id);
+      const schedule = currentAllocations(bidAmount, milestones, bidSchedule);
+      offerSchedule(bidAmount, milestones, schedule, project.deadline);
+      const payload = { amount: bidAmount, action: "REVISE", timeline: bidTimeline, proposal: bidProposal, schedule, proposalVersion: editingVersion ?? myBid?.version };
+      const content = JSON.stringify(payload);
+      if (proposalIdentity.current?.content !== content) proposalIdentity.current = { content, id: crypto.randomUUID() };
       const res = await fetch(myBid ? `/api/bids/${myBid._id}` : `/api/projects/${projectId}/bids`, {
         method: myBid ? "PATCH" : "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          amount: bidAmount,
-          action: "REVISE",
-          timeline: bidTimeline,
-          proposal: bidProposal,
-        }),
+        body: JSON.stringify({ ...payload, requestId: proposalIdentity.current.id }),
       });
       const data = await res.json();
       if (!live.current) return;
       if (!res.ok) throw new Error(data.message || "Failed to place bid");
-      toast.success("Proposal submitted successfully");
+      toast.success(myBid ? "Proposal updated." : "Proposal sent. The client can now review your terms.");
       setHasAlreadyBid(true);
       setEditingBid(false);
       fetchProjectData();
     } catch (err) {
       if (!live.current) return;
-      setError(err.message);
+      setProposalError(err.message);
       toast.error(err.message);
     } finally {
       setSubmittingBid(false);
@@ -289,7 +304,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
       setSelectedBidId(selectedBid._id);
       setDisclaimerOpen(true);
     } else {
-      toast.error("Selected proposal not found in proposals list.");
+      toast.error("The agreed proposal could not be loaded. Refresh the project and try again.");
     }
   };
 
@@ -361,7 +376,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
           description="This brief may have been archived, completed, or removed by its author."
           action={
             <Button onClick={() => setPage("browse")} className="rounded-[5px] bg-primary text-primary-foreground text-xs h-9 px-4">
-              Return to project directory
+              Find another project
             </Button>
           }
         />
@@ -371,6 +386,12 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
 
   const isOwner = currentUser && (project.clientId?._id || project.clientId) === currentUser._id;
   const isStudent = currentUser && currentUser.role === "student";
+  const myBid = bids.find(bid => (bid.studentId?._id || bid.studentId) === currentUser?._id);
+  const beginRevision = () => {
+    setBidAmount(myBid.amount); setBidTimeline(myBid.timeline); setBidProposal(myBid.proposal);
+    setBidSchedule(myBid.schedule?.length ? allocationDraft(myBid.schedule) : null);
+    setEditingVersion(myBid.version); setProposalError(""); setEditingBid(true); proposalIdentity.current = null;
+  };
 
   return (
     <div className="mx-auto max-w-7xl px-5 lg:px-8 py-8">
@@ -379,12 +400,12 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
         onClick={() => setPage("browse")}
         className="text-xs font-medium text-muted-foreground hover:text-foreground inline-flex min-h-11 items-center gap-1.5 mb-6 transition-colors"
       >
-        <ArrowLeft className="size-3.5" /> Back to directory
+        <ArrowLeft className="size-3.5" /> Back to projects
       </button>
 
       {error && <p role="alert" className="text-sm text-destructive py-3">{error} <Button variant="outline" onClick={fetchProjectData}>Retry</Button></p>}
-      {project.sampleData && <p role="status" className="text-sm text-muted-foreground">Sample data: illustrative work only. No gateway transaction or genuine reputation is represented.</p>}
-      {contract && <section className="border border-border rounded p-4 mb-5 text-sm space-y-2"><h2 className="font-medium">Agreed contract: {formatCurrency(contract.totalPaise / 100)}</h2><p>Proposal version {contract.proposalVersion} · {contract.timeline} · Advertised estimate: {formatCurrency(project.budget)}</p><p>{contract.evidencePolicy}</p><details><summary>Agreed brief and proposal</summary><p className="whitespace-pre-wrap">{contract.brief}</p><p className="whitespace-pre-wrap">{contract.proposal}</p></details></section>}
+      {project.sampleData && <p role="status" className="text-sm text-muted-foreground">Sample project. This example is here to help you try the app. It does not count towards marketplace reviews or activity.</p>}
+      {contract && <section className="border border-border rounded p-4 mb-5 text-sm space-y-2"><h2 className="font-medium">Agreed contract: {formatCurrency(contract.totalPaise / 100)}</h2><p>{contract.counterofferId ? `Accepted client counteroffer ${contract.counterofferVersion}` : `Proposal version ${contract.proposalVersion}`} · {contract.timeline} · Original budget: {formatCurrency(project.budget)}</p><p>{contract.evidencePolicy}</p><details><summary className="cursor-pointer py-2">View the agreed work and milestones</summary><div className="space-y-3"><p className="whitespace-pre-wrap">{contract.brief}</p><p className="whitespace-pre-wrap">{contract.proposal}</p><OfferSchedule schedule={contract.schedule} /></div></details></section>}
       {isOwner && project.status === "OPEN" && <Button variant="outline" className="mb-5" onClick={async () => {
         if (!window.confirm("Cancel this open brief? Proposals and history will be retained. No funding or refund is involved.")) return;
         try {
@@ -402,8 +423,8 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
               <ShieldCheck className="size-4" /> Test funding required
             </h3>
             <p className="text-xs text-muted-foreground">
-              An immutable offer is agreed. Confirm test funding of{" "}
-              <span className="font-semibold text-foreground font-mono tabular-nums">{formatCurrency(pendingPayment?.amount ?? (contract?.totalPaise / 100))}</span>. An uncertain attempt requires operator review before another order.
+              Your agreement is saved. Add test funding of{" "}
+              <span className="font-semibold text-foreground font-mono tabular-nums">{formatCurrency(pendingPayment?.amount ?? (contract?.totalPaise / 100))}</span> so the student can start. If you already tried paying, reopen the saved order to check its status.
             </p>
           </div>
           <div className="flex items-center gap-2.5 shrink-0">
@@ -424,27 +445,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
         </div>
       )}
 
-      {project.status === "PENDING_FUNDING" && isOwner && !pendingPayment && (
-        <div className="mb-6 p-5 rounded-[8px] bg-[var(--status-danger-bg)] border border-[var(--status-danger-border)] flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <h3 className="text-sm font-semibold text-[var(--status-danger-fg)] flex items-center gap-2">
-              <ShieldCheck className="size-4" /> Checkout needs attention
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              The saved checkout is unavailable or uncertain. Request operator review below; do not create another payable order.
-            </p>
-          </div>
-          <Button
-            variant="outline"
-            className="rounded-[5px] text-xs px-4 h-9 text-[var(--status-danger-fg)] border-[var(--status-danger-border)]"
-            onClick={handleCancelCheckout}
-          >
-            Dismiss Checkout
-          </Button>
-        </div>
-      )}
-
-      {project.status === "PENDING_FUNDING" && isStudent && pendingPayment && pendingPayment.studentId === currentUser._id && (
+      {project.status === "PENDING_FUNDING" && isStudent && contract?.studentId === currentUser._id && (
         <div className="mb-6 p-5 rounded-[8px] bg-[var(--status-warning-bg)] border border-[var(--status-warning-border)]">
           <h3 className="text-sm font-semibold text-[var(--status-warning-fg)] flex items-center gap-2">
             <ShieldCheck className="size-4" /> Proposal agreed · awaiting test funding
@@ -524,8 +525,9 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
             {project.fileManifest && project.fileManifest.length > 0 && (
               <div>
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Imported File Manifest ({project.importSource || "Local"})
+                  Project file list ({project.importSource || "ZIP"})
                 </h3>
+                <p className="text-xs text-muted-foreground mt-2">This lists file names only. Source files are not hosted here; ask the client for access if needed.</p>
                 <div className="mt-2.5 rounded-[6px] border border-border p-3 bg-secondary/30 max-h-48 overflow-y-auto space-y-1 text-xs text-muted-foreground font-mono">
                   {project.fileManifest.map((item, idx) => (
                     <div key={idx} className="flex justify-between">
@@ -541,10 +543,10 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
           {/* Milestone Timeline */}
           {(isOwner || isStudent) && <ProjectRecovery key={`${project._id}:${token}`} project={project} token={token} participant={isOwner || bids.some(b => b.status === "ACCEPTED" && (b.studentId?._id || b.studentId) === currentUser?._id) || contract?.studentId === currentUser?._id} onUpdate={fetchProjectData} />}
           <section className="space-y-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Milestones & Checkpoints</h2>
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Milestones</h2>
             <div className="rounded-[8px] bg-card border border-border divide-y divide-border overflow-hidden">
               {milestones.length === 0 ? (
-                <div className="text-center p-6 text-xs text-muted-foreground">No milestones configured for this project.</div>
+                <div className="text-center p-6 text-xs text-muted-foreground">This project has no milestones. Ask the client to check the brief before agreeing to work.</div>
               ) : (
                 milestones.map((m, i) => (
                   <div key={m._id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
@@ -554,7 +556,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
                       </span>
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-foreground truncate">{m.title}</p>
-                        <p className="text-xs text-muted-foreground">Checkpoint {i + 1}</p>
+                        <p className="text-xs text-muted-foreground">Milestone {i + 1}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-4 shrink-0">
@@ -592,7 +594,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
 
               return (
                 <section className="space-y-3">
-                  <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Project Evidence & Review</h2>
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Review your experience</h2>
                   <div className="rounded-[8px] bg-card border border-border p-6 space-y-4">
                     {hasAlreadyReviewed ? (
                       <div className="space-y-2.5">
@@ -624,7 +626,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
                       <div className="space-y-4">
                         <p className="text-xs text-muted-foreground">
                           {isClient
-                            ? `Contract complete. Leave factual feedback for ${acceptedBid?.studentId?.name || "the student"} to build their verified record.`
+                            ? `The work is complete. Tell ${acceptedBid?.studentId?.name || "the student"} what went well and what could have been better.`
                             : `Contract complete. Leave factual feedback for ${project.clientId?.name || "the client"}.`}
                         </p>
 
@@ -680,6 +682,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
           )}
 
           {/* Proposals List - Owner Only */}
+          {isStudent && myBid && project.status !== "OPEN" && <section className="space-y-3"><h2 className="font-medium">Your proposal and agreed terms</h2><ProposalNegotiation bid={myBid} project={project} milestones={milestones} token={token} isOwner={false} onChanged={fetchProjectData} /></section>}
           {isOwner && (
             <section className="space-y-3">
               <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -691,7 +694,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
                     <BrandState
                       name="no-proposals"
                       title="No proposals submitted yet"
-                      description="Students browsing the directory will submit proposals here."
+                      description="Students can now read your project and send proposals. Check their approach, price and milestones before you agree."
                       compact
                     />
                   </div>
@@ -711,9 +714,9 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
                           </Avatar>
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-foreground truncate">{b.studentId?.name || "Student"}</p>
-                            <p className="text-xs text-muted-foreground truncate">{b.studentId?.college || "College"}</p>
-                            <p className="text-[11px] text-muted-foreground mt-0.5">
-                              <Button variant="outline" onClick={()=>setCandidateId(b.studentId?._id || b.studentId)}>View candidate work record</Button>
+                            {b.studentId?.college && <p className="text-xs text-muted-foreground truncate">{b.studentId.college}</p>}
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              <Button variant="outline" onClick={()=>setCandidateId(b.studentId?._id || b.studentId)}>View profile and work</Button>
                             </p>
                           </div>
                         </div>
@@ -730,14 +733,15 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
                       <div className="flex items-center justify-between pt-1">
                         <div>
                           {b.status === "ACCEPTED" ? (
-                            <StatusBadge tone="success">Selected & Contracted</StatusBadge>
+                            <StatusBadge tone="success">Accepted</StatusBadge>
                           ) : (
                             <StatusBadge tone="muted">{b.status}</StatusBadge>
                           )}
                         </div>
 
                         {project.status === "OPEN" && b.status === "PENDING" && (
-                          <div className="flex gap-2"><Button variant="outline" onClick={async()=>{try{const response=await fetch(`/api/bids/${b._id}/reject`,{method:"PATCH",headers:{Authorization:`Bearer ${token}`}});const data=await response.json();if(!response.ok)throw new Error(data.message);await fetchProjectData();}catch(e){if(live.current)setError(e.message);}}}>Reject proposal</Button><Button
+                          <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={async()=>{try{const response=await fetch(`/api/bids/${b._id}/reject`,{method:"PATCH",headers:{Authorization:`Bearer ${token}`}});const data=await response.json();if(!response.ok)throw new Error(data.message);await fetchProjectData();}catch(e){if(live.current)setError(e.message);}}}>Reject proposal</Button><Button
+                            disabled={b.counteroffers?.some(offer => offer.status === "PENDING")}
                             size="sm"
                             className="rounded-[5px] bg-primary text-primary-foreground hover:bg-primary/90 text-xs px-4"
                             onClick={() => handleAcceptBid(b._id)}
@@ -766,6 +770,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
                           </div>
                         )}
                       </div>
+                      <ProposalNegotiation bid={b} project={project} milestones={milestones} token={token} isOwner onChanged={fetchProjectData} />
                     </div>
                   ))
                 )}
@@ -783,7 +788,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
                 <div>
                   <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Project Budget</span>
                   <p className="text-3xl font-mono tabular-nums font-semibold text-foreground mt-1">{formatCurrency(project.budget)}</p>
-                  <p className="text-[11px] text-muted-foreground mt-1">Advertised estimate. Your accepted offer sets the contract total.</p>
+                  <p className="text-xs text-muted-foreground mt-1">This is the client's budget. Your proposal can have a different price.</p>
                 </div>
 
                 <Separator />
@@ -796,23 +801,28 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
                         <span className="text-xs font-medium text-foreground">Your Proposal</span>
                         <StatusBadge tone="info">{bids.find(b => (b.studentId?._id || b.studentId) === currentUser?._id)?.status || "Pending"}</StatusBadge>
                       </div>
-                      <p className="text-lg font-mono tabular-nums font-semibold text-foreground">{formatCurrency(bidAmount)}</p>
-                      <p className="text-xs text-muted-foreground">Estimated timeline: {bidTimeline}</p>
-                      <p className="text-xs text-foreground/80 italic">"{bidProposal}"</p>
+                      <p className="text-lg font-mono tabular-nums font-semibold text-foreground">{formatCurrency(myBid?.amount)}</p>
+                      <p className="text-xs text-muted-foreground">Timeline: {myBid?.timeline}</p>
+                      <p className="text-xs text-foreground/80 whitespace-pre-wrap">{myBid?.proposal}</p>
                       {bids.find(b => (b.studentId?._id || b.studentId) === currentUser?._id)?.status === "PENDING" && <div className="flex gap-2">
-                        <Button variant="outline" onClick={() => setEditingBid(true)}>Revise proposal</Button>
+                        <Button variant="outline" onClick={beginRevision}>Revise proposal</Button>
                         <Button variant="outline" onClick={async () => {
                           const mine = bids.find(b => (b.studentId?._id || b.studentId) === currentUser?._id);
-                          try { const r = await fetch(`/api/bids/${mine._id}`, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ action: "WITHDRAW" }) }); const d = await r.json(); if (!r.ok) throw new Error(d.message); await fetchProjectData(); } catch (e) { toast.error(e.message); }
+                          try { const r = await fetch(`/api/bids/${mine._id}`, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ action: "WITHDRAW", proposalVersion: mine.version }) }); const d = await r.json(); if (!r.ok) throw new Error(d.message); await fetchProjectData(); } catch (e) { setProposalError(e.message); }
                         }}>Withdraw proposal</Button>
                       </div>}
+                      {myBid && <ProposalNegotiation bid={myBid} project={project} milestones={milestones} token={token} isOwner={false} onChanged={fetchProjectData} />}
                     </div>
                   ) : (
-                    <div className="space-y-3">
+                    <form className="space-y-3" onSubmit={event => { event.preventDefault(); handlePlaceBid(); }}>
+                      {editingBid && editingVersion !== myBid?.version && <p role="alert" className="text-sm text-destructive">Your proposal changed while you were editing. <button type="button" className="underline" onClick={beginRevision}>Load the latest version</button> before saving.</p>}
                       <div>
                         <label htmlFor="bid-price" className="text-xs font-medium text-muted-foreground">Proposed Price (₹)</label>
                         <Input
                           id="bid-price"
+                          disabled={submittingBid}
+                          required
+                          inputMode="decimal"
                           placeholder="₹40,000"
                           className="mt-1 rounded-[5px] bg-input-background border-input text-sm"
                           value={bidAmount}
@@ -823,6 +833,9 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
                         <label htmlFor="bid-timeline" className="text-xs font-medium text-muted-foreground">Timeline</label>
                         <Input
                           id="bid-timeline"
+                          disabled={submittingBid}
+                          required
+                          maxLength={200}
                           placeholder="3 weeks"
                           className="mt-1 rounded-[5px] bg-input-background border-input text-sm"
                           value={bidTimeline}
@@ -833,24 +846,28 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
                         <label htmlFor="bid-proposal" className="text-xs font-medium text-muted-foreground">Proposal</label>
                         <Textarea
                           id="bid-proposal"
+                          disabled={submittingBid}
+                          required
+                          maxLength={10000}
                           rows={4}
-                          placeholder="State your approach, past project experience, and deliverable commitments."
+                          placeholder="Explain how you would do the work and what the client will receive. Mention relevant experience if you have it."
                           className="mt-1 rounded-[5px] bg-input-background border-input text-sm"
                           value={bidProposal}
                           onChange={(e) => setBidProposal(e.target.value)}
                         />
                       </div>
-                      <Button
-                        onClick={handlePlaceBid}
-                        disabled={submittingBid}
+                      <MilestoneAllocationEditor prefix="proposal" price={bidAmount} milestones={milestones} value={bidSchedule} onChange={setBidSchedule} deadline={project.deadline} disabled={submittingBid} />
+                      <Button type="submit"
+                        disabled={submittingBid || (editingBid && editingVersion !== myBid?.version)}
                         className="w-full rounded-[5px] bg-primary text-primary-foreground hover:bg-primary/90 h-10 font-medium text-xs"
                       >
                         {submittingBid ? "Submitting…" : hasAlreadyBid ? "Save Proposal Revision" : "Submit Proposal"}
                       </Button>
-                      <p className="text-xs text-muted-foreground">Your offer uses these checkpoints, proportionally allocated to your price. All evidence links are optional; deliver the described work with notes or attachments.</p>
-                      <ul className="text-xs">{(() => { try { return allocateOffer(bidAmount, milestones).map((m, i) => <li key={i}>{m.title}: {formatCurrency(m.amountPaise / 100)}</li>); } catch { return <li>Enter a valid price to preview your schedule.</li>; } })()}</ul>
-                    </div>
+                      {editingBid && <Button type="button" variant="outline" disabled={submittingBid} onClick={() => { setEditingBid(false); setProposalError(""); }}>Cancel editing</Button>}
+                      <p className="text-xs text-muted-foreground">You can revise or withdraw your proposal until an agreement is made. A revision replaces any unanswered counteroffer.</p>
+                    </form>
                   )}
+                  {proposalError && <p role="alert" className="text-sm text-destructive mt-3">{proposalError}</p>}
                 </div>
               </div>
             )}
@@ -863,14 +880,14 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
                   onClick={() => setPage("auth")}
                   className="w-full rounded-[5px] bg-primary text-primary-foreground hover:bg-primary/90 text-xs h-9 font-medium"
                 >
-                  Sign in to Bid
+                  Sign in to propose
                 </Button>
               </div>
             )}
 
             {/* Client Context Card */}
             <div className="rounded-[8px] bg-card border border-border p-5 space-y-4">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Client Directory Record</span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">About the client</span>
               <div className="flex items-center gap-3">
                 <Avatar className="size-10 rounded-[4px] border border-border shrink-0">
                   {project.clientId?.avatarUrl ? (
@@ -883,20 +900,20 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
                 </Avatar>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-foreground truncate">{project.clientId?.name || "Client"}</p>
-                  <p className="text-xs text-muted-foreground truncate">{project.clientId?.college || "Client Organization"}</p>
+                  <p className="text-xs text-muted-foreground truncate">{project.clientId?.college || "Client"}</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3 pt-2 text-center border-t border-border">
                 <div className="p-2 min-w-0 rounded-[4px] bg-secondary/30">
                   <p className="text-base font-mono tabular-nums font-semibold text-foreground">{project.clientId?.completedProjects || 0}</p>
-                  <p className="text-[11px] text-muted-foreground">Completed</p>
+                  <p className="text-xs text-muted-foreground">Completed</p>
                 </div>
                 <div className="p-2 min-w-0 rounded-[4px] bg-secondary/30">
                   <p className="text-sm font-mono tabular-nums font-semibold text-foreground break-words">
                     {typeof project.clientId?.rating === "number" && project.clientId.rating > 0 ? project.clientId.rating.toFixed(1) : "No reviews yet"}
                   </p>
-                  <p className="text-[11px] text-muted-foreground">Rating</p>
+                  <p className="text-xs text-muted-foreground">Rating</p>
                 </div>
               </div>
             </div>
@@ -905,6 +922,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
       </div>
 
       <PaymentDisclaimerModal
+        contract={contract}
         offer={bids.find(b => b._id === selectedBidId)}
         open={disclaimerOpen}
         onConfirm={confirmCheckout}

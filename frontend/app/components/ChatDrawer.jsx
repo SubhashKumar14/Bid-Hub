@@ -84,7 +84,7 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
       setError(err.message || "Messages may be out of date. Retry to refresh.");
       if (err.status === 400 || err.status === 403) {
         setPollingDisabled(true);
-        toast.error("Chat is no longer active or available.");
+        toast.error("This project conversation is unavailable. Reopen the project to check your access.");
         onClose();
       }
     }
@@ -137,7 +137,7 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
       setTimeout(() => scrollToBottom("smooth"), 50);
     } catch (err) {
       if (targetRef.current !== target) return;
-      setError(err.message || "Failed to send message. Retry using the retained text.");
+      setError(err.message || "Your message could not be sent. The text is still here; try sending it again.");
       toast.error(err.message || "Failed to send message");
       setInputText(content);
     } finally {
@@ -175,11 +175,11 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
         <SheetHeader className="p-4 border-b border-border">
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <MessageSquare className="size-3.5" />
-            <span className="text-xs uppercase tracking-wider font-mono">Workspace Channel</span>
+            <span className="text-xs uppercase tracking-wider font-mono">Project messages</span>
           </div>
           <SheetTitle className="text-base font-semibold tracking-tight text-foreground truncate">{projectTitle}</SheetTitle>
           <SheetDescription className="truncate text-xs text-muted-foreground">
-            Direct communication for project milestones
+            Messages between the client and student on this project.
           </SheetDescription>
         </SheetHeader>
 
@@ -193,7 +193,7 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
         >
           {loading && messages.length === 0 ? (
             <div className="py-20 text-center text-xs text-muted-foreground animate-pulse">
-              Opening channel history…
+              Loading messages…
             </div>
           ) : (
             <>
@@ -215,7 +215,7 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
                 <BrandState
                   name="no-messages"
                   title="No messages yet"
-                  description="Send a message to start communicating with your project partner."
+                  description="Use this conversation for questions, updates and feedback about the project."
                   compact
                 />
               ) : (
@@ -253,7 +253,7 @@ export function ChatDrawer({ open, onClose, projectId, projectTitle, token, curr
                           {msg.content}
                         </div>
                         <div
-                          className={`flex items-center gap-1.5 text-[10px] text-muted-foreground ${
+                          className={`flex items-center gap-1.5 text-xs text-muted-foreground ${
                             isMe ? "justify-end" : "justify-start"
                           }`}
                         >

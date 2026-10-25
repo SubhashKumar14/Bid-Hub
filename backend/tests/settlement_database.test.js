@@ -17,6 +17,8 @@ import { Notification } from "../models/Notification.js";
 import { Contract } from "../models/Contract.js";
 import { agreeOffer } from "../payments/agreement.js";
 import { allocateOffer } from "../lib/offer.js";
+import { offerSchedule } from "../lib/offer.js";
+import { createCounteroffer, decideCounteroffer } from "../services/negotiation.js";
 import { Message } from "../models/Message.js";
 import { Review } from "../models/Review.js";
 import { PaymentEvent } from "../models/PaymentEvent.js";
@@ -79,6 +81,91 @@ async function fixture(options = {}) {
   const settle = () => settlePayment(project._id, bid._id, 100, orderId, "pay_" + project._id);
   return { project, bid, milestone, orderId, settle };
 }
+
+async function negotiationFixture() {
+  const f = await fixture({ noLedger: true });
+  await Project.updateOne({ _id: f.project._id }, { status: "OPEN" });
+  await Milestone.updateOne({ _id: f.milestone._id }, { amount: 40 });
+  const final = await Milestone.create({ projectId: f.project._id, title: "Final handover", amount: 60 });
+  const terms = { requestId: crypto.randomUUID(), proposalVersion: 1, previousCounterofferVersion: 0, amount: "75", timeline: "Three weeks", proposal: "First a working draft, then the final handover with one revision.", message: "More of the budget goes to the final work.", schedule: [{ milestoneId: String(f.milestone._id), amount: "10" }, { milestoneId: String(final._id), amount: "65" }] };
+  return { ...f, final, terms, student: { _id: f.bid.studentId, role: "student" }, client: { _id: f.project.clientId, role: "client" } };
+}
+
+test("custom allocations reject missing, duplicate, foreign, inexact and past-date terms", async () => {
+  const f = await negotiationFixture();
+  const milestones = await Milestone.find({ projectId: f.project._id });
+  const valid = offerSchedule("75", milestones, f.terms.schedule, "2027-01-01");
+  assert.deepEqual(valid.map(row => row.amountPaise), [1000, 6500]);
+  for (const schedule of [f.terms.schedule.slice(0,1), [f.terms.schedule[0], f.terms.schedule[0]], [{...f.terms.schedule[0],milestoneId:String(new mongoose.Types.ObjectId())},f.terms.schedule[1]], [{...f.terms.schedule[0],amount:"10.001"},f.terms.schedule[1]], [{...f.terms.schedule[0],amount:"11"},f.terms.schedule[1]], [{...f.terms.schedule[0],dueDate:"2020-01-01"},f.terms.schedule[1]]]) assert.throws(() => offerSchedule("75", milestones, schedule, "2027-01-01"));
+  await Project.updateOne({_id:f.project._id},{deadline:"2020-01-01"});
+  await assert.rejects(createCounteroffer(f.bid._id,f.client._id,f.terms),/delivery date has passed/);
+});
+
+test("proposal revision preserves custom allocations, retries once and rejects stale edits", async () => {
+  const f = await negotiationFixture();
+  const req = { params: {id:String(f.bid._id)}, user:f.student, body:{...f.terms,action:"REVISE"} };
+  const revised = await invoke(bidRouter, "/bids/:id", "patch", req);
+  assert.equal(revised.statusCode,200); assert.equal(revised.body.version,2);
+  const replay = await invoke(bidRouter, "/bids/:id", "patch", req);
+  assert.equal(replay.body.version,2); assert.equal(replay.body.history.length,1);
+  await assert.rejects(invoke(bidRouter, "/bids/:id", "patch", {...req,body:{...req.body,requestId:crypto.randomUUID()}}), /another tab/);
+  const agreement = await agreeOffer(f.bid._id, f.project.clientId, 2);
+  assert.deepEqual(agreement.schedule.map(row => row.amountPaise),[1000,6500]);
+});
+
+test("counteroffer agreement is participant-only, exact, immutable and funds custom allocations once", async () => {
+  const f = await negotiationFixture();
+  await assert.rejects(createCounteroffer(f.bid._id,new mongoose.Types.ObjectId(),f.terms), error=>error.status===403);
+  const created = await createCounteroffer(f.bid._id,f.project.clientId,f.terms);
+  assert.equal((await createCounteroffer(f.bid._id,f.project.clientId,f.terms)).replayed,true);
+  await assert.rejects(createCounteroffer(f.bid._id,f.project.clientId,{...f.terms,timeline:"Four weeks"}),/different terms/);
+  await assert.rejects(createCounteroffer(f.bid._id,f.project.clientId,{...f.terms,amount:"76"}),/add up|different terms/);
+  await assert.rejects(agreeOffer(f.bid._id,f.project.clientId,1),/waiting for a reply/);
+  const input={action:"ACCEPT",proposalVersion:1,counterofferVersion:1};
+  await assert.rejects(decideCounteroffer(f.bid._id,created.counteroffer._id,f.client,input),error=>error.status===403);
+  await assert.rejects(decideCounteroffer(f.bid._id,created.counteroffer._id,{_id:new mongoose.Types.ObjectId(),role:"student"},input),error=>error.status===403);
+  const accepted=await Promise.all([decideCounteroffer(f.bid._id,created.counteroffer._id,f.student,input),decideCounteroffer(f.bid._id,created.counteroffer._id,f.student,input)]);
+  assert.equal(accepted[0].contract.totalPaise,7500); assert.equal(accepted[1].contract.totalPaise,7500);
+  assert.equal(await Contract.countDocuments({projectId:f.project._id}),1);
+  const bid=await Bid.findById(f.bid._id); assert.equal(bid.version,2); assert.equal(bid.history.length,1);
+  const contract=await Contract.findOne({projectId:f.project._id}); assert.equal(String(contract.acceptedBy),String(f.student._id)); assert.equal(String(contract.counterofferId),String(created.counteroffer._id));
+  await Contract.updateOne({_id:contract._id},{$set:{counterofferVersion:99,totalPaise:10000,"schedule.0.amountPaise":2000}});
+  assert.equal((await Contract.findById(contract._id)).totalPaise,7500);
+  assert.equal((await Project.findById(f.project._id)).status,"PENDING_FUNDING"); assert.equal(await PaymentLedger.countDocuments({projectId:f.project._id}),0);
+  await PaymentLedger.create({projectId:f.project._id,bidId:f.bid._id,clientId:f.client._id,studentId:f.student._id,amount:75,amountPaise:7500,provider:"mock",stripeSessionId:f.orderId,allocationSchedule:contract.schedule.map(row=>({milestoneId:row.milestoneId,amountPaise:row.amountPaise}))});
+  const settle=()=>settlePayment(f.project._id,f.bid._id,75,f.orderId,"pay_custom_"+f.project._id);
+  assert.deepEqual(await Promise.all([settle(),settle()]),[true,true]);
+  const allocations=await PaymentLedger.find({projectId:f.project._id,milestoneId:{$ne:null}}).sort({amountPaise:1}); assert.deepEqual(allocations.map(row=>row.amountPaise),[1000,6500]);
+});
+
+test("decline, withdrawal and superseded counteroffers retain history and cannot be accepted", async () => {
+  const f=await negotiationFixture();
+  const first=await createCounteroffer(f.bid._id,f.client._id,f.terms);
+  const decline={action:"DECLINE",proposalVersion:1,counterofferVersion:1};
+  await decideCounteroffer(f.bid._id,first.counteroffer._id,f.student,decline);
+  assert.equal((await decideCounteroffer(f.bid._id,first.counteroffer._id,f.student,decline)).replayed,true);
+  await assert.rejects(decideCounteroffer(f.bid._id,first.counteroffer._id,f.student,{...decline,action:"ACCEPT"}),/no longer open/);
+  await assert.rejects(createCounteroffer(f.bid._id,f.client._id,{...f.terms,requestId:crypto.randomUUID()}),/another tab/);
+  const second=await createCounteroffer(f.bid._id,f.client._id,{...f.terms,previousCounterofferVersion:1,requestId:crypto.randomUUID()});
+  await decideCounteroffer(f.bid._id,second.counteroffer._id,f.client,{action:"WITHDRAW",proposalVersion:1,counterofferVersion:2});
+  const third=await createCounteroffer(f.bid._id,f.client._id,{...f.terms,previousCounterofferVersion:2,requestId:crypto.randomUUID()});
+  await invoke(bidRouter,"/bids/:id","patch",{params:{id:String(f.bid._id)},user:f.student,body:{...f.terms,requestId:crypto.randomUUID(),action:"REVISE"}});
+  await assert.rejects(decideCounteroffer(f.bid._id,third.counteroffer._id,f.student,{action:"ACCEPT",proposalVersion:1,counterofferVersion:3}),/no longer open/);
+  assert.deepEqual((await Bid.findById(f.bid._id)).counteroffers.map(row=>row.status),["DECLINED","WITHDRAWN","SUPERSEDED"]);
+});
+
+test("counteroffer acceptance rolls back on notification failure and competing acceptances create one contract", async t => {
+  const f=await negotiationFixture();
+  const created=await createCounteroffer(f.bid._id,f.client._id,f.terms);
+  const input={action:"ACCEPT",proposalVersion:1,counterofferVersion:1};
+  const failure=t.mock.method(Notification,"create",async()=>{throw new Error("Injected counteroffer notification failure");});
+  await assert.rejects(decideCounteroffer(f.bid._id,created.counteroffer._id,f.student,input),/Injected/); failure.mock.restore();
+  assert.equal(await Contract.countDocuments({projectId:f.project._id}),0); assert.equal((await Bid.findById(f.bid._id)).counteroffers[0].status,"PENDING"); assert.equal((await Project.findById(f.project._id)).status,"OPEN");
+  const other=await Bid.create({projectId:f.project._id,studentId:new mongoose.Types.ObjectId(),amount:"100",timeline:"One month",proposal:"A different student's proposal"});
+  const competing=await createCounteroffer(other._id,f.client._id,{...f.terms,requestId:crypto.randomUUID()});
+  const outcomes=await Promise.allSettled([decideCounteroffer(f.bid._id,created.counteroffer._id,f.student,input),decideCounteroffer(other._id,competing.counteroffer._id,{_id:other.studentId,role:"student"},input)]);
+  assert.equal(outcomes.filter(row=>row.status==="fulfilled").length,1); assert.equal(await Contract.countDocuments({projectId:f.project._id}),1);
+});
 
 test("settlement rolls back assignment on injected allocation failure and retry succeeds", {}, async t => {
   const f = await fixture();

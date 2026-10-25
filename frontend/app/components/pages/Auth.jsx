@@ -113,7 +113,7 @@ export function Auth({ onDone, setToken, initialRole = "student" }) {
               Good work shouldn't wait for graduation.
             </h1>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Structured project briefs, transparent milestone agreements, and participant-reviewed delivery evidence for campus talent.
+              Find project work, agree on the details and keep your submissions and feedback in one place.
             </p>
           </div>
         </div>
@@ -122,13 +122,13 @@ export function Auth({ onDone, setToken, initialRole = "student" }) {
           <div className="p-4 bg-card border border-border rounded-[8px] space-y-2">
             <div className="flex items-center gap-2 text-foreground font-medium text-xs">
               <BrandIcon name="milestone" size={16} className="text-[var(--brand-accent)]" />
-              <span>Milestone Agreements</span>
+              <span>Before you start</span>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              This workspace records Razorpay sandbox funding and work approvals separately. Live payments and payouts are disabled; no legal escrow is provided.
+              Agree on the price and milestones first. Payments currently use Razorpay test mode, so this app does not charge or pay out real money.
             </p>
           </div>
-          <p className="text-xs text-muted-foreground">© Bid·Hub · Bengaluru, India</p>
+          <p className="text-xs text-muted-foreground">© Bid·Hub</p>
         </div>
       </aside>
 
@@ -136,12 +136,12 @@ export function Auth({ onDone, setToken, initialRole = "student" }) {
       <main className="lg:col-span-7 flex items-center justify-center p-6 sm:p-10 lg:p-16">
         <div className="w-full max-w-[420px] space-y-6">
           <div>
-            <span className="eyebrow text-xs">Account Workspace</span>
+            <span className="eyebrow text-xs">Your account</span>
             <h2 className="text-2xl font-medium tracking-tight text-foreground mt-1">
-              Access your workspace
+              Welcome to Bid·Hub
             </h2>
             <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-              Sign in with your email or register as a student freelancer or project client.
+              Sign in to continue, or create an account to find work or post a project.
             </p>
           </div>
 
@@ -241,7 +241,7 @@ export function Auth({ onDone, setToken, initialRole = "student" }) {
                       }`}
                     >
                       <p className="text-xs font-medium text-foreground">Student Freelancer</p>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">Find projects & earn</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Find projects and deliver work</p>
                     </button>
 
                     <button
@@ -254,7 +254,7 @@ export function Auth({ onDone, setToken, initialRole = "student" }) {
                       }`}
                     >
                       <p className="text-xs font-medium text-foreground">Project Client</p>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">Post briefs & hire</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Post projects and review work</p>
                     </button>
                   </div>
                 </div>

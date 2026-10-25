@@ -252,7 +252,7 @@ export default function App() {
           token={token}
         />
 
-        <p role="status" className="px-4 py-2 text-center text-xs text-muted-foreground border-b border-border">{capabilities ? (capabilities.isolatedTest ? "Automated test fixture · Mock provider. No real payments or payouts." : "Test workspace · Live payments and payouts are disabled.") : "Financial capabilities unavailable · Do not send real money."}</p>
+        <p role="status" className="px-4 py-2 text-center text-xs text-muted-foreground border-b border-border">{capabilities ? (capabilities.isolatedTest ? "Automated test environment. Payments are simulated for this test run only." : "Payments are in test mode. No real money is charged or paid out.") : "Payment status is unavailable. Do not attempt a real payment."}</p>
         <main key={token}>
           {page === "landing" && <Landing setPage={setPage} />}
           {page === "browse" && <Browse setPage={setPage} />}

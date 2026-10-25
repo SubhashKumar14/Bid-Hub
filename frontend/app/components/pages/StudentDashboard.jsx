@@ -77,7 +77,7 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
       releasedAmount = paymentsData.stats?.releasedAmount || 0;
 
         if(target!==targetRef.current)return; setFinancialError("");
-      } catch { if(target!==targetRef.current)return;setFinancialError("Financial data unavailable. Work data remains available; retry to refresh the ledger."); }
+      } catch { if(target!==targetRef.current)return;setFinancialError("Test payment records could not be loaded. Your work is still available. Try loading payments again."); }
 
       let views=null;
       try {
@@ -153,13 +153,13 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
     });
   });
 
-  if (error && !loading) return <div role="alert" className="max-w-xl mx-auto p-8 space-y-4"><h1 className="text-xl">Workspace data unavailable</h1><p>{error}</p><Button onClick={fetchDashboardData}>Retry</Button></div>;
+  if (error && !loading) return <div role="alert" className="max-w-xl mx-auto p-8 space-y-4"><h1 className="text-xl">Your projects could not be loaded</h1><p>{error}</p><Button onClick={fetchDashboardData}>Retry</Button></div>;
 
   if (loading) {
     return (
       <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-8 py-20 text-center animate-pulse">
       {error && <div role="alert" className="border border-destructive rounded p-4 text-sm">{error} <Button variant="outline" onClick={() => window.location.reload()}>Retry</Button></div>}
-        <p className="text-sm text-muted-foreground">Syncing student workspace…</p>
+        <p className="text-sm text-muted-foreground">Loading your work…</p>
       </div>
     );
   }
@@ -170,13 +170,13 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 border-b border-border">
         <div>
           <span className="eyebrow text-xs text-muted-foreground">
-            Student Freelance Workspace · {currentUser?.college || "Student"}
+            Student account · {currentUser?.college || "Student"}
           </span>
           <h1 className="text-3xl font-medium tracking-tight text-foreground mt-1">
-            Workspace: {currentUser?.name}
+            Your work: {currentUser?.name}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Track active milestone submissions, pending client feedback, and test funding records.
+            See what needs delivering, check client feedback and follow up on your proposals.
           </p>
         </div>
         <div className="flex flex-wrap gap-2.5">
@@ -192,7 +192,7 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
             variant="outline"
             className="rounded-[5px] text-xs h-9 px-4 font-medium"
           >
-            Funding ledger
+            Test payments
           </Button>
         </div>
       </header>
@@ -202,7 +202,7 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
 
       {/* Priority: Needs Your Attention Banner */}
       {attentionItems.length > 0 && (
-        <section className="bg-card border-l-4 border-l-[var(--brand-accent)] border border-border rounded-[8px] p-5 space-y-3">
+        <section className="bg-card border border-border rounded-[8px] p-5 space-y-3">
           <div className="flex flex-wrap gap-2 items-center justify-between">
             <div className="flex items-center gap-2">
               <BrandIcon name="submission" size={18} className="text-[var(--brand-accent)]" />
@@ -210,7 +210,7 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
                 Needs Your Attention ({attentionItems.length})
               </h2>
             </div>
-            <span className="text-[11px] text-muted-foreground">Pending Checkpoints</span>
+            <span className="text-xs text-muted-foreground">Milestones to submit</span>
           </div>
 
           <div className="space-y-2 pt-1">
@@ -222,13 +222,13 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
                 <div className="text-xs min-w-0">
                   <div className="flex items-center gap-2">
                     {item.type === "revision" ? (
-                      <StatusBadge tone="danger" className="text-[10px] py-0">Changes Requested</StatusBadge>
+                      <StatusBadge tone="danger" className="text-xs py-0">Changes Requested</StatusBadge>
                     ) : (
-                      <StatusBadge tone="warning" className="text-[10px] py-0">Ready to Submit</StatusBadge>
+                      <StatusBadge tone="warning" className="text-xs py-0">Ready to Submit</StatusBadge>
                     )}
                     <span className="font-medium text-foreground truncate">{item.milestoneTitle}</span>
                   </div>
-                  <p className="text-muted-foreground text-[11px] mt-0.5 truncate">
+                  <p className="text-muted-foreground text-xs mt-0.5 truncate">
                     {item.projectTitle} · <span className="num font-mono">{formatCurrency(item.amount)}</span>
                   </p>
                 </div>
@@ -251,17 +251,17 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { k: "Real payouts", v: "Disabled", d: "Work approval does not transfer money", icon: <Wallet className="size-4" /> },
-          { k: "Active Contracts", v: stats.activeContractsCount, d: "In delivery pipeline", icon: <Sparkles className="size-4" /> },
-          { k: "Proposals Pending", v: stats.openBidsCount, d: "Under client review", icon: <TrendingUp className="size-4" /> },
-          { k: "Profile Views", v: stats.profileViews ?? "Unavailable", d: "Direct directory discovery", icon: <Eye className="size-4" /> },
+          { k: "Active Contracts", v: stats.activeContractsCount, d: "Projects you are working on", icon: <Sparkles className="size-4" /> },
+          { k: "Proposals Pending", v: stats.openBidsCount, d: "Awaiting an agreement", icon: <TrendingUp className="size-4" /> },
+          { k: "Profile Views", v: stats.profileViews ?? "Unavailable", d: "Visits from other people", icon: <Eye className="size-4" /> },
         ].map((s) => (
           <div key={s.k} className="bg-card border border-border rounded-[8px] p-4 space-y-1">
             <div className="flex items-center justify-between text-muted-foreground text-xs">
-              <span className="uppercase tracking-wider text-[10px] font-medium">{s.k}</span>
+              <span className="uppercase tracking-wider text-xs font-medium">{s.k}</span>
               {s.icon}
             </div>
             <p className="text-2xl font-medium num text-foreground pt-1">{s.v}</p>
-            <p className="text-[11px] text-muted-foreground">{s.d}</p>
+            <p className="text-xs text-muted-foreground">{s.d}</p>
           </div>
         ))}
       </section>
@@ -291,7 +291,7 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
                     className="rounded-[5px] text-xs h-8 px-4"
                     onClick={() => setPage("browse")}
                   >
-                    Browse Project Directory
+                    Browse projects
                   </Button>
                 }
               />
@@ -301,7 +301,7 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
                       <h3 className="text-sm font-medium text-foreground">{c.title}</h3>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">{c.statusText}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{c.statusText}</p>
                     </div>
                     <div className="flex items-center gap-3">
                       {["ASSIGNED", "IN_PROGRESS", "COMPLETED"].includes(c.projectStatus) && (
@@ -318,7 +318,7 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
                         <p className="text-sm font-medium num text-foreground">{formatCurrency(c.amount)}</p>
                         <StatusBadge
                           tone={c.status === "in-review" ? "info" : c.status === "completed" ? "success" : "warning"}
-                          className="text-[10px] py-0"
+                          className="text-xs py-0"
                         >
                           {c.status}
                         </StatusBadge>
@@ -333,7 +333,7 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
                       style={{ width: `${c.progress}%` }}
                     />
                   </div>
-                  <div className="flex justify-between text-[11px] text-muted-foreground">
+                  <div className="flex justify-between text-xs text-muted-foreground">
                     <span>{c.progress}% work approved</span>
                     <span>{c.milestones?.filter((m) => ["RELEASED", "APPROVED"].includes(m.status)).length || 0} of {c.milestones?.length || 0} milestones approved</span>
                   </div>
@@ -353,19 +353,19 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
                             <Button
                               size="xs"
                               variant="default"
-                              className="rounded-[4px] text-[11px] h-7 px-2.5"
+                              className="rounded-[4px] text-xs h-7 px-2.5"
                               onClick={() => openSubmitModal(m._id, m.title)}
                             >
-                              Submit Checkpoint
+                              Submit milestone
                             </Button>
                           )}
                           {m.status === "CHANGES_REQUESTED" && (
                             <div className="flex items-center gap-1.5">
-                              <StatusBadge tone="danger" className="text-[10px] py-0">Revisions</StatusBadge>
+                              <StatusBadge tone="danger" className="text-xs py-0">Revisions</StatusBadge>
                               <Button
                                 size="xs"
                                 variant="destructive"
-                                className="rounded-[4px] text-[11px] h-7 px-2.5"
+                                className="rounded-[4px] text-xs h-7 px-2.5"
                                 onClick={() => openSubmitModal(m._id, m.title)}
                               >
                                 Resubmit
@@ -373,10 +373,10 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
                             </div>
                           )}
                           {m.status === "SUBMITTED" && (
-                            <StatusBadge tone="info" className="text-[10px] py-0">In Review</StatusBadge>
+                            <StatusBadge tone="info" className="text-xs py-0">In Review</StatusBadge>
                           )}
                           {["RELEASED", "APPROVED"].includes(m.status) && (
-                            <StatusBadge tone="success" className="text-[10px] py-0">Work approved</StatusBadge>
+                            <StatusBadge tone="success" className="text-xs py-0">Work approved</StatusBadge>
                           )}
                         </div>
                       </div>
@@ -404,7 +404,7 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
               <BrandState
                 name="no-proposals"
                 title="No proposals submitted yet"
-                description="Check the project directory to submit proposals on open briefs."
+                description="Find a project that suits your skills and send a proposal. Your saved proposals and client replies will appear here."
                 compact
               />
             ) : (
@@ -423,15 +423,16 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
                     </p>
                     <StatusBadge
                       tone={b.status === "accepted" ? "success" : b.status === "rejected" ? "danger" : "info"}
-                      className="text-[10px] py-0 shrink-0"
+                      className="text-xs py-0 shrink-0"
                     >
                       {b.status}
                     </StatusBadge>
                   </div>
-                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span className="num font-mono font-medium text-foreground">{formatCurrency(b.amount)}</span>
                     <span>{b.timeline || "Proposed deadline"}</span>
                   </div>
+                  {b.counterofferPending && <p className="text-sm font-medium text-foreground">New counteroffer. Open this proposal to reply.</p>}
                 </div>
               ))
             )}
@@ -452,13 +453,13 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
               <div key={i} className="p-4 rounded-[6px] border border-border bg-secondary/20 space-y-2">
                 <div className="flex items-center gap-2">
                   <Avatar className="size-7 rounded-[4px] border border-border">
-                    <AvatarFallback className="text-[10px] bg-secondary text-foreground font-medium rounded-[4px]">
+                    <AvatarFallback className="text-xs bg-secondary text-foreground font-medium rounded-[4px]">
                       {(r.reviewerId?.name || "C").split(" ").map((x) => x[0]).slice(0, 2).join("")}
                     </AvatarFallback>
                   </Avatar>
                   <div className="text-xs leading-tight">
                     <p className="font-medium text-foreground">{r.reviewerId?.name || "Client"}</p>
-                    <p className="text-[11px] text-[var(--brand-accent)]">{"★".repeat(r.rating || 5)}</p>
+                    <p className="text-xs text-[var(--brand-accent)]">{"★".repeat(r.rating || 0)}</p>
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed italic line-clamp-3">
