@@ -61,6 +61,7 @@ export function ProjectRow({ project, onOpen }) {
 
           <h3 className="text-base sm:text-lg font-medium text-foreground tracking-tight group-hover:text-[var(--brand-accent)] transition-colors flex items-center gap-1.5">
             <span className="truncate">{project.title}</span>
+            {project.sampleData && <span className="text-xs text-muted-foreground">Sample data</span>}
             <ArrowUpRight className="size-4 shrink-0 text-muted-foreground/60 group-hover:text-[var(--brand-accent)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
           </h3>
 
@@ -150,85 +151,3 @@ export function ProjectRow({ project, onOpen }) {
 
 // ProjectCard is an alias to ProjectRow for clean index-first representation
 export const ProjectCard = ProjectRow;
-
-export const SAMPLE_PROJECTS = [
-  {
-    id: "p1",
-    title: "Redesign the onboarding flow for a campus fintech app",
-    category: "Product Design",
-    budget: "₹18,000",
-    bids: 12,
-    deadline: "14 days",
-    skills: ["UX/UI", "UX Writing", "Prototyping", "Mobile"],
-    poster: { name: "Meera Bhat", org: "Plume Finance", initials: "MB" },
-    remote: true,
-    level: "Intermediate",
-    excerpt: "Campus banking project: restructure 4-screen onboarding into a clear step-by-step verified flow.",
-  },
-  {
-    id: "p2",
-    title: "Build a MERN admin panel for an NGO volunteer system",
-    category: "Web Development",
-    budget: "₹32,000",
-    bids: 9,
-    deadline: "3 weeks",
-    skills: ["React", "MongoDB", "Express", "Tailwind"],
-    poster: { name: "Asha Foundation", org: "Youth Initiatives", initials: "AF" },
-    remote: true,
-    level: "Advanced",
-    excerpt: "Clean administration dashboard for shift rosters, volunteer attendance, and reporting.",
-  },
-  {
-    id: "p3",
-    title: "Edit a 6-minute brand documentary for a coffee startup",
-    category: "Video & Motion",
-    budget: "₹12,500",
-    bids: 21,
-    deadline: "10 days",
-    skills: ["Premiere", "DaVinci", "Color", "Sound"],
-    poster: { name: "Saanvi Rao", org: "Roast Republic", initials: "SR" },
-    remote: false,
-    location: "Bengaluru",
-    level: "Intermediate",
-    excerpt: "Footage shot on location. Looking for a concise editorial documentary cut with clean audio mastering.",
-  },
-  {
-    id: "p4",
-    title: "Ghostwrite a 7-part LinkedIn series on climate careers",
-    category: "Writing & Content",
-    budget: "₹9,000",
-    bids: 18,
-    deadline: "2 weeks",
-    skills: ["Long-form", "Research", "Editing"],
-    poster: { name: "Kunal Mehta", org: "Energy Insights", initials: "KM" },
-    remote: true,
-    level: "Beginner",
-    excerpt: "Analytical articles covering the energy transition and graduate engineering roles in India.",
-  },
-  {
-    id: "p5",
-    title: "Design a poster suite for our college film festival",
-    category: "Graphic Design",
-    budget: "₹7,500",
-    bids: 27,
-    deadline: "9 days",
-    skills: ["Illustration", "Typography", "Print"],
-    poster: { name: "FTII Society", org: "Film Club", initials: "FT" },
-    remote: true,
-    level: "Intermediate",
-    excerpt: "Three promotional posters and one programme layout with a restrained typographic treatment.",
-  },
-  {
-    id: "p6",
-    title: "Run a 4-week growth experiment on a Notion workspace store",
-    category: "Marketing",
-    budget: "₹15,000",
-    bids: 7,
-    deadline: "1 month",
-    skills: ["SEO", "Analytics", "Copywriting"],
-    poster: { name: "Notion Stash", org: "Digital Tools", initials: "NS" },
-    remote: true,
-    level: "Advanced",
-    excerpt: "Funnel analysis, customer discovery, and conversion optimization for student study templates.",
-  },
-];

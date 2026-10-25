@@ -82,6 +82,7 @@
   },
   "overrides": {
     "vite": "^6.4.3",
-    "cloudinary": "^2.2.0"
+    "cloudinary": "^2.2.0",
+    "body-parser": "^1.20.9"
   }
 }

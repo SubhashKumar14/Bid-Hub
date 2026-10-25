@@ -7,9 +7,12 @@ import mongoose from "../backend/node_modules/mongoose/index.js";
 import AdmZip from "adm-zip";
 import jwt from "jsonwebtoken";
 import net from "node:net";
+import http from "node:http";
+import zlib from "node:zlib";
 const children = [];
 const api = "http://127.0.0.1:5019/api";
-const serverEnv = { PORT: "5019", NODE_ENV: "production", PRODUCT_MODE: "demo", PAYMENT_PROVIDER: "mock", JWT_SECRET: "synthetic-browser-test-secret-at-least-32-characters", MONGODB_URI: process.env.TEST_MONGODB_URI || "mongodb://127.0.0.1:27129/journey?replicaSet=journey", PRIVATE_STORAGE: "mongodb", CLOUDINARY_CLOUD_NAME: "fixture", CLOUDINARY_API_KEY: "fixture", CLOUDINARY_API_SECRET: "fixture", CLIENT_URL: "http://127.0.0.1:5189", AUTH_RATE_LIMIT: "1000" };
+const sandbox = process.env.BIDHUB_SANDBOX_E2E === "1";
+const serverEnv = { PORT: "5019", NODE_ENV: sandbox ? "production" : "test", PRODUCT_MODE: "test", BIDHUB_ISOLATED_TEST: sandbox ? "" : "1", PAYMENT_PROVIDER: sandbox ? "razorpay" : "mock", JWT_SECRET: "synthetic-browser-test-secret-at-least-32-characters", MONGODB_URI: process.env.TEST_MONGODB_URI || "mongodb://127.0.0.1:27129/journey?replicaSet=journey", PRIVATE_STORAGE: "mongodb", CLOUDINARY_CLOUD_NAME: "fixture", CLOUDINARY_API_KEY: "fixture", CLOUDINARY_API_SECRET: "fixture", CLIENT_URL: "http://127.0.0.1:5189", AUTH_RATE_LIMIT: "1000" };
 let apiProcess;
 const run = (exe, args, env = {}) => { const child = spawn(exe, args, { env: { ...process.env, ...env }, windowsHide: true, stdio: "ignore" }); children.push(child); return child; };
 test.beforeAll(async () => {
@@ -45,14 +48,44 @@ test.afterAll(async () => {
   }
 });
 async function json(request, method, endpoint, token, data) {
+  if(method==="post" && endpoint==="/projects") data={skillsRequired:["Test fixture skill"],...data};
   const response = await request[method](api + endpoint, { headers: token ? { Authorization: "Bearer " + token } : {}, data });
   expect(response.ok(), await response.text()).toBeTruthy(); return response.json();
 }
 async function assertLayout(page, width, label = "") {
-  const report = await page.evaluate(width => ({ width: document.documentElement.scrollWidth, offenders: [...document.querySelectorAll("body *")].filter(e=>e.getBoundingClientRect().right > width + 1).slice(-6).map(e=>({tag:e.tagName,classes:e.className,text:e.textContent?.slice(0,70)})) }), width);
+  const report = await page.evaluate(width => ({ width: document.documentElement.scrollWidth, offenders: [...document.querySelectorAll("body *")].filter(e=>e.getBoundingClientRect().right > width + 1).sort((a,b)=>b.getBoundingClientRect().width-a.getBoundingClientRect().width).slice(0,18).map(e=>({tag:e.tagName,classes:e.className,left:Math.round(e.getBoundingClientRect().left),right:Math.round(e.getBoundingClientRect().right),width:Math.round(e.getBoundingClientRect().width),text:e.textContent?.slice(0,70)})) }), width);
   expect(report.width, `${label} ${JSON.stringify(report.offenders)}`).toBeLessThanOrEqual(width);
 }
-test("two-role production demo: different offer, two milestones, revision, approvals and reviews", async ({ browser, request }) => {
+async function completeSandboxCheckout(page) {
+  const frame=page.frameLocator("iframe.razorpay-checkout-frame");
+  await expect(page.locator("iframe.razorpay-checkout-frame")).toBeVisible({timeout:30000});
+  const phone=frame.getByPlaceholder("Mobile number",{exact:true});
+  await phone.waitFor({state:"visible",timeout:45000}); await phone.fill("9000090000");
+  await frame.getByRole("button",{name:"Continue",exact:true}).last().click();
+  await frame.getByText("Cards",{exact:true}).click();
+  await frame.getByText("Add a new card",{exact:true}).click();
+  const card=frame.getByPlaceholder(/Card number/i);
+  await card.waitFor({state:"visible",timeout:15000});
+  await card.fill("4100280000001007");
+  await frame.getByPlaceholder(/MM\s*\/\s*YY/i).fill("12/30");
+  await frame.getByPlaceholder(/CVV/i).fill("111");
+  await page.screenshot({path:"e2e-results/sandbox-card-ready.png",fullPage:true});
+  const popupPromise=page.context().waitForEvent("page",{timeout:15000}).catch(()=>null);
+  await frame.getByRole("button",{name:"Continue",exact:true}).last().click();
+  const popup=await popupPromise;
+  if(popup) {
+    await popup.waitForLoadState("domcontentloaded").catch(()=>{});
+    await expect(popup.locator("body")).toContainText(/success|failure/i,{timeout:30000});
+    await popup.getByRole("button",{name:/success/i}).click();
+  } else {
+    const otp=frame.getByPlaceholder(/OTP|one.time password/i);
+    await expect(otp).toBeVisible({timeout:45000}); await otp.fill("123456");
+    await frame.getByRole("button",{name:/submit|verify/i}).click();
+  }
+  await expect(page.getByRole("button",{name:"Go to Project Workspace"})).toBeVisible({timeout:90000});
+}
+
+test(`${sandbox ? "two-role production Razorpay sandbox" : "two-role isolated test provider"}: different offer, two milestones, revision, approvals and reviews`, async ({ browser, request }) => {
   const suffix = Date.now();
   const client = await json(request, "post", "/auth/register", null, { name: "Client Fixture", email: `client${suffix}@example.com`, password: "Synthetic123!", role: "client" });
   const student = await json(request, "post", "/auth/register", null, { name: "Student Fixture", email: `student${suffix}@example.com`, password: "Synthetic123!", role: "student" });
@@ -61,6 +94,7 @@ test("two-role production demo: different offer, two milestones, revision, appro
   await owner.locator("#project-title").fill("Writing journey fixture");
   await owner.locator("#project-description").fill("Prepare two independently reviewed writing deliverables.");
   await owner.locator("#project-category").click(); await owner.getByRole("option", {name:"Writing & Content",exact:true}).click();
+  await owner.getByPlaceholder("Add a required skill (e.g. React, Figma, Python)…").fill("Editorial"); await owner.getByPlaceholder("Add a required skill (e.g. React, Figma, Python)…").press("Enter");
   await owner.locator("#project-budget").fill("50000"); await owner.locator("#project-deadline").fill("2027-12-31");
   await owner.locator("#milestone-title-0").fill("Outline"); await owner.locator("#milestone-amount-0").fill("25000");
   await owner.locator("#milestone-title-1").fill("Final article"); await owner.locator("#milestone-amount-1").fill("25000");
@@ -74,10 +108,11 @@ test("two-role production demo: different offer, two milestones, revision, appro
   await page.locator("#bid-price").fill("25000"); await page.locator("#bid-timeline").fill("2 weeks"); await page.locator("#bid-proposal").fill("Two deliverables with a revision round.");
   const proposed=page.waitForResponse(r=>r.url().endsWith(`/projects/${project._id}/bids`) && r.request().method()==="POST");
   await page.getByRole("button",{name:"Submit Proposal",exact:true}).click(); expect((await proposed).ok()).toBeTruthy();
-  await owner.goto("/client");
-  await owner.getByRole("button", { name: /accept/i }).first().click();
+  if(process.env.BIDHUB_SANDBOX_ENTRY==="detail") { await owner.goto(`/project/${project._id}`); await owner.getByRole("button",{name:"Accept Proposal",exact:true}).click(); }
+  else { await owner.goto("/client"); await owner.getByRole("button", { name: /accept/i }).first().click(); }
   await expect(owner.getByRole("dialog")).toContainText("12,500");
   await owner.getByRole("button", { name: "Continue to Checkout" }).click();
+  if(sandbox) await completeSandboxCheckout(owner);
   await owner.getByRole("button", {name:"Go to Project Workspace"}).click();
   await expect.poll(async () => (await json(request,"get",`/projects/${project._id}`)).project.status).toBe("ASSIGNED");
   const detail = await json(request,"get",`/projects/${project._id}`);
@@ -134,7 +169,6 @@ test("two-role production demo: different offer, two milestones, revision, appro
   await owner.setViewportSize({width:390,height:844}); await owner.goto("/browse"); await owner.screenshot({path:"e2e-results/mobile-directory.png",fullPage:true});
   await context.close(); await ownerContext.close();
 });
-
 test("detail checkout, proposal versions, private GridFS files, capabilities and recovery negatives", async ({ browser, request }) => {
   const suffix=Date.now();
   const register=async(role,label)=>json(request,"post","/auth/register",null,{name:label,email:`${label}${suffix}@example.com`,password:"Synthetic123!",role});
@@ -196,7 +230,7 @@ test("detail checkout, proposal versions, private GridFS files, capabilities and
   expect((await request.patch(api+`/milestones/${detail.milestones[0]._id}/release`,{headers:headers(stranger.token),data:{status:"APPROVED",submissionId:submission._id}})).status()).toBe(409);
   await json(request,"patch",`/milestones/${detail.milestones[0]._id}/release`,client.token,{status:"APPROVED",submissionId:submission._id});
   const dashboard=await json(request,"get","/projects/student/dashboard",student.token); expect(dashboard.contracts.find(c=>c.id===project._id).progress).toBe(10);
-  const ledger=await json(request,"get","/payments?limit=1",client.token); expect(ledger.transactions).toHaveLength(1); expect(ledger.pagination.total).toBe(3); expect(ledger.stats.releasedAmount).toBe(80);
+  const ledger=await json(request,"get","/payments?limit=1",client.token); expect(ledger.transactions).toHaveLength(1); expect(ledger.pagination.total).toBe(3); expect(ledger.stats.releasedAmount).toBe(0);
   const msg={projectId:project._id,content:"Please confirm the remaining poster format.",requestId:crypto.randomUUID()};
   const sent=await json(request,"post","/messages",student.token,msg); expect((await json(request,"post","/messages",student.token,msg))._id).toBe(sent._id);
   const forbidden=await request.get(api+`/messages/${project._id}`,{headers:headers(other.token)}); expect(forbidden.status()).toBe(403);
@@ -205,7 +239,7 @@ test("detail checkout, proposal versions, private GridFS files, capabilities and
   expect((await request.patch(api+`/milestones/${detail.milestones[1]._id}/submit`,{headers:headers(student.token),data:{description:"Work must not advance during recovery."}})).status()).toBe(409);
   // An API outage must remain visible; it must not look like a zero balance.
   await owner.route("**/api/payments",route=>route.fulfill({status:503,contentType:"application/json",body:JSON.stringify({message:"synthetic outage"})}));
-  await owner.goto("/client"); await expect(owner.getByText("Workspace data unavailable")).toBeVisible(); await expect(owner.getByRole("button",{name:"Retry",exact:true})).toBeVisible();
+  await owner.goto("/client"); await expect(owner.locator("main h1").first()).toContainText("Client Dashboard"); await expect(owner.getByRole("alert")).toContainText("Financial data unavailable. Work data remains available"); await expect(owner.getByRole("button",{name:"Retry unavailable data"})).toBeVisible();
   await owner.route("**/api/projects?*",route=>route.fulfill({status:503,contentType:"application/json",body:JSON.stringify({message:"synthetic directory outage"})}));
   await owner.goto("/browse"); await expect(owner.getByRole("alert")).toContainText("synthetic directory outage"); await expect(owner.getByText("No matching project briefs",{exact:true})).toHaveCount(0);
   await owner.goto("/profile"); await owner.getByRole("button",{name:"Edit profile",exact:true}).click(); await owner.locator("#profile-bio").fill("Profile edits retained through a failed save.");
@@ -281,7 +315,7 @@ test("software checkpoints: duplicate checkout, late demo funding, stale modal r
 test("existing payment, security/chat and runtime integration commands on the isolated database", async () => {
   for (const script of ["payment_flow.test.js","security_chat.test.js","runtime_verification.js"]) {
     await new Promise((resolve,reject)=>{
-      const child=spawn(process.execPath,[`tests/${script}`],{cwd:"backend",windowsHide:true,env:{...process.env,TEST_MONGODB_URI:process.env.TEST_MONGODB_URI || "mongodb://127.0.0.1:27129/journey?replicaSet=journey",JWT_SECRET:"synthetic-legacy-tests-at-least-32-characters",PRODUCT_MODE:"demo",PRIVATE_STORAGE:"mongodb"},stdio:["ignore","pipe","pipe"]});
+      const child=spawn(process.execPath,[`tests/${script}`],{cwd:"backend",windowsHide:true,env:{...process.env,TEST_MONGODB_URI:process.env.TEST_MONGODB_URI || "mongodb://127.0.0.1:27129/journey?replicaSet=journey",JWT_SECRET:"synthetic-legacy-tests-at-least-32-characters",PRODUCT_MODE:"test",BIDHUB_ISOLATED_TEST:"1",PRIVATE_STORAGE:"mongodb"},stdio:["ignore","pipe","pipe"]});
       let output=""; const timer=setTimeout(()=>{child.kill();reject(new Error(`${script} exceeded 60 seconds`));},60000);
       child.stdout.on("data",data=>output+=data.toString()); child.stderr.on("data",data=>output+=data.toString());
       child.on("error",reject); child.on("exit",code=>{clearTimeout(timer);code===0?resolve():reject(new Error(`${script} failed:\n${output.slice(-6000)}`));});
@@ -320,7 +354,7 @@ test("final independent review: restart recovery, remaining category journeys, c
   expect((await request.get("http://127.0.0.1:5019"+file.url,{headers:headers(prospect.token)})).ok()).toBeTruthy();
   expect((await request.get(api+`/projects/${project._id}/bids`,{headers:headers(prospect.token)})).ok()).toBeTruthy();
   expect(await json(request,"get",`/projects/${project._id}/bids`,prospect.token)).toHaveLength(0);
-  const caps=await json(request,"get","/capabilities"); expect(caps).toMatchObject({mode:"demo",simulatedFunding:true,livePayments:false,payouts:false});
+  const caps=await json(request,"get","/capabilities"); expect(caps).toMatchObject({mode:"test",isolatedTest:true,simulatedFunding:true,livePayments:false,payouts:false});
   for(const current of [project,await publish("Web Development")]) {
     if(current._id!==project._id) {
       await worker.goto(`/project/${current._id}`); await worker.locator("#bid-price").fill("900"); await worker.locator("#bid-timeline").fill("two weeks"); await worker.locator("#bid-proposal").fill("Discovery notes and software implementation evidence."); await worker.getByRole("button",{name:"Submit Proposal",exact:true}).click();
@@ -467,4 +501,46 @@ test("expired browser session returns to the intended brief after real sign-in",
   await page.locator("#login-email").fill(email); await page.locator("#login-password").fill("Synthetic123!"); await page.getByRole("button",{name:"Sign In",exact:true}).click();
   await expect(page).toHaveURL(new RegExp(`/project/${project._id}$`)); await expect(page.getByText(project.title,{exact:true}).first()).toBeVisible();
   await context.close();
+});
+
+test("mounted browse search, canonical brief retries, real ledger pages, clipboard errors and profile cancel",async({browser,request})=>{
+  const suffix=Date.now();
+  const client=await json(request,"post","/auth/register",null,{name:"Searchable Client",email:`searchable-${suffix}@example.com`,password:"Synthetic123!",role:"client"});
+  const ownerContext=await browser.newContext(); await ownerContext.addInitScript(token=>localStorage.setItem("token",token),client.token);
+  const owner=await ownerContext.newPage();
+  const payload={title:`Rare ${suffix} Library Research Brief`,description:"Document the research process, source notes, acceptance criteria, and a practical handover.",category:"Writing & Editing",budget:1250,deadline:"2027-12-31",skillsRequired:["RarePracticalSkill"],clientRequestId:crypto.randomUUID(),milestones:[{title:"Research",amount:500},{title:"Final guide",amount:750}]};
+  const published=await json(request,"post","/projects",client.token,payload);
+  expect(published.category).toBe("Writing & Content");
+  expect((await json(request,"post","/projects",client.token,payload))._id).toBe(published._id);
+  const changed=await request.post(api+"/projects",{headers:{Authorization:`Bearer ${client.token}`},data:{...payload,title:`Changed ${suffix}`}}); expect(changed.status()).toBe(409);
+  const past=await request.post(api+"/projects",{headers:{Authorization:`Bearer ${client.token}`},data:{...payload,clientRequestId:crypto.randomUUID(),skillsRequired:[],deadline:"2020-01-01"}}); expect(past.status()).toBe(400);
+  for(const query of [`search=RarePracticalSkill`,`search=Searchable%20Client`,`skills=RarePracticalSkill`,`category=Writing%20%26%20Editing`]) {
+    const response=await request.get(api+`/projects?status=OPEN&${query}`); expect(response.ok()).toBeTruthy(); expect((await response.json()).some(p=>p._id===published._id)).toBeTruthy();
+  }
+  await owner.goto("/browse"); const navSearch=owner.getByRole("textbox",{name:"Search project index"}); await navSearch.fill("RarePracticalSkill"); await navSearch.press("Enter");
+  await expect(owner.getByText(published.title,{exact:true})).toBeVisible();
+  await owner.goto("/profile"); await owner.getByRole("button",{name:"Edit profile",exact:true}).click(); await owner.locator("#profile-bio").fill("Unsaved text should be discarded."); await owner.getByRole("button",{name:"Cancel",exact:true}).click(); await expect(owner.getByText("No biography provided yet. Add your technical disciplines, coursework, and specialties.",{exact:true})).toBeVisible();
+  const mongo=new mongoose.mongo.MongoClient(serverEnv.MONGODB_URI); await mongo.connect();
+  try {
+    const now=new Date(), rows=Array.from({length:26},(_,i)=>{const id=new mongoose.Types.ObjectId(); return {_id:id,projectId:new mongoose.Types.ObjectId(published._id),clientId:new mongoose.Types.ObjectId(client._id),studentId:new mongoose.Types.ObjectId(),amount:1,amountPaise:100,provider:"razorpay",status:"LOCKED",stripeSessionId:`order_fixture_${suffix}_${i}`,transactionRef:`TXN-fixture-${suffix}-${i}`,receiptRef:`TEST-RECEIPT-${id}`,createdAt:new Date(now.getTime()-i),updatedAt:now,sampleData:false};});
+    await mongo.db().collection("paymentledgers").insertMany(rows);
+    const first=await json(request,"get","/payments",client.token), second=await json(request,"get","/payments?page=2",client.token);
+    expect(first.transactions).toHaveLength(25); expect(second.transactions).toHaveLength(1); expect(first.pagination.total).toBe(26);
+    const refs=[...first.transactions,...second.transactions].map(t=>t.receiptRef); expect(new Set(refs).size).toBe(26); expect(refs.every(ref=>ref.startsWith("TEST-RECEIPT-"))).toBeTruthy();
+  } finally { await mongo.close(); }
+  await ownerContext.grantPermissions(["clipboard-read","clipboard-write"]); await owner.goto("/client"); await owner.getByRole("button",{name:"Funding ledger",exact:true}).click();
+  await expect(owner.getByText("Test Funding Ledger",{exact:true})).toBeVisible();
+  const receiptButton=owner.getByRole("button",{name:/Copy transaction reference TEST-RECEIPT-/}).first(); await receiptButton.click(); await expect(owner.getByText(/Copied internal test receipt:/)).toBeVisible();
+  const failingContext=await browser.newContext(); await failingContext.addInitScript(()=>Object.defineProperty(navigator,"clipboard",{configurable:true,value:{writeText:async()=>{throw new Error("denied");}}})); await failingContext.addInitScript(token=>localStorage.setItem("token",token),client.token);
+  const failingPage=await failingContext.newPage(); await failingPage.goto("/client"); await failingPage.getByRole("button",{name:"Funding ledger",exact:true}).click(); await failingPage.getByRole("button",{name:/Copy transaction reference TEST-RECEIPT-/}).first().click(); await expect(failingPage.getByRole("alert")).toContainText("Clipboard access failed");
+  await failingContext.close(); await ownerContext.close();
+});
+
+test("patched body parsers survive malformed compressed requests in the actual isolated backend",async({request})=>{
+  for(const file of ["node_modules/body-parser/package.json","backend/node_modules/body-parser/package.json"]){const version=JSON.parse(fs.readFileSync(file,"utf8")).version.split(".").map(Number);expect(version[0]===1 && (version[1]>20 || version[1]===20 && version[2]>=9)).toBe(true);}
+  const bodies=[Buffer.concat([zlib.gzipSync(Buffer.from('{"audit":true}')),Buffer.from([0]),Buffer.alloc(100*1024,0x58)]),Buffer.from("invalid gzip input"),zlib.gzipSync(Buffer.alloc(3*1024*1024,0x61))];
+  for(const body of bodies) {
+    await new Promise((resolve,reject)=>{const req=http.request({hostname:"127.0.0.1",port:5019,path:"/api/audit-no-such-route",method:"POST",headers:{"content-type":"application/json","content-encoding":"gzip","content-length":body.length}},res=>{res.resume();res.on("end",resolve);});req.on("error",reject);req.setTimeout(5000,()=>req.destroy(new Error("Compressed probe timed out")));req.end(body);});
+    await expect.poll(async()=>(await request.get(api+"/health")).ok()).toBe(true);expect(apiProcess.exitCode).toBe(null);
+  }
 });

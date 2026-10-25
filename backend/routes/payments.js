@@ -63,6 +63,8 @@ router.post("/checkout-session", protect, requireRole("client"), async (req, res
     }
 
     if (!await Contract.exists({ projectId: project._id }) && await PaymentLedger.exists({ projectId: project._id, milestoneId: null, status: "PENDING_CHECKOUT" })) return res.status(409).json({ message: "An existing legacy payable order requires operator review. No new order was created." });
+    if(project.recoveryPending) return res.status(409).json({message:"Funding is paused for operator review. Resolve the recovery case before reopening checkout."});
+    if(project.sampleData) return res.status(409).json({message:"Sample financial scenarios are read-only and were not funded by a gateway. Publish a separate test brief to use Razorpay sandbox checkout."});
     const contract = await agreeOffer(bidId, req.user._id, proposalVersion);
     const existing = await FundingAttempt.findOne({ contractId: contract._id });
     if (existing) {
@@ -205,8 +207,8 @@ router.post("/cancel", protect, requireRole("client"), async (req, res) => {
 // @route   POST /api/payments/simulate-payment
 // @access  Private (Client owner, explicit non-production mock provider only)
 router.post("/simulate-payment", protect, requireRole("client"), async (req, res) => {
-  if ((process.env.NODE_ENV === "production" && !capabilities().simulatedFunding) || getActiveProviderName() !== "mock") {
-    return res.status(403).json({ message: "Simulation is disabled in production." });
+  if (!capabilities().isolatedTest || getActiveProviderName() !== "mock") {
+    return res.status(403).json({ message: "Mock confirmation exists only in isolated automated tests. Use Razorpay test checkout." });
   }
   const { sessionId } = req.body;
 
@@ -336,7 +338,8 @@ router.get("/", protect, async (req, res) => {
     const page = boundedInteger(req.query.page, 1, 10000), limit = boundedInteger(req.query.limit, 25, 100);
     if (page === null || limit === null) return res.status(400).json({ message: "Invalid ledger pagination." });
     const filter = { $or: [{ clientId: userId }, { studentId: userId }], status: { $ne: "PENDING_CHECKOUT" } };
-    const transactions = await PaymentLedger.find(filter).populate("projectId", "title").populate("milestoneId", "title").sort({ updatedAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit);
+    const transactions = await PaymentLedger.find(filter).populate("projectId", "title").populate("milestoneId", "title").sort({ createdAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean();
+    for (const row of transactions) { row.receiptRef ||= `TEST-RECEIPT-${row._id}`; row.testOnly = true; }
     const totals = await PaymentLedger.aggregate([{ $match: { ...filter, milestoneId: { $ne: null } } }, { $group: { _id: "$status", total: { $sum: { $ifNull: ["$amountPaise", { $round: [{ $multiply: ["$amount", 100] }, 0] }] } } } }]);
     const sum = status => (totals.find(row => row._id === status)?.total || 0) / 100;
     const lockedAmount = sum("LOCKED"), pendingAmount = sum("PENDING_REVIEW"), releasedAmount = sum("RELEASED");

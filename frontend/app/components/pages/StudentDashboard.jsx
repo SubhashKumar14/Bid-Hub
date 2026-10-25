@@ -4,14 +4,14 @@ import { StatusBadge } from "../StatusBadge";
 import { Sparkles, TrendingUp, Wallet, Eye, ArrowRight, MessageSquare } from "lucide-react";
 import { BrandIcon } from "../../brand/BrandIcon";
 import { BrandState } from "../../brand/BrandState";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { ChatDrawer } from "../ChatDrawer";
 import { MilestoneSubmitModal } from "../MilestoneSubmitModal";
 import { WorkspacePagination } from "../WorkspacePagination";
 
 const formatCurrency = (val) => {
-  if (val === undefined || val === null) return "";
+  if (val === undefined || val === null) return "Unavailable";
   if (typeof val === "number") {
     return `₹${val.toLocaleString("en-IN")}`;
   }
@@ -22,6 +22,10 @@ const formatCurrency = (val) => {
 
 export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) {
   const [error, setError] = useState("");
+  const [financialError,setFinancialError]=useState("");
+  const [profileError,setProfileError]=useState("");
+  const hasData=useRef(false);
+  const targetRef=useRef("");
   const [contractPage, setContractPage] = useState(1);
   const [bidPage, setBidPage] = useState(1);
   const [pagination, setPagination] = useState({});
@@ -56,31 +60,44 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
     setSubmitModalOpen(true);
   };
 
+  targetRef.current = token + ":" + contractPage + ":" + bidPage;
   const fetchDashboardData = async () => {
+    const target=targetRef.current;
     if (!token || !currentUser) return;
     setError("");
-    setLoading(true);
+    setLoading(!hasData.current);
     try {
+      let releasedAmount=null;
+      try {
       const paymentsRes = await fetch("/api/payments", {
         headers: { Authorization: `Bearer ${token}` },
       });
       const paymentsData = await paymentsRes.json();
       if (!paymentsRes.ok) throw new Error("Financial data unavailable. Retry to refresh.");
-      const releasedAmount = paymentsData.stats?.releasedAmount || 0;
+      releasedAmount = paymentsData.stats?.releasedAmount || 0;
 
+        if(target!==targetRef.current)return; setFinancialError("");
+      } catch { if(target!==targetRef.current)return;setFinancialError("Financial data unavailable. Work data remains available; retry to refresh the ledger."); }
+
+      let views=null;
+      try {
       const profileRes = await fetch(`/api/users/${currentUser._id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const profileData = await profileRes.json();
       if (!profileRes.ok) throw new Error("Profile data unavailable. Retry to refresh.");
-      const views = profileData.user?.profileViews || 0;
+      views = profileData.user?.profileViews || 0;
       setReviews(profileData.reviews || []);
+
+        if(target!==targetRef.current)return;setProfileError("");
+      } catch {if(target!==targetRef.current)return;setProfileError("Profile statistics unavailable. Retry without losing your work.");}
 
       const dashRes = await fetch(`/api/projects/student/dashboard?contractPage=${contractPage}&bidPage=${bidPage}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const dashData = await dashRes.json();
       if (!dashRes.ok) throw new Error(dashData.message || "Failed to load dashboard data");
+      if(target!==targetRef.current)return; hasData.current=true;
       setPagination(dashData.pagination || {});
 
       setContracts(dashData.contracts || []);
@@ -95,20 +112,26 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
         profileViews: views,
       });
     } catch (err) {
+      if(target!==targetRef.current)return;
       setError(err.message);
       toast.error(err.message);
     } finally {
-      setLoading(false);
+      if(target===targetRef.current)setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchDashboardData();
+    const refresh=()=>{if(document.visibilityState!=="hidden") fetchDashboardData();};
+    const timer=setInterval(refresh,10000);
+    window.addEventListener("bidhub:refresh",refresh); window.addEventListener("focus",refresh);
+    return()=>{clearInterval(timer);window.removeEventListener("bidhub:refresh",refresh);window.removeEventListener("focus",refresh);};
   }, [token, currentUser, contractPage, bidPage]);
 
   // Derive items requiring immediate student attention (Revisions requested or Pending deliverables)
   const attentionItems = [];
   contracts.forEach((c) => {
+    if(c.recoveryPending || !["ASSIGNED","IN_PROGRESS"].includes(c.projectStatus)) return;
     (c.milestones || []).forEach((m) => {
       if (m.status === "CHANGES_REQUESTED") {
         attentionItems.push({
@@ -173,6 +196,7 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
           </Button>
         </div>
       </header>
+      {(financialError || profileError) && <p role="alert" className="text-sm text-destructive">{financialError || profileError} <Button variant="outline" onClick={fetchDashboardData}>Retry unavailable data</Button></p>}
       <WorkspacePagination label="Contracts" page={contractPage} pages={pagination.contracts?.pages} onPage={setContractPage} />
       {pagination.contracts?.pages > 1 && <p className="text-xs text-muted-foreground">Attention items and workspaces show this contract page. Summary counts cover your full account.</p>}
 
@@ -226,10 +250,10 @@ export function StudentDashboard({ setPage, onOpenEscrow, token, currentUser }) 
       {/* Compact Financial & Stats Summary */}
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { k: "Released Earnings", v: formatCurrency(stats.earnings), d: "Simulated release; no real payout", icon: <Wallet className="size-4" /> },
+          { k: "Real payouts", v: "Disabled", d: "Work approval does not transfer money", icon: <Wallet className="size-4" /> },
           { k: "Active Contracts", v: stats.activeContractsCount, d: "In delivery pipeline", icon: <Sparkles className="size-4" /> },
           { k: "Proposals Pending", v: stats.openBidsCount, d: "Under client review", icon: <TrendingUp className="size-4" /> },
-          { k: "Profile Views", v: stats.profileViews, d: "Direct directory discovery", icon: <Eye className="size-4" /> },
+          { k: "Profile Views", v: stats.profileViews ?? "Unavailable", d: "Direct directory discovery", icon: <Eye className="size-4" /> },
         ].map((s) => (
           <div key={s.k} className="bg-card border border-border rounded-[8px] p-4 space-y-1">
             <div className="flex items-center justify-between text-muted-foreground text-xs">

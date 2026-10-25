@@ -22,7 +22,11 @@ import { Review } from "../models/Review.js";
 import { PaymentEvent } from "../models/PaymentEvent.js";
 import { FundingAttempt } from "../models/FundingAttempt.js";
 import { User } from "../models/User.js";
-process.env.PRODUCT_MODE = "demo";
+import { RecoveryCase } from "../models/RecoveryCase.js";
+import { resolveRecovery } from "../services/recovery.js";
+import { verifiedReviews } from "../services/reputation.js";
+process.env.BIDHUB_ISOLATED_TEST="1";
+process.env.PRODUCT_MODE = "test";
 process.env.PAYMENT_PROVIDER = "mock";
 process.env.NODE_ENV = "test";
 const { default: milestoneRouter } = await import("../routes/milestones.js");
@@ -130,7 +134,8 @@ test("agreement freezes the offered version, exact schedule and agreed total", {
   assert.ok(outcomes.some(o => o.status === "fulfilled"));
   assert.equal(await Contract.countDocuments({ projectId: f.project._id }), 1);
   const contract = await Contract.findOne({ projectId: f.project._id });
-  assert.equal(contract.totalPaise, 7500); assert.equal(contract.proposalVersion, 2);
+  assert.equal(contract.totalPaise, 7500); assert.equal(contract.advertisedBudgetPaise,10000); assert.equal(contract.proposalVersion, 2);
+  assert.equal(contract.scope.title,"Transaction test"); assert.equal(contract.scope.description,"Synthetic fixture");
   contract.totalPaise = 9000; await contract.save();
   assert.equal((await Contract.findById(contract._id)).totalPaise, 7500);
   contract.schedule[0].amountPaise = 9000; await contract.save();
@@ -188,7 +193,7 @@ test("lost submission and approval responses recover the committed version witho
   const approve = { params: submit.params, body: { status: "APPROVED", submissionId: String(submission._id) }, user: { _id: f.project.clientId } };
   assert.equal((await invoke(milestoneRouter, "/:id/release", "patch", approve)).statusCode, 200);
   assert.equal((await invoke(milestoneRouter, "/:id/release", "patch", approve)).statusCode, 200);
-  assert.equal(await Notification.countDocuments({ targetId: f.project._id, type: "MILESTONE_RELEASED" }), 1);
+  assert.equal(await Notification.countDocuments({ targetId: f.project._id, type: "MILESTONE_APPROVED" }), 1);
   assert.equal((await Project.findById(f.project._id)).status, "COMPLETED");
 });
 
@@ -222,7 +227,7 @@ test("simultaneous final work approvals derive one completed project", {}, async
   for (const milestone of [f.milestone, final]) {
     const submission=await MilestoneSubmission.create({ milestoneId: milestone._id, submittedBy: f.bid.studentId, description: "Checkpoint evidence.", version: 1, status: "SUBMITTED" });
     await Milestone.updateOne({ _id: milestone._id }, { status: "SUBMITTED", activeSubmissionId: submission._id });
-    await PaymentLedger.updateOne({ milestoneId: milestone._id }, { status: "PENDING_REVIEW" });
+    await PaymentLedger.updateOne({ milestoneId: milestone._id }, { status: "LOCKED" });
     requests.push({ params: { id: String(milestone._id) }, body: { status: "APPROVED", submissionId: String(submission._id) }, user: { _id: f.project.clientId } });
   }
   const results=await Promise.all(requests.map(req=>invoke(milestoneRouter, "/:id/release", "patch", req)));
@@ -237,7 +242,7 @@ test("demo release rolls back all financial writes and requires the viewed submi
   const deposit = await PaymentLedger.findOne({ stripeSessionId: f.orderId, milestoneId: null });
   const submission = await MilestoneSubmission.create({ milestoneId: f.milestone._id, submittedBy: deposit.studentId, githubUrl: "https://github.com/example/repo", demoUrl: "https://example.com", videoUrl: "https://example.com/video", description: "Synthetic delivery", status: "SUBMITTED" });
   await Milestone.updateOne({ _id: f.milestone._id }, { status: "SUBMITTED", activeSubmissionId: submission._id });
-  await PaymentLedger.updateOne({ milestoneId: f.milestone._id }, { status: "PENDING_REVIEW" });
+  await PaymentLedger.updateOne({ milestoneId: f.milestone._id }, { status: "LOCKED" });
   const handler = milestoneRouter.stack.find(layer => layer.route?.path === "/:id/release").route.stack.at(-1).handle;
   const invoke = async (submissionId) => {
     const response = { statusCode: 200, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } };
@@ -252,7 +257,7 @@ test("demo release rolls back all financial writes and requires the viewed submi
   assert.equal((await MilestoneSubmission.findById(submission._id)).status, "SUBMITTED");
   assert.equal((await invoke(String(submission._id))).statusCode, 200);
   const allocation = await PaymentLedger.findOne({ milestoneId: f.milestone._id });
-  assert.equal(allocation.status, "RELEASED");
+  assert.equal(allocation.status, "LOCKED");
   assert.equal(allocation.stripeTransferId, "");
 });
 
@@ -261,7 +266,7 @@ test("test-mode work completion does not assert a financial release or payout", 
   const submission=await MilestoneSubmission.create({milestoneId:f.milestone._id,submittedBy:f.bid.studentId,description:"Test-funded checkpoint acceptance evidence.",status:"SUBMITTED"});
   await Milestone.updateOne({_id:f.milestone._id},{status:"SUBMITTED",activeSubmissionId:submission._id});
   await PaymentLedger.updateMany({projectId:f.project._id},{provider:"razorpay"});
-  await PaymentLedger.updateOne({milestoneId:f.milestone._id},{status:"PENDING_REVIEW"});
+  await PaymentLedger.updateOne({milestoneId:f.milestone._id},{status:"LOCKED"});
   process.env.PRODUCT_MODE="test";
   try {
     const result=await invoke(milestoneRouter,"/:id/release","patch",{params:{id:String(f.milestone._id)},body:{status:"APPROVED",submissionId:String(submission._id)},user:{_id:f.project.clientId}});
@@ -270,7 +275,7 @@ test("test-mode work completion does not assert a financial release or payout", 
     assert.equal((await Milestone.findById(f.milestone._id)).status,"APPROVED");
     const allocation=await PaymentLedger.findOne({milestoneId:f.milestone._id});
     assert.equal(allocation.status,"LOCKED"); assert.equal(allocation.releasedAt,null); assert.equal(allocation.stripeTransferId,"");
-  } finally {process.env.PRODUCT_MODE="demo";}
+  } finally {process.env.PRODUCT_MODE="test";}
 });
 
 test("real verify/webhook handlers converge, reject uncaptured payments and retain cancelled captures", {}, async t => {
@@ -318,7 +323,7 @@ test("real verify/webhook handlers converge, reject uncaptured payments and reta
   assert.equal((await FundingAttempt.findOne({contractId:contract._id})).state,"RECOVERY_REQUIRED");
   assert.equal((await invoke(payments,"/checkout-session","post",checkoutReq)).statusCode,409);
   assert.equal(create.mock.callCount(),1);
-  process.env.PRODUCT_MODE="demo";
+  process.env.PRODUCT_MODE="test";
 });
 
 test("additive migration dry run and apply are repeatable on the isolated replica set", async () => {
@@ -332,4 +337,53 @@ test("additive migration dry run and apply are repeatable on the isolated replic
   }
   assert.deepEqual(await Promise.all(models.map(model=>model.countDocuments())),counts);
   assert.deepEqual(await PaymentLedger.aggregate([{ $group: { _id:null, paise:{$sum:"$amountPaise"} } }]),financial);
+});
+
+test("operator recovery is authorized, audited, idempotent and cannot bypass uncertain funding",async()=>{
+  const f=await fixture(); await f.settle();
+  await Contract.create({projectId:f.project._id,clientId:f.project.clientId,studentId:f.bid.studentId,bidId:f.bid._id,proposalVersion:1,totalPaise:10000,schedule:[{milestoneId:f.milestone._id,title:"Delivery",amountPaise:10000}]});
+  await Project.updateOne({_id:f.project._id},{recoveryPending:true});
+  const recovery=await RecoveryCase.create({projectId:f.project._id,requestedBy:f.project.clientId,reason:"An auditable participant request."});
+  const operator=new mongoose.Types.ObjectId();process.env.OPERATOR_USER_IDS=String(operator);
+  const input={action:"RESUME",expectedVersion:1,requestId:crypto.randomUUID(),reason:"Provider records and work history reviewed."};
+  await assert.rejects(resolveRecovery(f.project._id,recovery._id,f.project.clientId,input),error=>error.status===403);
+  const attempt=await FundingAttempt.create({contractId:(await Contract.findOne({projectId:f.project._id}))._id,state:"RECOVERY_REQUIRED"});
+  await assert.rejects(resolveRecovery(f.project._id,recovery._id,operator,input),/uncertain/);
+  await FundingAttempt.updateOne({_id:attempt._id},{state:"READY"});
+  const resolved=await Promise.all([resolveRecovery(f.project._id,recovery._id,operator,input),resolveRecovery(f.project._id,recovery._id,operator,input)]);
+  assert.equal(resolved[0].project.recoveryPending,false);assert.equal(resolved[1].recovery.history.length,1);
+  assert.equal((await RecoveryCase.findById(recovery._id)).state,"RESOLVED");
+  await assert.rejects(resolveRecovery(f.project._id,recovery._id,operator,{...input,reason:"Different content is not the original decision."}),/conflicts/);
+  await Project.updateOne({_id:f.project._id},{recoveryPending:true});
+  await RecoveryCase.updateOne({_id:recovery._id},{state:"OPERATOR_REVIEW",version:3});
+  const end=await resolveRecovery(f.project._id,recovery._id,operator,{...input,action:"RESOLVE",expectedVersion:3,requestId:crypto.randomUUID()});
+  assert.equal(end.project.status,"CANCELLED");assert.equal(end.project.recoveryPending,false);assert.equal(end.recovery.history.length,2);
+  assert.equal((await PaymentLedger.findOne({milestoneId:f.milestone._id})).status,"LOCKED");
+  delete process.env.OPERATOR_USER_IDS;
+});
+
+test("reputation excludes invented, nonparticipant and sample reviews",async()=>{
+  const f=await fixture();await f.settle();await Project.updateOne({_id:f.project._id},{status:"COMPLETED"});await Milestone.updateOne({_id:f.milestone._id},{status:"APPROVED"});
+  const valid=await Review.create({projectId:f.project._id,reviewerId:f.project.clientId,revieweeId:f.bid.studentId,rating:4,comment:"Factual completed-work feedback."});
+  await Review.create({projectId:f.project._id,reviewerId:new mongoose.Types.ObjectId(),revieweeId:f.bid.studentId,rating:5,comment:"Invented nonparticipant rating."});
+  assert.deepEqual((await verifiedReviews({revieweeId:f.bid.studentId})).map(r=>String(r._id)),[String(valid._id)]);
+  await Project.updateOne({_id:f.project._id},{sampleData:true});assert.equal((await verifiedReviews({revieweeId:f.bid.studentId})).length,0);
+});
+
+test("sample seeder is additive, rerunnable, category-complete and refuses the application database",async()=>{
+  const base=process.env.TEST_MONGODB_URI || "mongodb://127.0.0.1:27128/settlement_test?replicaSet=audit";
+  const uri=base.replace(/\/[\w-]+(?=\?)/,"/bidhub_seed_regression");
+  const dbClient=await new mongoose.mongo.MongoClient(uri).connect();
+  try {
+    const db=dbClient.db();await db.collection("users").insertOne({name:"Existing record",email:"retained@fixture.invalid",role:"client"});
+    for(let i=0;i<2;i++) {
+      const result=spawnSync(process.execPath,["scripts/seed-samples.js"],{cwd:new URL("../",import.meta.url),env:{...process.env,NODE_ENV:"test",ALLOW_SAMPLE_SEED:"yes",SEED_MONGODB_URI:uri,SEED_PASSWORD:"IsolatedSeedPassword123!"},encoding:"utf8",windowsHide:true,timeout:60000});
+      assert.equal(result.status,0,result.stderr);assert.equal(await db.collection("projects").countDocuments(),70);
+    }
+    const groups=await db.collection("projects").aggregate([{$group:{_id:"$category",count:{$sum:1}}}]).toArray();assert.equal(groups.length,7);assert.ok(groups.every(row=>row.count===10));
+    assert.ok(await db.collection("users").findOne({email:"retained@fixture.invalid"}));
+    assert.equal(await db.collection("reviews").countDocuments({sampleData:{$ne:true}}),0);
+    assert.equal(await db.collection("contracts").countDocuments({sampleData:{$ne:true}}),0);
+    const refused=spawnSync(process.execPath,["scripts/seed-samples.js"],{cwd:new URL("../",import.meta.url),env:{...process.env,NODE_ENV:"test",ALLOW_SAMPLE_SEED:"yes",SEED_MONGODB_URI:base,SEED_PASSWORD:"IsolatedSeedPassword123!"},encoding:"utf8",windowsHide:true,timeout:10000});assert.equal(refused.status,1);
+  } finally {await dbClient.close();}
 });

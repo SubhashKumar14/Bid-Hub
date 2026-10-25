@@ -135,13 +135,13 @@ router.get("/projects/:id/bids", protect, async (req, res) => {
     if (isOwner) {
       bids = await Bid.find({ projectId }).populate(
         "studentId",
-        "name avatarUrl rating completedProjects college skills"
+        "name avatarUrl college skills"
       );
     } else {
       // Students can only see their own bid
       bids = await Bid.find({ projectId, studentId: req.user._id }).populate(
         "studentId",
-        "name avatarUrl rating completedProjects college skills"
+        "name avatarUrl college skills"
       );
     }
 

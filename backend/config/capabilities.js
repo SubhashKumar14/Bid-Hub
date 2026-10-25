@@ -1,9 +1,6 @@
 export function capabilities() {
-  if (process.env.RENDER && !process.env.PRODUCT_MODE) {
-    process.env.PRODUCT_MODE = "demo";
-  }
-  if (process.env.NODE_ENV === "production" && !process.env.PRODUCT_MODE) throw new Error("Set PRODUCT_MODE=demo or test explicitly for production startup.");
   const mode = process.env.PRODUCT_MODE || "test";
-  if (!["demo", "test"].includes(mode)) throw new Error("PRODUCT_MODE must be demo or test. Live payments are disabled.");
-  return { mode, simulatedFunding: mode === "demo", livePayments: false, payouts: false };
+  if (mode !== "test") throw new Error("PRODUCT_MODE must be test. Runtime demo/mock payments are no longer supported.");
+  const isolatedTest = process.env.NODE_ENV === "test" && process.env.BIDHUB_ISOLATED_TEST === "1";
+  return { mode, isolatedTest, simulatedFunding: isolatedTest && process.env.PAYMENT_PROVIDER === "mock", livePayments: false, payouts: false };
 }

@@ -9,7 +9,8 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 if (!process.env.TEST_MONGODB_URI) throw new Error("Set TEST_MONGODB_URI to an isolated replica-set database. This test never uses the application database implicitly.");
 process.env.MONGODB_URI = process.env.TEST_MONGODB_URI;
-process.env.PRODUCT_MODE = "demo";
+process.env.BIDHUB_ISOLATED_TEST="1";
+process.env.PRODUCT_MODE = "test";
 
 const PORT = "5001";
 const BASE_URL = `http://localhost:${PORT}`;
@@ -87,10 +88,10 @@ async function runTests() {
         description: "Testing messaging system and helmet security configuration.",
         category: "Web Development",
         budget: "15000",
-        deadline: "2026-12-31",
+        deadline: new Date(Date.now() + 120 * 86400000).toISOString().slice(0, 10),
         skillsRequired: ["React", "Express"],
         milestones: [
-          { title: "Milestone Chat Demo Checkpoint", amount: "15000", dueDate: "2026-06-30" }
+          { title: "Milestone Chat Demo Checkpoint", amount: "15000", dueDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10) }
         ],
       },
       {

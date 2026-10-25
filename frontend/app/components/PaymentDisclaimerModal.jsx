@@ -11,15 +11,15 @@ export function PaymentDisclaimerModal({ open, onConfirm, onCancel, offer }) {
             <ShieldAlert className="size-5" />
           </div>
           <DialogTitle className="text-xl font-medium tracking-tight text-foreground">
-            Payment Demonstration
+            Razorpay Test Checkout
           </DialogTitle>
           <DialogDescription className="text-muted-foreground text-xs leading-relaxed text-center">
-            This workspace supports simulated funding or provider test orders only. Live payments and payouts are disabled.
+            This workspace supports Razorpay sandbox funding or provider test orders only. Live payments and payouts are disabled.
           </DialogDescription>
         </DialogHeader>
 
         <div className="my-3 text-xs space-y-3 leading-relaxed text-muted-foreground bg-secondary/50 border border-border rounded-[8px] p-4">
-          <p className="font-medium text-foreground">Demonstration Environment:</p>
+          <p className="font-medium text-foreground">Test mode only:</p>
           {offer && <div className="space-y-1 text-foreground">
             <p>Accept proposal version {offer.version || 1}: ₹{Number(offer.amount).toLocaleString("en-IN")} · {offer.timeline}</p>
             <p className="whitespace-pre-wrap">{offer.proposal}</p>

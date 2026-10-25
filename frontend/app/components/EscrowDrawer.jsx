@@ -48,9 +48,10 @@ export function EscrowDrawer({ open, onClose, token, currentUser }) {
   }, [open, token, page]);
   useEffect(() => { setResultPage(1); setTransactions([]); }, [open, token]);
 
-  const copyRef = (ref) => {
-    navigator.clipboard.writeText(ref);
-    toast.success(`Copied transaction reference: ${ref}`);
+  const copyRef = async (ref) => {
+    const target=targetRef.current;setError("");
+    try { await navigator.clipboard.writeText(ref); if(target===targetRef.current)toast.success(`Copied internal test receipt: ${ref}`); }
+    catch { if(target===targetRef.current)setError("Clipboard access failed. Select and copy the receipt reference manually."); }
   };
 
   return (
@@ -63,13 +64,13 @@ export function EscrowDrawer({ open, onClose, token, currentUser }) {
           </div>
           <SheetTitle className="text-xl font-semibold tracking-tight text-foreground">Test Funding Ledger</SheetTitle>
           <SheetDescription className="text-xs text-muted-foreground leading-relaxed">
-            Test funding and simulated releases are recorded here. Work approval is separate from payouts; no real money is transferred.
+            Razorpay sandbox funding records appear here. Internal receipt references are not payout receipts. Work approval never transfers money.
           </SheetDescription>
         </SheetHeader>
 
         {error && <p role="alert">{error} <Button onClick={fetchEscrowDetails}>Retry</Button></p>}
         <div className="flex gap-2"><Button variant="outline" disabled={page <= 1 || loading} onClick={() => setResultPage(n => n - 1)}>Previous records</Button><Button variant="outline" disabled={page >= pages || loading} onClick={() => setResultPage(n => n + 1)}>Next records</Button></div>
-        {loading || error ? (
+        {loading ? (
           <div className="py-20 text-center text-xs text-muted-foreground animate-pulse">
             Opening escrow ledger…
           </div>
@@ -84,7 +85,7 @@ export function EscrowDrawer({ open, onClose, token, currentUser }) {
 
               <div className="grid grid-cols-2 gap-3 pt-3 border-t border-border text-xs">
                 <div>
-                  <p className="text-muted-foreground text-[11px]">Simulated releases</p>
+                  <p className="text-muted-foreground text-[11px]">Historical release records (not payouts)</p>
                   <p className="font-mono tabular-nums font-semibold text-[var(--status-success-fg)] mt-0.5">
                     ₹{stats.releasedAmount.toLocaleString()}
                   </p>
@@ -113,7 +114,7 @@ export function EscrowDrawer({ open, onClose, token, currentUser }) {
                   </div>
                 ) : (
                   transactions.map((tx, idx) => (
-                    <div key={idx} className="flex items-center justify-between rounded-[6px] border border-border px-3.5 py-2.5 bg-background">
+                    <div key={tx._id} className="flex items-center justify-between rounded-[6px] border border-border px-3.5 py-2.5 bg-background">
                       <div className="min-w-0 pr-2">
                         <p className="text-xs font-medium text-foreground truncate max-w-[200px]">{tx.projectId?.title || "Contract"}</p>
                         <p className="text-[11px] text-muted-foreground font-mono tabular-nums">
@@ -140,17 +141,17 @@ export function EscrowDrawer({ open, onClose, token, currentUser }) {
                 {transactions.length === 0 ? (
                   <div className="text-center py-4 text-xs text-muted-foreground italic">No transaction records.</div>
                 ) : (
-                  transactions.slice(0, 5).map((tx) => (
-                    <div key={tx.transactionRef} className="flex items-center justify-between py-2.5 border-b border-border/60 last:border-0">
+                  transactions.map((tx) => (
+                    <div key={tx._id} data-receipt-id={tx._id} className="flex items-center justify-between py-2.5 border-b border-border/60 last:border-0">
                       <div className="min-w-0 pr-2">
                         <p className="text-xs font-medium text-foreground truncate max-w-[180px]">{tx.projectId?.title}</p>
                         <button
                           type="button"
-                          aria-label={`Copy transaction reference ${tx.transactionRef}`}
-                          onClick={() => copyRef(tx.transactionRef)}
+                          aria-label={`Copy transaction reference ${tx.receiptRef || `TEST-RECEIPT-${tx._id}`}`}
+                          onClick={() => copyRef(tx.receiptRef || `TEST-RECEIPT-${tx._id}`)}
                           className="min-h-11 text-[10px] text-muted-foreground inline-flex items-center gap-1 hover:text-foreground font-mono"
                         >
-                          {tx.transactionRef} <Copy className="size-2.5 opacity-60" />
+                          {tx.receiptRef || `TEST-RECEIPT-${tx._id}`} <Copy className="size-2.5 opacity-60" />
                         </button>
                       </div>
                       <div className="text-right shrink-0">
@@ -172,7 +173,7 @@ export function EscrowDrawer({ open, onClose, token, currentUser }) {
             {/* Practical Payout Information */}
             <div className="rounded-[6px] bg-secondary/20 border border-border p-4 text-xs space-y-1 text-muted-foreground leading-relaxed">
               <p className="font-medium text-foreground">Disbursement Policy</p>
-              <p>Escrow balances are transferred immediately upon client checkpoint approval. Payout receipts are logged in the project audit trail.</p>
+              <p>All transactions are TEST ONLY. Approval records work acceptance. Live payments, refunds and payouts are disabled; no transfer is made on approval.</p>
             </div>
           </div>
         )}

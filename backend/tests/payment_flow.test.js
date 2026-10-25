@@ -10,7 +10,8 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 if (!process.env.TEST_MONGODB_URI) throw new Error("Set TEST_MONGODB_URI to an isolated replica-set database. This test never uses the application database implicitly.");
 process.env.MONGODB_URI = process.env.TEST_MONGODB_URI;
-process.env.PRODUCT_MODE = "demo";
+process.env.BIDHUB_ISOLATED_TEST="1";
+process.env.PRODUCT_MODE = "test";
 
 const BASE_URL = "http://localhost:5003";
 
@@ -84,10 +85,10 @@ async function runTests() {
         description: "Testing Stripe, Razorpay and Mock providers with workflow checks.",
         category: "Web Development",
         budget: "10000",
-        deadline: "2026-12-31",
+        deadline: new Date(Date.now() + 120 * 86400000).toISOString().slice(0, 10),
         skillsRequired: ["React", "Express", "Crypto"],
         milestones: [
-          { title: "Unified Payment Milestone Check", amount: "10000", dueDate: "2026-06-30" }
+          { title: "Unified Payment Milestone Check", amount: "10000", dueDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10) }
         ],
       },
       {
@@ -118,10 +119,10 @@ async function runTests() {
     const bidId = bidRes.data._id;
 
     const mismatchProjectRes = await axios.post(`${BASE_URL}/api/projects`, {
-      title:"Inconsistent advertised schedule", description:"Invalid client-authored schedule.", category:"Web Development", budget:"10000", deadline:"2027-12-31",
+      title:"Inconsistent advertised schedule", description:"Invalid client-authored schedule with enough detail to be checked.", category:"Web Development", budget:"10000", deadline:"2027-12-31", skillsRequired:["Review"],
       milestones:[{title:"Delivery",amount:"9000"}]
     }, {headers:{Authorization:`Bearer ${clientToken}`},validateStatus:status=>status===400});
-    if (!mismatchProjectRes.data.message.includes("advertised budget")) throw new Error("Publishing an inconsistent advertised schedule was not rejected.");
+    if (!/advertised budget/i.test(mismatchProjectRes.data.message || "")) throw new Error(`Publishing an inconsistent advertised schedule returned an unexpected rejection: ${mismatchProjectRes.data.message || JSON.stringify(mismatchProjectRes.data)}`);
     console.log("\n--- Step 4: Duplicate Checkout Test ---");
     // Client initiates checkout first time
     const checkoutRes1 = await axios.post(
@@ -236,7 +237,7 @@ async function runTests() {
     }
     console.log("✔ Duplicate Webhook successfully ignored without error!");
 
-    console.log("\n--- Step 8: Milestone Submission (PENDING_REVIEW state) ---");
+    console.log("\n--- Step 8: Milestone Submission (work review; payment remains locked) ---");
     await axios.patch(
       `${BASE_URL}/api/milestones/${milestoneId}/submit`,
       {
@@ -257,29 +258,29 @@ async function runTests() {
       throw new Error("Milestone status mismatch after submission!");
     }
 
-    // Verify Escrow ledger stats shows PENDING_REVIEW balance
+    // Work review does not change the test-funding state or assert a payout.
     let ledgerRes = await axios.get(`${BASE_URL}/api/payments`, {
       headers: { Authorization: `Bearer ${studentToken}` },
     });
     console.log("Escrow Stats: Locked:", ledgerRes.data.stats.lockedAmount, "Pending:", ledgerRes.data.stats.pendingAmount);
-    if (ledgerRes.data.stats.pendingAmount !== 10000) {
-      throw new Error("Pending escrow balance mismatch in stats!");
+    if (ledgerRes.data.stats.lockedAmount !== 10000 || ledgerRes.data.stats.pendingAmount !== 0) {
+      throw new Error("Work approval/review must leave the test funding locked until an actual payout is supported.");
     }
-    console.log("✔ Escrow PENDING_REVIEW state stats verified!");
+    console.log("✔ Test funding remains locked during work review.");
 
-    console.log("\n--- Step 9: Client Releases Milestone Escrow ---");
+    console.log("\n--- Step 9: Client approves milestone work ---");
     await axios.patch(
       `${BASE_URL}/api/milestones/${milestoneId}/release`,
       { status: "APPROVED", submissionId: (await axios.get(`${BASE_URL}/api/milestones/${milestoneId}/submission`, { headers: { Authorization: `Bearer ${clientToken}` } })).data._id },
       { headers: { Authorization: `Bearer ${clientToken}` } }
     );
-    console.log("✔ Milestone funds released!");
+    console.log("✔ Milestone work approved; no payout claimed.");
 
     // Verify Project status is COMPLETED
     const finalProjectRes = await axios.get(`${BASE_URL}/api/projects/${projectId}`);
     console.log(`Final Project status: ${finalProjectRes.data.project.status} (Expected: COMPLETED)`);
     if (finalProjectRes.data.project.status !== "COMPLETED") {
-      throw new Error("Project did not transition to COMPLETED on final release!");
+      throw new Error("Project did not transition to COMPLETED after final work approval!");
     }
 
     // Verify final stats show releasedAmount
@@ -287,10 +288,10 @@ async function runTests() {
       headers: { Authorization: `Bearer ${studentToken}` },
     });
     console.log("Released stats balance:", ledgerRes.data.stats.releasedAmount);
-    if (ledgerRes.data.stats.releasedAmount !== 10000) {
+    if (ledgerRes.data.stats.releasedAmount !== 0) {
       throw new Error("Released balance mismatch in payments stats!");
     }
-    console.log("✔ Escrow RELEASED state stats verified successfully!");
+    console.log("✔ No payout is recorded for work approval.");
 
     console.log("\n🏆 ALL PAYMENTS & WORKFLOW INTEGRATION TESTS PASSED SUCCESSFULLY! 🏆");
   } catch (error) {

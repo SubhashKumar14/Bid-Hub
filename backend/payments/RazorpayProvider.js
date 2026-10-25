@@ -15,6 +15,7 @@ export class RazorpayProvider extends PaymentProvider {
       key_id: keyId,
       key_secret: keySecret,
     });
+    this.razorpay.api.rq.defaults.timeout = 15000;
     this.keyId = keyId;
     this.keySecret = keySecret;
     this.webhookSecret = webhookSecret;

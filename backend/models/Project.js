@@ -1,3 +1,4 @@
+import { sampleFields } from "../lib/sample-fields.js";
 import { amountToPaise } from "../lib/validation.js";
 import mongoose from "mongoose";
 
@@ -14,6 +15,7 @@ const projectSchema = new mongoose.Schema(
     duration: { type: String, default: "" },
     contractTotalPaise: Number,
     clientRequestId: String,
+    publishFingerprint: String,
     recoveryPending: { type: Boolean, default: false },
     skillsRequired: { type: [String], default: [] },
     clientId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
@@ -48,4 +50,5 @@ projectSchema.index({ title: "text", description: "text" });
 
 projectSchema.index({ clientId: 1, clientRequestId: 1 }, { unique: true, partialFilterExpression: { clientRequestId: { $type: "string" } } });
 
+sampleFields(projectSchema);
 export const Project = mongoose.model("Project", projectSchema);

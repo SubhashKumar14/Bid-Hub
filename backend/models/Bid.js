@@ -1,3 +1,4 @@
+import { sampleFields } from "../lib/sample-fields.js";
 import { amountToPaise } from "../lib/validation.js";
 import mongoose from "mongoose";
 
@@ -28,4 +29,5 @@ bidSchema.index({ studentId: 1, status: 1 });
 // Compound unique index: one bid per student per project
 bidSchema.index({ projectId: 1, studentId: 1 }, { unique: true });
 
+sampleFields(bidSchema);
 export const Bid = mongoose.model("Bid", bidSchema);

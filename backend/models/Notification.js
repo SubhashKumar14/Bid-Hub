@@ -13,7 +13,8 @@ const notificationSchema = new mongoose.Schema(
         "BID_ACCEPTED",      // Student receives when bid accepted
         "BID_REJECTED",      // Student receives when bid rejected
         "MILESTONE_SUBMITTED", // Client receives when student submits milestone
-        "MILESTONE_RELEASED",  // Student receives when client releases milestone
+        "MILESTONE_APPROVED",  // Student receives when client approves work
+        "MILESTONE_RELEASED",  // Legacy work approval event; never evidence of a payout
         "MILESTONE_CHANGES_REQUESTED", // Student receives when client requests revisions
         "PROJECT_COMPLETED",   // Both parties receive on project completion
         "REVIEW_RECEIVED",     // User receives when they get a review

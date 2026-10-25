@@ -29,7 +29,7 @@ router.post("/", protect, async (req, res) => {
     }
 
     // Enforce project is ASSIGNED, IN_PROGRESS, or COMPLETED
-    const allowedStatuses = ["ASSIGNED", "IN_PROGRESS", "COMPLETED"];
+    const allowedStatuses = ["ASSIGNED", "IN_PROGRESS", "COMPLETED", "CANCELLED"];
     if (!allowedStatuses.includes(project.status)) {
       return res.status(400).json({ message: "Messaging is only allowed on active or completed projects." });
     }
@@ -105,7 +105,7 @@ router.get("/:projectId", protect, async (req, res) => {
     }
 
     // Enforce project is ASSIGNED, IN_PROGRESS, or COMPLETED
-    const allowedStatuses = ["ASSIGNED", "IN_PROGRESS", "COMPLETED"];
+    const allowedStatuses = ["ASSIGNED", "IN_PROGRESS", "COMPLETED", "CANCELLED"];
     if (!allowedStatuses.includes(project.status)) {
       return res.status(400).json({ message: "Messaging is only allowed on active or completed projects." });
     }

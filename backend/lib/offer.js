@@ -10,5 +10,5 @@ export function allocateOffer(amount, milestones) {
   for (let i=0; extra>0; i++,extra--) parts[order[i % order.length].i]++;
   // Very small offers still reserve a positive paise amount for each checkpoint.
   while (extra < 0) { const i = parts.indexOf(Math.max(...parts)); parts[i]--; extra++; }
-  return milestones.map((m,i) => ({ milestoneId: m._id, title: m.title, amountPaise: parts[i] }));
+  return milestones.map((m,i) => ({ milestoneId: m._id, title: m.title, amountPaise: parts[i], dueDate: m.dueDate || "" }));
 }

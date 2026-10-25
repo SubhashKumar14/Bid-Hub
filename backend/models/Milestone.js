@@ -1,3 +1,4 @@
+import { sampleFields } from "../lib/sample-fields.js";
 import { amountToPaise } from "../lib/validation.js";
 import mongoose from "mongoose";
 
@@ -18,4 +19,5 @@ const milestoneSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+sampleFields(milestoneSchema);
 export const Milestone = mongoose.model("Milestone", milestoneSchema);

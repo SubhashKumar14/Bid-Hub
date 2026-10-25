@@ -1,3 +1,4 @@
+import { sampleFields } from "../lib/sample-fields.js";
 import mongoose from "mongoose";
 
 const activitySchema = new mongoose.Schema(
@@ -15,4 +16,5 @@ activitySchema.index({ createdAt: -1 });
 // TTL index: auto-delete activity entries older than 14 days
 activitySchema.index({ createdAt: 1 }, { expireAfterSeconds: 14 * 24 * 60 * 60 });
 
+sampleFields(activitySchema);
 export const Activity = mongoose.model("Activity", activitySchema);

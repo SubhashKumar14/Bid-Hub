@@ -1,3 +1,4 @@
+import { sampleFields } from "../lib/sample-fields.js";
 import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema(
@@ -20,4 +21,5 @@ const userSchema = new mongoose.Schema(
 // Index for role-based filtering (e.g. leaderboard of students)
 userSchema.index({ role: 1, rating: -1 });
 
+sampleFields(userSchema);
 export const User = mongoose.model("User", userSchema);

@@ -1,3 +1,4 @@
+import { CATEGORIES } from "../../../../shared/categories.js";
 import { Search, SlidersHorizontal, ArrowUpDown } from "lucide-react";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
@@ -7,16 +8,7 @@ import { toast } from "sonner";
 import { BrandState } from "../../brand/BrandState";
 import { BrandIcon } from "../../brand/BrandIcon";
 
-const categories = [
-  "All",
-  "Product Design",
-  "Web Development",
-  "Backend & APIs",
-  "Writing & Content",
-  "Video & Motion",
-  "Graphic Design",
-  "Data & Research",
-];
+const categories = ["All", ...CATEGORIES];
 
 export function Browse({ setPage }) {
   const [error, setError] = useState("");
@@ -31,6 +23,7 @@ export function Browse({ setPage }) {
   const [page, setResultPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [projects, setProjects] = useState([]);
+  useEffect(()=>{const update=event=>{setSearch(event.detail.search);setActiveCategory("All");setLocationFilter("all");setResultPage(1);localStorage.removeItem("bidhub_search_query");};window.addEventListener("bidhub:directory-search",update);return()=>window.removeEventListener("bidhub:directory-search",update);},[]);
   const [loading, setLoading] = useState(true);
 
   // Clear query cache on mount after reading

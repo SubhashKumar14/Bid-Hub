@@ -1,3 +1,4 @@
+import { sampleFields } from "../lib/sample-fields.js";
 import mongoose from "mongoose";
 
 const milestoneSubmissionSchema = new mongoose.Schema(
@@ -29,4 +30,5 @@ const milestoneSubmissionSchema = new mongoose.Schema(
 milestoneSubmissionSchema.index({ milestoneId: 1, createdAt: -1 });
 milestoneSubmissionSchema.index({ milestoneId: 1, version: 1 }, { unique: true });
 
+sampleFields(milestoneSubmissionSchema);
 export const MilestoneSubmission = mongoose.model("MilestoneSubmission", milestoneSubmissionSchema);

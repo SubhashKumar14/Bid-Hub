@@ -76,7 +76,8 @@ router.patch("/:id/submit", protect, requireRole("student"), async (req, res) =>
       const [submission] = await MilestoneSubmission.create([{ milestoneId: milestone._id, submittedBy: req.user._id, version: (latest?.version || 0) + 1, githubUrl: githubUrl || "", demoUrl: demoUrl || "", videoUrl: videoUrl || "", description, attachments: attachments || [], status: "SUBMITTED" }], { session });
       current.status = "SUBMITTED";
       current.activeSubmissionId = submission._id;
-      allocation.status = "PENDING_REVIEW";
+      // Approval is a work state. A locked sandbox deposit stays locked until
+      // an actual provider-side transfer workflow is implemented.
       await current.save({ session });
       await allocation.save({ session });
       activeProject.status = "IN_PROGRESS";
@@ -106,16 +107,16 @@ router.patch("/:id/release", protect, requireRole("client"), async (req, res) =>
       const prior = project && String(milestone.activeSubmissionId) === submissionId && await MilestoneSubmission.findById(submissionId).session(session);
       if (prior && prior.status === status && milestone.status === status && (status === "APPROVED" || prior.reviewComment === reviewComment.trim())) return { milestone, project };
       if (!project || !["ASSIGNED", "IN_PROGRESS"].includes(project.status) || project.recoveryPending || milestone.status !== "SUBMITTED") throw Object.assign(new Error("Project or milestone is not eligible for review or recovery is pending."), { status: 409 });
-      const allocation = await PaymentLedger.findOne({ milestoneId: milestone._id, clientId: req.user._id, status: "PENDING_REVIEW" }).session(session);
+      const allocation = await PaymentLedger.findOne({ milestoneId: milestone._id, clientId: req.user._id, status: "LOCKED" }).session(session);
       const submission = String(milestone.activeSubmissionId) === submissionId ? await MilestoneSubmission.findOne({ _id: submissionId, milestoneId: milestone._id, status: "SUBMITTED" }).session(session) : null;
       if (!allocation || !submission) throw Object.assign(new Error("Matching funded allocation and submission required."), { status: 409 });
       milestone.status = status === "APPROVED" ? "APPROVED" : "CHANGES_REQUESTED";
       submission.status = status;
       submission.reviewComment = status === "CHANGES_REQUESTED" ? reviewComment.trim() : "";
-      allocation.status = status === "APPROVED" && capabilities().simulatedFunding ? "RELEASED" : "LOCKED";
-      // No transfer ID: this records only an explicitly simulated demo release.
+      allocation.status = "LOCKED";
+      // Approval never changes the financial state or records a payout.
       allocation.stripeTransferId = "";
-      allocation.releasedAt = allocation.status === "RELEASED" ? new Date() : null;
+      allocation.releasedAt = null;
       // Every review writes the project, so simultaneous final approvals retry
       // against a fresh snapshot before deriving completion.
       project.updatedAt = new Date();
@@ -131,10 +132,10 @@ router.patch("/:id/release", protect, requireRole("client"), async (req, res) =>
         await User.updateOne({ _id: allocation.studentId }, { $inc: { completedProjects: 1 } }, { session });
         await User.updateOne({ _id: project.clientId }, { $inc: { completedProjects: 1 } }, { session });
       }
-      await Notification.create([{ recipientId: allocation.studentId, type: status === "APPROVED" ? "MILESTONE_RELEASED" : "MILESTONE_CHANGES_REQUESTED", message: status === "APPROVED" ? "Work approved. No real money was transferred." : reviewComment.trim(), targetId: project._id }], { session });
+      await Notification.create([{ recipientId: allocation.studentId, type: status === "APPROVED" ? "MILESTONE_APPROVED" : "MILESTONE_CHANGES_REQUESTED", message: status === "APPROVED" ? "Work approved. No payout was made." : reviewComment.trim(), targetId: project._id }], { session });
       return { milestone, project };
     });
-    res.json({ ...result, simulated: capabilities().simulatedFunding, message: status === "APPROVED" ? "Work approved. No real payout was made." : "Changes requested." });
+    res.json({ ...result, simulated: false, message: status === "APPROVED" ? "Work approved. No payout was made." : "Changes requested." });
   } catch (error) {
     res.status(error.status || 503).json({ message: error.status ? error.message : "Review could not be committed. Please retry." });
   }

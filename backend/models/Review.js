@@ -1,3 +1,4 @@
+import { sampleFields } from "../lib/sample-fields.js";
 import mongoose from "mongoose";
 
 const reviewSchema = new mongoose.Schema(
@@ -18,4 +19,5 @@ reviewSchema.index({ projectId: 1 });
 // Unique: one review per reviewer per project (prevents duplicates at DB level)
 reviewSchema.index({ projectId: 1, reviewerId: 1 }, { unique: true });
 
+sampleFields(reviewSchema);
 export const Review = mongoose.model("Review", reviewSchema);

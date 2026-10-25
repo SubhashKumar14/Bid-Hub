@@ -1,3 +1,4 @@
+import { CATEGORIES } from "../../../../shared/categories.js";
 import { ArrowRight, Sparkles, Briefcase, Quote } from "lucide-react";
 import { Button } from "../ui/button";
 import { Avatar, AvatarFallback } from "../ui/avatar";
@@ -9,11 +10,11 @@ import { useState, useEffect } from "react";
 const steps = [
   { n: "01", t: "Publish or explore", d: "Clients publish clear, milestone-driven briefs. Students compare scope, deadlines, and budgets along a consistent index." },
   { n: "02", t: "Propose with intent", d: "Submit a focused proposal outlining your delivery approach, schedule, and relevant portfolio evidence." },
-  { n: "03", t: "Confirm test funding", d: "Accept an exact proposal and confirm simulated funding before work begins. No live payments or payouts." },
+  { n: "03", t: "Confirm test funding", d: "Accept an exact proposal and confirm Razorpay sandbox funding before work begins. No live payments or payouts." },
   { n: "04", t: "Deliver and approve", d: "Submit checkpoints for client review. Participants may leave feedback after work is completed. Approval never asserts a real payout." },
 ];
 
-const categories = ["Product Design", "Web Development", "Backend & APIs", "Writing & Editing", "Video & Motion", "Brand Identity", "Research", "Data & AI", "Growth & Marketing", "Graphic Design"];
+const categories = CATEGORIES;
 
 export function Landing({ setPage }) {
   const [statsData, setStatsData] = useState(null);
@@ -267,7 +268,7 @@ export function Landing({ setPage }) {
             icon: <BrandIcon name="contract" size={20} className="text-[var(--brand-accent)]" />,
             eyebrow: "For Clients",
             title: "Delegate scoped work to campus talent.",
-            body: "Define deliverables and milestones in minutes. Proposals arrive with student portfolios; work is approved per checkpoint; funding is simulated.",
+            body: "Define deliverables and milestones in minutes. Proposals arrive with student portfolios; work is approved per checkpoint; funding uses Razorpay test mode.",
             cta: "Post a project brief",
             page: "post",
           },
@@ -298,7 +299,7 @@ export function Landing({ setPage }) {
             {reviewsList.slice(0, 1).map((r, i) => (
               <div key={i} className="max-w-2xl mx-auto space-y-4">
                 <p className="font-serif text-xl sm:text-2xl leading-relaxed text-foreground">
-                  "{r.comment || "Milestones were delivered on schedule with rigorous attention to requirements."}"
+                  "{r.comment}"
                 </p>
                 <div className="flex items-center justify-center gap-3">
                   <Avatar className="size-8 rounded-[4px] border border-border">

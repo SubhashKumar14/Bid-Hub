@@ -9,6 +9,7 @@ import { importUpload } from "../config/cloudinary.js";
 import { protect } from "../middleware/auth.js";
 
 const router = createRouter();
+const externalHttp = axios.create({ timeout: 15000 });
 
 // Rate limit: 5 import calls per 15 minutes per IP (configurable via IMPORT_RATE_LIMIT)
 const importLimiter = rateLimit({
@@ -149,9 +150,9 @@ router.post("/github", importLimiter, protect, async (req, res) => {
 
     // Fetch the file tree from GitHub API recursively
     // Try main branch, if fails try master
-    const repository = await axios.get(`https://api.github.com/repos/${owner}/${repo}`, { headers, timeout: 8000 });
-    const branch = await axios.get(`https://api.github.com/repos/${owner}/${repo}/commits/${encodeURIComponent(repository.data.default_branch)}`, { headers, timeout: 8000 });
-    const response = await axios.get(`https://api.github.com/repos/${owner}/${repo}/git/trees/${branch.data.sha}?recursive=1`, { headers, timeout: 8000 });
+    const repository = await externalHttp.get(`https://api.github.com/repos/${owner}/${repo}`, { headers, timeout: 8000 });
+    const branch = await externalHttp.get(`https://api.github.com/repos/${owner}/${repo}/commits/${encodeURIComponent(repository.data.default_branch)}`, { headers, timeout: 8000 });
+    const response = await externalHttp.get(`https://api.github.com/repos/${owner}/${repo}/git/trees/${branch.data.sha}?recursive=1`, { headers, timeout: 8000 });
     if (response.data.truncated) return res.status(422).json({ message: "Repository tree is truncated. Import a smaller repository." });
     const tree = response.data.tree;
     let validFiles = [];

@@ -6,7 +6,7 @@ import { StatusBadge } from "../StatusBadge";
 import { ShieldCheck, Plus, ArrowRight, MessageSquare, Check, Eye } from "lucide-react";
 import { BrandIcon } from "../../brand/BrandIcon";
 import { BrandState } from "../../brand/BrandState";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { ChatDrawer } from "../ChatDrawer";
 import { MilestoneReviewModal } from "../MilestoneReviewModal";
@@ -14,7 +14,7 @@ import { PaymentDisclaimerModal } from "../PaymentDisclaimerModal";
 import { PaymentSuccessModal } from "../PaymentSuccessModal";
 
 const formatCurrency = (val) => {
-  if (val === undefined || val === null) return "";
+  if (val === undefined || val === null) return "Unavailable";
   if (typeof val === "number") {
     return `₹${val.toLocaleString("en-IN")}`;
   }
@@ -25,6 +25,10 @@ const formatCurrency = (val) => {
 
 export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
   const [error, setError] = useState("");
+  const [financialError,setFinancialError]=useState("");
+  const [profileError,setProfileError]=useState("");
+  const hasData=useRef(false);
+  const targetRef=useRef("");
   const [projectPage, setProjectPage] = useState(1);
   const [bidPage, setBidPage] = useState(1);
   const [pagination, setPagination] = useState({});
@@ -70,24 +74,32 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
     setReviewModalOpen(true);
   };
 
+  targetRef.current = token + ":" + projectPage + ":" + bidPage;
   const fetchDashboardData = async () => {
+    const target=targetRef.current;
     if (!token || !currentUser) return;
     setError("");
-    setLoading(true);
+    setLoading(!hasData.current);
     try {
+      let lockedEscrow=null, releasedEscrow=null;
+      try {
       const paymentsRes = await fetch("/api/payments", {
         headers: { Authorization: `Bearer ${token}` },
       });
       const paymentsData = await paymentsRes.json();
       if (!paymentsRes.ok) throw new Error("Financial data unavailable. Retry to refresh.");
-      const lockedEscrow = paymentsData.stats?.lockedAmount || 0;
-      const releasedEscrow = paymentsData.stats?.releasedAmount || 0;
+      lockedEscrow = paymentsData.stats?.lockedAmount || 0;
+      releasedEscrow = paymentsData.stats?.releasedAmount || 0;
+
+        if(target!==targetRef.current)return; setFinancialError("");
+      } catch { if(target!==targetRef.current)return;setFinancialError("Financial data unavailable. Work data remains available; retry to refresh the ledger."); }
 
       const dashRes = await fetch(`/api/projects/client/dashboard?projectPage=${projectPage}&bidPage=${bidPage}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const dashData = await dashRes.json();
       if (!dashRes.ok) throw new Error(dashData.message || "Failed to load dashboard data");
+      if(target!==targetRef.current)return; hasData.current=true;
       setPagination(dashData.pagination || {});
 
       setPendingBids(dashData.pendingBids || []);
@@ -106,21 +118,26 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
         releasedEscrow,
       });
 
-      const actRes = await fetch("/api/activities");
+      try { const actRes = await fetch("/api/activities");
       const actData = await actRes.json();
       if (actRes.ok) {
         setActivities(Array.isArray(actData) ? actData.slice(0, 8) : []);
-      }
+      } } catch { setActivities([]); }
     } catch (err) {
+      if(target!==targetRef.current)return;
       setError(err.message);
       toast.error(err.message);
     } finally {
-      setLoading(false);
+      if(target===targetRef.current)setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchDashboardData();
+    const refresh=()=>{if(document.visibilityState!=="hidden") fetchDashboardData();};
+    const timer=setInterval(refresh,10000);
+    window.addEventListener("bidhub:refresh",refresh); window.addEventListener("focus",refresh);
+    return()=>{clearInterval(timer);window.removeEventListener("bidhub:refresh",refresh);window.removeEventListener("focus",refresh);};
   }, [token, currentUser, projectPage, bidPage]);
 
   const handleAcceptBid = (bidId) => {
@@ -179,6 +196,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
           </Button>
         </div>
       </header>
+      {(financialError || profileError) && <p role="alert" className="text-sm text-destructive">{financialError || profileError} <Button variant="outline" onClick={fetchDashboardData}>Retry unavailable data</Button></p>}
       <WorkspacePagination label="Projects" page={projectPage} pages={pagination.projects?.pages} onPage={setProjectPage} />
       {pagination.projects?.pages > 1 && <p className="text-xs text-muted-foreground">Milestones, active work and history below show this project page. Summary counts cover your full account.</p>}
 
@@ -236,7 +254,7 @@ export function ClientDashboard({ setPage, onOpenEscrow, token, currentUser }) {
           { k: "Proposals Received", v: stats.bidsReceivedCount },
           { k: "Active Deliveries", v: stats.activeGigsCount },
           { k: "Test funds allocated", v: formatCurrency(stats.lockedEscrow) },
-          { k: "Simulated releases", v: formatCurrency(stats.releasedEscrow) },
+          { k: "Real payouts", v: "Disabled" },
         ].map((s) => (
           <div key={s.k} className="bg-card border border-border rounded-[8px] p-3.5 space-y-1">
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground block">{s.k}</span>

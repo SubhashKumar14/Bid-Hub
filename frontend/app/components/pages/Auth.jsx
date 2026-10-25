@@ -125,7 +125,7 @@ export function Auth({ onDone, setToken, initialRole = "student" }) {
               <span>Milestone Agreements</span>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              This demonstration records test funding and work approvals separately. Live payments and payouts are disabled; no legal escrow is provided.
+              This workspace records Razorpay sandbox funding and work approvals separately. Live payments and payouts are disabled; no legal escrow is provided.
             </p>
           </div>
           <p className="text-xs text-muted-foreground">© Bid·Hub · Bengaluru, India</p>

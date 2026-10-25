@@ -1,26 +1,24 @@
 # BidHub final independent workflow review
 
-Reviewed locally on 23 and 25 October 2026. Review branch: `codex/workflow-repair`. The initial inspected implementation was `e6c9bb9`; the resumed clean checkout was `2e33a66`, which already contained the earlier review fixes in `10161dc` and subsequent user authentication/Render configuration commits. Those commits were preserved. This review did not push, merge or deploy anything, and used no production database or real money.
-
-The final runtime and regression-test changes are saved locally in commit `7b60b22`, authored as SubhashKumar14. This report accompanies those changes; `main` was not moved by this review.
+Reviewed locally on 23 and 25 October 2026. Review branch: `codex/workflow-repair`. The earlier review baseline was `2e33a66`; earlier committed repairs were preserved. The 25 October follow-up changes are currently uncommitted. Nothing was pushed, merged, or deployed, and no production database was used.
 
 ## Verdict
 
-**The supported local demonstration journeys work.** Writing, design and software work reached assignment, delivery, approval, completion, participant reviews and retained evidence in a real Chromium browser backed by an isolated MongoDB replica set. Writing includes a change request and a revised submission. Prices differ from advertised budgets, and work approval is independent of financial release.
+**The isolated test-provider journeys work; genuine Razorpay sandbox capture remains unverified.** Writing, design and software work reached assignment, delivery, approval, completion, participant reviews and retained evidence in a real Chromium browser backed by an isolated MongoDB replica set. Writing includes a change request and revised submission. Prices differ from advertised budgets, and work approval is independent of payout status.
 
 This is a local demo verdict, not approval for live commerce or deployment. The original scope is **PARTIAL overall** because external gateway/hosting/storage operations and broader compatibility/capacity gates remain unverified. The explicit product limits below remain material. No claim of 100% completion, legal escrow, payout readiness or exhaustive bug exclusion is made.
 
 ## Evidence and test boundaries
 
-Environment: Windows/PowerShell, Node 26.1.0, npm 11.16.0, MongoDB 8.3, Mongoose 8.24.5, Playwright 1.64.1 and downloaded Chromium. The API runs with `NODE_ENV=production`, `PRODUCT_MODE=demo`, private GridFS, synthetic users and synthetic secrets. Replica sets use temporary directories and ports 27128/27129. Application/production database variables are not silently substituted for `TEST_MONGODB_URI`.
+Environment: Windows/PowerShell, Node 26.1.0, npm 11.16.0, MongoDB 8.3, Mongoose 8.24.5, Playwright 1.64.1 and Chromium. Normal automated journeys use synthetic users, an explicit isolated mock-provider test flag, and disposable replica sets on ports 27128/27129. The separate Razorpay attempt ran the API with `NODE_ENV=production`, `PRODUCT_MODE=test`, and test credentials; the browser loaded hosted checkout but obtained no authorization/captured payment result. Application/production database variables are not silently substituted for test database URIs.
 
 | Exact command | Executed result | Meaning and limits |
 |---|---|---|
 | `npm run test:security --prefix backend` | **44 passed, 0 failed, 0 skipped** | Actual crypto/config checks and HTTP route regressions; older route regressions use persistence doubles. Includes strict rate-limit overrides and preserved Render demo defaults. |
-| `npm run test:transactions --prefix backend` | **16 passed, 0 failed, 0 skipped** | Real Mongoose writes and transactions against a replica set. Failure injections deliberately make writes/notifications fail; they do not replace the successful multi-document allocation operation. |
+| `npm run test:transactions --prefix backend` | **19 passed, 0 failed, 0 skipped** | Real Mongoose writes and transactions against a disposable replica set. Failure injections deliberately make writes/notifications fail; they do not replace the successful multi-document allocation operation. |
 | `npm run test:frontend` | **3 passed** | Existing isolated React state/effect harness. Child UI/API stubs mean these are not full-browser journey evidence. |
-| `npm run test:e2e` | **8 groups passed, 0 skipped** | Real browser/API/DB workflows plus the three existing integration scripts. Includes actual API-process restart, compiled-build serving and growing-history/dashboard fixtures. |
-| `npm run build` | **Passed** | Actual Vite production build: main JS 537.58 kB, gzip 155.14 kB. Existing >500 kB chunk warning and Node module-registration deprecation remain. |
+| `npm run test:e2e -- --reporter=line` | **10 passed, 0 skipped** | Real browser/API/DB workflows plus the three existing integration scripts. Includes API-process restart, compiled-build serving, history/dashboard fixtures and malformed compressed HTTP requests against the actual local backend. The default runs use the explicit isolated mock provider. |
+| `npm run build` | **Passed** | Actual Vite production build: main JS 543.77 kB, gzip 157.00 kB. Existing >500 kB chunk warning and Node module-registration deprecation remain. |
 | `git diff --check` | Passed before finalization | Formatting/diff check only. |
 
 Targeted browser commands were also executed for `final independent review`, `retained history pages`, `dashboard pages`, and `expired browser session`, each passing. The writing journey was extended with explicit unrelated/self/duplicate-review and confidential-history negatives and rerun separately. These are additional checks, not additional independent vulnerabilities or a replacement for the full suite.
@@ -65,7 +63,7 @@ PASS means the stated supported local behavior is demonstrated; PARTIAL means on
 |---|---|---|
 | WF01: same valid checkout from dashboard/detail | Shared `frontend/api/checkout.js`; both visible entry points exercised with exact version and real endpoint | PASS |
 | WF02: atomic two-plus milestone allocations | `settle.js:39` ordered creation; real two-checkpoint/concurrent/rollback tests | PASS |
-| WF03: production demo completes without real payout | Production-mode browser journeys; independent test-mode approval DB case leaves financial allocation LOCKED with no transfer/release timestamp | PASS |
+| WF03: production test mode completes without real payout | The local production-configured Razorpay browser reached hosted checkout but did not return authorization/capture; the DB approval regression leaves allocation LOCKED and writes no transfer/release timestamp | PARTIAL: full production test-mode funding-to-completion journey not demonstrated |
 | WF04: clean URLs, direct links, API/assets, effective hosting root | Both configs use `/` fallback after API rewrite; root build emits `dist`; compiled local refresh/JS/CSS/API checks | PARTIAL: deployed Vercel engine/settings unverified |
 | WF05: estimate, offer and agreed contract are distinct; changed terms need agreement | ₹50,000/₹25,000 journey; ₹900→₹600 version 2; immutable exact paise schedule; stale version fails | PASS for supported proportional schedule |
 | WF06: remote/location/level/duration persisted and usable | Real metadata round-trip, saved-data filters/details; legacy unknown defaults | PASS |
@@ -101,7 +99,7 @@ The detailed per-visible-action mapping remains in `workflow-spec.md`: publishin
 
 ## Remaining limits and specific blockers
 
-1. **BLOCKED: external provider test checkout.** Genuine Razorpay test credentials, provider availability and signed webhook delivery are required. Local deterministic transport proves handler/transaction behavior, not the remote SDK or provider. Live keys, payouts and automatic refunds remain disabled.
+1. **BLOCKED: genuine Razorpay test capture and remote webhook delivery.** The configured test credentials created an order and loaded Razorpay Checkout, but after the documented test-card flow no authorization/OTP/capture result reached the browser or API, so funded assignment and the production-configured full journey were not verified. Local deterministic provider fixtures prove server verification/replay/transaction behavior, not successful remote processing. Check sandbox payment-method/account configuration and repeat capture verification; confirm a publicly reachable signed webhook separately. Live keys, payouts and automatic refunds remain disabled.
 2. **BLOCKED: deployment verification.** No Vercel/Render dashboard or deployment was touched. Confirm the intended revision, repository-root build, `dist`, environment and actual clean-URL/API/asset responses on the target host. Vite preview is not the Vercel routing engine.
 3. **BLOCKED: remote file operations.** Local GridFS authorization and bytes work. Remote quotas, database permissions/durability, historical-byte migration, retention, malware scanning and backup restoration require operator verification. Cloudinary avatar delivery requires actual credentials; it was not exercised against Cloudinary.
 4. **PARTIAL: operational dispute lifecycle.** An operator-visible case and pause work; evidence is retained. Automated dispute decisions, compensation, refunds and reviewed resumption/termination tooling are not implemented. An uncertain remotely-created order must not be deleted merely to enable another checkout.

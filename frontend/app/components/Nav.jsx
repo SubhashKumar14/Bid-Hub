@@ -23,6 +23,7 @@ const notifMeta = {
   BID_REJECTED: { label: "Proposal Rejected", color: "bg-[var(--status-danger)]" },
   MILESTONE_SUBMITTED: { label: "Work Submitted", color: "bg-[var(--status-warning)]" },
   MILESTONE_RELEASED: { label: "Work Approved", color: "bg-[var(--status-success)]" },
+  MILESTONE_APPROVED: { label: "Work Approved", color: "bg-[var(--status-success)]" },
   MILESTONE_CHANGES_REQUESTED: { label: "Changes Requested", color: "bg-[var(--status-danger)]" },
   PROJECT_COMPLETED: { label: "Project Complete", color: "bg-[var(--status-success)]" },
   REVIEW_RECEIVED: { label: "New Review", color: "bg-[var(--status-info)]" },
@@ -191,6 +192,7 @@ export function Nav({ page, setPage, role, setRole, theme, toggleTheme, onOpenEs
     e.preventDefault();
     if (navSearch.trim()) {
       localStorage.setItem("bidhub_search_query", navSearch.trim());
+      window.dispatchEvent(new CustomEvent("bidhub:directory-search",{detail:{search:navSearch.trim()}}));
       setPage("browse");
     }
   };

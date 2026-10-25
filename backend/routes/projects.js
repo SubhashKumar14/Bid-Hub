@@ -1,4 +1,8 @@
 import { httpErrorStatus } from "../lib/validation.js";
+import { CATEGORIES, canonicalCategory } from "../../shared/categories.js";
+import { publishFingerprint } from "../lib/publish-identity.js";
+import { verifiedReviews } from "../services/reputation.js";
+import { isOperator, resolveRecovery } from "../services/recovery.js";
 import { validateAttachments } from "../lib/attachments.js";
 import { Contract } from "../models/Contract.js";
 import { RecoveryCase } from "../models/RecoveryCase.js";
@@ -16,6 +20,16 @@ import { protect, requireRole } from "../middleware/auth.js";
 import { boundedInteger, amountToPaise } from "../lib/validation.js";
 
 const router = createRouter();
+router.get("/:id/recovery", protect, async (req,res)=>{
+  const record=await RecoveryCase.findOne({projectId:req.params.id});
+  const contract=await Contract.findOne({projectId:req.params.id});
+  if(!record || (!isOperator(req.user._id) && ![contract?.clientId,contract?.studentId].some(id=>String(id)===String(req.user._id)))) return res.status(404).json({message:"Recovery case unavailable."});
+  res.json(record);
+});
+router.patch("/:id/recovery/:caseId",protect,async(req,res)=>{
+  const result=await resolveRecovery(req.params.id,req.params.caseId,req.user._id,req.body);
+  res.json({...result,message:result.replayed?"This request was applied previously. The current project and case state are returned.":req.body.action==="RESUME"?"Work resumed. Financial records are unchanged.":"Work terminated; evidence retained. No refund or payout was made."});
+});
 
 const clarificationAccess = async req => {
   const project = await Project.findById(req.params.id);
@@ -53,9 +67,10 @@ router.post("/:id/recovery", protect, async (req, res) => {
     const contract = project && await Contract.findOne({ projectId: project._id }).session(session);
     if (!contract || ![contract.clientId, contract.studentId].some(id => String(id) === String(req.user._id))) throw Object.assign(new Error("Only contract participants may request recovery."), { status: 403 });
     const prior = await RecoveryCase.findOne({ projectId: project._id }).session(session);
-    if (prior) return prior;
+    if (prior?.state === "OPERATOR_REVIEW") return prior;
     project.recoveryPending = true;
     await project.save({ session });
+    if(prior) { prior.state="OPERATOR_REVIEW"; prior.reason=req.body.reason.trim(); prior.requestedBy=req.user._id; prior.version=(prior.version || 1)+1; await prior.save({session}); return prior; }
     const [record] = await RecoveryCase.create([{ projectId: project._id, requestedBy: req.user._id, reason: req.body.reason.trim() }], { session });
     return record;
   });
@@ -94,7 +109,7 @@ router.get("/", async (req, res) => {
   if (!order) return res.status(400).json({ message: "Unknown sorting rule." });
 
   if (category && category !== "All") {
-    query.category = category;
+    query.category = canonicalCategory(category);
   }
 
   if (status) {
@@ -106,6 +121,8 @@ router.get("/", async (req, res) => {
     query.$or = [
       { title: { $regex: safeSearch, $options: "i" } },
       { description: { $regex: safeSearch, $options: "i" } },
+      { skillsRequired: { $regex: safeSearch, $options: "i" } },
+      { clientId: { $in: await User.find({ name: { $regex: safeSearch, $options: "i" }, role: "client" }).distinct("_id") } },
     ];
   }
 
@@ -116,7 +133,7 @@ router.get("/", async (req, res) => {
 
   try {
     const projects = await Project.find(query)
-      .populate("clientId", "name avatarUrl rating completedProjects")
+      .populate("clientId", "name avatarUrl college")
       .sort(order).skip((page - 1) * limit).limit(limit);
     res.setHeader("X-Total-Count", String(await Project.countDocuments(query)));
     res.json(projects);
@@ -143,7 +160,7 @@ router.get("/student/dashboard", protect, requireRole("student"), async (req, re
 
     // 3. Fetch these projects populated with milestones and client details
     const activeProjects = await Project.find({ _id: { $in: acceptedProjectIds } })
-      .populate("clientId", "name avatarUrl rating completedProjects college")
+      .populate("clientId", "name avatarUrl college")
       .sort({ createdAt: -1, _id: -1 }).skip((contractPage - 1) * limit).limit(limit);
 
     // Fetch milestones for all active projects
@@ -196,11 +213,12 @@ router.get("/student/dashboard", protect, requireRole("student"), async (req, re
         return {
           id: p._id,
           title: `${p.clientId?.name || "Client"} · ${p.title}`,
-          statusText: p.status === "COMPLETED" ? "Completed" : inReview ? "Milestone in review" : "Active work",
+          statusText: p.recoveryPending ? "Paused for recovery" : p.status === "CANCELLED" ? "Cancelled; history retained" : p.status === "COMPLETED" ? "Completed" : inReview ? "Milestone in review" : "Active work",
           amount: p.contractTotalPaise != null ? p.contractTotalPaise / 100 : totalAmount || null,
           progress,
           status: p.status === "COMPLETED" ? "completed" : inReview ? "in-review" : "active",
           projectStatus: p.status,
+          recoveryPending: p.recoveryPending,
           milestones: ms
         };
       })
@@ -220,7 +238,7 @@ router.get("/client/dashboard", protect, requireRole("client"), async (req, res)
   try {
     // 1. Fetch all projects posted by this client
     const myProjects = await Project.find({ clientId: req.user._id })
-      .populate("clientId", "name avatarUrl rating completedProjects college")
+      .populate("clientId", "name avatarUrl college")
       .sort({ createdAt: -1, _id: -1 }).skip((projectPage - 1) * limit).limit(limit);
 
     const projectIds = myProjects.map(p => p._id);
@@ -233,7 +251,7 @@ router.get("/client/dashboard", protect, requireRole("client"), async (req, res)
     const openProjectIds = await Project.find({ clientId: req.user._id, status: "OPEN" }).distinct("_id");
     const pendingFilter = { projectId: { $in: openProjectIds }, status: "PENDING" };
     const bids = await Bid.find(pendingFilter)
-      .populate("studentId", "name avatarUrl rating completedProjects college skills").populate("projectId", "title")
+      .populate("studentId", "name avatarUrl college skills").populate("projectId", "title")
       .sort({ createdAt: -1, _id: -1 }).skip((bidPage - 1) * limit).limit(limit);
     const pendingTotal = await Bid.countDocuments(pendingFilter);
 
@@ -310,13 +328,13 @@ router.get("/client/dashboard", protect, requireRole("client"), async (req, res)
 // @access  Public
 router.get("/public/stats", async (req, res) => {
   try {
-    const studentsCount = await User.countDocuments({ role: "student" });
-    const clientsCount = await User.countDocuments({ role: "client" });
-    const projectsCount = await Project.countDocuments({ status: "OPEN" });
-    const completedCount = await Project.countDocuments({ status: "COMPLETED" });
+    const studentsCount = await User.countDocuments({ role: "student", sampleData: { $ne: true } });
+    const clientsCount = await User.countDocuments({ role: "client", sampleData: { $ne: true } });
+    const projectsCount = await Project.countDocuments({ status: "OPEN", sampleData: { $ne: true } });
+    const completedCount = await Project.countDocuments({ status: "COMPLETED", sampleData: { $ne: true } });
 
     // Calculate total escrow: Sum of amounts in ledger
-    const ledgers = await PaymentLedger.find({ milestoneId: { $ne: null }, status: { $in: ["LOCKED", "PENDING_REVIEW", "RELEASED"] } });
+    const ledgers = await PaymentLedger.find({ provider:"razorpay", sampleData: { $ne: true }, milestoneId: { $ne: null }, status: "LOCKED" });
     const totalEscrow = ledgers.reduce((acc, curr) => acc + (curr.amount || 0), 0);
 
     res.json({
@@ -376,6 +394,11 @@ router.get("/:id", async (req, res) => {
 
     // Find milestones for this project
     const milestones = await Milestone.find({ projectId: project._id });
+    if(project.clientId) {
+      const reviews=await verifiedReviews({revieweeId:project.clientId._id});
+      project.clientId.rating=reviews.length?reviews.reduce((n,r)=>n+r.rating,0)/reviews.length:0;
+      project.clientId.completedProjects=await Project.countDocuments({clientId:project.clientId._id,status:"COMPLETED",sampleData:{$ne:true}});
+    }
 
     res.json({ project, milestones });
   } catch (error) {
@@ -402,23 +425,29 @@ router.post("/", protect, requireRole("client"), async (req, res) => {
       for (const m of milestones) {
         if (!m || typeof m.title !== "string" || !m.title.trim()) throw new Error();
         amountToPaise(m.amount);
+        if(m.dueDate && (!/^\d{4}-\d{2}-\d{2}$/.test(m.dueDate) || !Number.isFinite(Date.parse(m.dueDate)) || new Date(m.dueDate).toISOString().slice(0,10)!==m.dueDate || m.dueDate<=new Date().toISOString().slice(0,10) || m.dueDate>deadline)) throw new Error();
       }
     } catch { return res.status(400).json({ message: "Positive budget and 1 to 50 valid milestone amounts are required." }); }
-    if (clientRequestId) { const prior = await Project.findOne({ clientId: req.user._id, clientRequestId }); if (prior) return res.json(prior); }
+    const normalizedCategory = canonicalCategory(category);
+    const fingerprint = publishFingerprint({...req.body, category: normalizedCategory});
+    if (clientRequestId) { const prior = await Project.findOne({ clientId: req.user._id, clientRequestId }); if (prior) return prior.publishFingerprint === fingerprint ? res.json(prior) : res.status(409).json({ message: "This publish identity belongs to different content. Review the saved brief before publishing a new project." }); }
     if (clientRequestId !== undefined && (typeof clientRequestId !== "string" || !/^[\w-]{8,100}$/.test(clientRequestId))) return res.status(400).json({ message: "Invalid publish request identity." });
     await validateAttachments(files || [], req.user._id);
     if ((fileManifest !== undefined && (!Array.isArray(fileManifest) || fileManifest.length > 1000 || fileManifest.some(f => !f || typeof f.path !== "string" || f.path.length > 1000 || !Number.isSafeInteger(f.size) || f.size < 0))) || (importRevision && !/^[a-f0-9]{40}$/.test(importRevision))) return res.status(400).json({ message: "Invalid source manifest or revision." });
     if (skillsRequired !== undefined && (!Array.isArray(skillsRequired) || skillsRequired.length > 30 || skillsRequired.some(s => typeof s !== "string" || !s.trim() || s.length > 80))) return res.status(400).json({ message: "Invalid skills." });
     if (level && !["beginner", "intermediate", "advanced", "expert", "any"].includes(level)) return res.status(400).json({ message: "Invalid experience level." });
     if (!Number.isFinite(Date.parse(deadline)) || new Date(deadline).toISOString().slice(0, 10) !== deadline) return res.status(400).json({ message: "Use a valid delivery date (YYYY-MM-DD)." });
+    if (deadline <= new Date().toISOString().slice(0,10)) return res.status(400).json({ message: "Choose a future delivery date." });
+    if (!CATEGORIES.includes(normalizedCategory)) return res.status(400).json({ message: "Choose a supported project category." });
+    if (!Array.isArray(skillsRequired) || !skillsRequired.length || description.trim().length < 20) return res.status(400).json({ message: "Describe the scope in at least 20 characters and provide at least one required skill." });
     if (milestones.reduce((sum, m) => sum + amountToPaise(m.amount), 0) !== amountToPaise(budget)) return res.status(400).json({ message: "Advertised milestone amounts must equal the advertised budget." });
     if ((remote !== undefined && typeof remote !== "boolean") || [location, level, duration].some(v => v !== undefined && (typeof v !== "string" || v.length > 200)) || !/^\d{4}-\d{2}-\d{2}$/.test(deadline) || !Number.isFinite(Date.parse(deadline))) return res.status(400).json({ message: "Invalid project location, level, duration or delivery deadline." });
     const project = await mongoose.connection.transaction(async session => {
     const [project] = await Project.create([{
-      remote, location, level, duration, clientRequestId,
+      remote, location, level, duration, clientRequestId, publishFingerprint: fingerprint,
       title: title.trim(),
       description: description.trim(),
-      category,
+      category: normalizedCategory,
       budget: parseAmount(budget),
       deadline,
       skillsRequired: skillsRequired || [],
@@ -456,7 +485,7 @@ router.post("/", protect, requireRole("client"), async (req, res) => {
     res.status(201).json(project);
   } catch (error) {
     console.error("Create project error:", error);
-    if (error.code === 11000 && clientRequestId) { const prior = await Project.findOne({ clientId: req.user._id, clientRequestId }); if (prior) return res.json(prior); }
+    if (error.code === 11000 && clientRequestId) { const prior = await Project.findOne({ clientId: req.user._id, clientRequestId }); if (prior) return prior.publishFingerprint === publishFingerprint({...req.body,category:canonicalCategory(req.body.category)}) ? res.json(prior) : res.status(409).json({ message: "Publish identity conflicts with saved content. Refresh before retrying." }); }
     res.status(httpErrorStatus(error)).json({ message: "Failed to create project. Please try again." });
   }
 });
@@ -468,7 +497,7 @@ router.patch("/:id", protect, requireRole("client"), async (req, res) => {
   const updated = await mongoose.connection.transaction(async session => {
     const project = await Project.findOne({ _id: req.params.id, clientId: req.user._id }).session(session);
     if (!project) throw Object.assign(new Error("Owned project not found."), { status: 404 });
-    const scopeFields = ["title", "description", "budget", "deadline", "remote", "location", "level", "duration"];
+    const scopeFields = ["title", "description", "category", "skillsRequired", "budget", "deadline", "remote", "location", "level", "duration"];
     const editing = scopeFields.some(field => req.body[field] !== undefined);
     if (editing && (project.status !== "OPEN" || await Bid.exists({ projectId: project._id }).session(session))) throw Object.assign(new Error("Scope cannot change after proposals. Clarify the brief or publish a new project; existing offers retain their context."), { status: 409 });
     for (const field of ["title", "description", "deadline", "location", "level", "duration"]) {
@@ -477,6 +506,8 @@ router.patch("/:id", protect, requireRole("client"), async (req, res) => {
         project[field] = req.body[field].trim();
       }
     }
+    if(req.body.category!==undefined) { const normalized=canonicalCategory(req.body.category); if(typeof normalized!=="string" || !CATEGORIES.includes(normalized)) throw Object.assign(new Error("Choose a supported project category."),{status:400}); project.category=normalized; }
+    if(req.body.skillsRequired!==undefined) { if(!Array.isArray(req.body.skillsRequired) || !req.body.skillsRequired.length || req.body.skillsRequired.length>30 || req.body.skillsRequired.some(s=>typeof s!=="string" || !s.trim() || s.length>80)) throw Object.assign(new Error("At least one valid required skill is needed."),{status:400}); project.skillsRequired=req.body.skillsRequired.map(s=>s.trim()); }
     if (req.body.remote !== undefined) {
       if (typeof req.body.remote !== "boolean") throw Object.assign(new Error("Location mode must be a boolean."), { status: 400 });
       project.remote = req.body.remote;

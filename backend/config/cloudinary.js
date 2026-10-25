@@ -15,7 +15,6 @@ dotenv.config({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)),
 
 if (process.env.RENDER) {
   if (!process.env.PRIVATE_STORAGE) process.env.PRIVATE_STORAGE = "mongodb";
-  if (!process.env.PAYMENT_PROVIDER) process.env.PAYMENT_PROVIDER = "mock";
 }
 
 const isCloudinaryConfigured =

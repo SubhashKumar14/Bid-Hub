@@ -10,7 +10,9 @@
     "test:transactions": "node --test tests/settlement_database.test.js",
     "test:payment-flow": "node tests/payment_flow.test.js",
     "test:security-chat": "node tests/security_chat.test.js",
-    "test:runtime": "node tests/runtime_verification.js"
+    "test:runtime": "node tests/runtime_verification.js",
+    "seed:samples": "node scripts/seed-samples.js",
+    "migrate:workflow": "node scripts/workflow-migration.js"
   },
   "dependencies": {
     "adm-zip": "^0.6.1",
@@ -30,6 +32,7 @@
     "razorpay": "^2.9.6"
   },
   "overrides": {
-    "cloudinary": "^2.2.0"
+    "cloudinary": "^2.2.0",
+    "body-parser": "^1.20.9"
   }
 }

@@ -263,6 +263,9 @@ test("authenticated self profile polling preserves views; external visit increme
   const profile = { _id: "student", profileViews: 7, async save() { saves++; } };
   t.mock.method(User, "findById", () => query(profile));
   t.mock.method(Review, "find", () => query([]));
+  t.mock.method(Review,"aggregate",()=>query([]));
+  t.mock.method(Bid,"find",()=>query([]));
+  t.mock.method(Project,"countDocuments",async()=>0);
   for (let i = 0; i < 3; i++) {
     const result = await request("/api/users/student", "student");
     assert.equal(result.status, 200);
@@ -288,14 +291,14 @@ for (const configuration of [
     });
     assert.equal(child.error, undefined);
     assert.equal(child.status, 1);
-    assert.match(child.stderr, /Mock payments are disabled|are required|Placeholder Razorpay credentials/);
+    assert.match(child.stderr, /Mock payments are allowed|are required|Placeholder Razorpay credentials/);
   });
 }
 
 for (const [label, environment, expected] of [
-  ["explicit production demo permits only simulated funding", { PRODUCT_MODE: "demo", PAYMENT_PROVIDER: "mock" }, 0],
+  ["runtime demo payments are rejected", { PRODUCT_MODE: "demo", PAYMENT_PROVIDER: "mock" }, 1],
   ["production outside Render requires an explicit product mode", { PRODUCT_MODE: "", PAYMENT_PROVIDER: "mock" }, 1],
-  ["Render defaults select demo without activating configured live credentials", { RENDER: "true", PRODUCT_MODE: "", PAYMENT_PROVIDER: "razorpay", RAZORPAY_KEY_ID: "rzp_live_synthetic", RAZORPAY_KEY_SECRET: "synthetic-secret" }, 0],
+  ["Render also rejects live credentials", { RENDER: "true", PRODUCT_MODE: "test", PAYMENT_PROVIDER: "razorpay", RAZORPAY_KEY_ID: "rzp_live_synthetic", RAZORPAY_KEY_SECRET: "synthetic-secret" }, 1],
   ["test mode rejects live payment credentials", { PRODUCT_MODE: "test", PAYMENT_PROVIDER: "razorpay", RAZORPAY_KEY_ID: "rzp_live_synthetic", RAZORPAY_KEY_SECRET: "synthetic-secret" }, 1],
 ]) {
   test(label, () => {

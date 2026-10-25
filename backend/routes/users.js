@@ -1,4 +1,7 @@
 import { httpErrorStatus } from "../lib/validation.js";
+import { verifiedReviews } from "../services/reputation.js";
+import { Project } from "../models/Project.js";
+import { Bid } from "../models/Bid.js";
 import express from "express";
 import { createRouter } from "../lib/router.js";
 import jwt from "jsonwebtoken";
@@ -8,13 +11,18 @@ import { protect } from "../middleware/auth.js";
 import { upload } from "../config/cloudinary.js";
 
 const router = createRouter();
+router.get("/:id/work-record",async(req,res)=>{
+  const accepted=await Bid.find({studentId:req.params.id,status:"ACCEPTED"}).distinct("_id");
+  const projects=await Project.find({status:"COMPLETED",$or:[{clientId:req.params.id},{acceptedBidId:{$in:accepted}}]}).select("title category sampleData").sort({updatedAt:-1}).limit(50);
+  res.json(projects);
+});
 
 // @desc    Get user profile details & reviews
 // @route   GET /api/users/:id
 // @access  Public
 router.get("/:id", async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select("name avatarUrl role bio skills college rating completedProjects profileViews createdAt");
+    const user = await User.findById(req.params.id).select("name avatarUrl role bio skills college rating completedProjects profileViews createdAt sampleData");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -39,9 +47,10 @@ router.get("/:id", async (req, res) => {
     }
 
     // Fetch user reviews (where user is the reviewee)
-    const reviews = await Review.find({ revieweeId: req.params.id })
-      .populate("reviewerId", "name avatarUrl college")
-      .populate("projectId", "title");
+    const reviews = await verifiedReviews({revieweeId:user._id});
+    user.rating=reviews.length?Number((reviews.reduce((sum,row)=>sum+row.rating,0)/reviews.length).toFixed(2)):0;
+    const accepted=await Bid.find({studentId:user._id,status:"ACCEPTED"}).distinct("_id");
+    user.completedProjects=await Project.countDocuments({status:"COMPLETED",sampleData:{$ne:true},$or:[{clientId:user._id},{acceptedBidId:{$in:accepted}}]});
 
     res.json({ user, reviews });
   } catch (error) {

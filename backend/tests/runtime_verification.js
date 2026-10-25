@@ -10,7 +10,8 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 if (!process.env.TEST_MONGODB_URI) throw new Error("Set TEST_MONGODB_URI to an isolated replica-set database. This test never uses the application database implicitly.");
 process.env.MONGODB_URI = process.env.TEST_MONGODB_URI;
-process.env.PRODUCT_MODE = "demo";
+process.env.BIDHUB_ISOLATED_TEST="1";
+process.env.PRODUCT_MODE = "test";
 
 const PORT = "5002";
 const BASE_URL = `http://localhost:${PORT}`;
@@ -78,11 +79,11 @@ async function runVerification() {
         description: "Testing end-to-end client routing, Razorpay checkout, and milestones.",
         category: "Web Development",
         budget: "20000",
-        deadline: "2026-12-31",
+        deadline: new Date(Date.now() + 120 * 86400000).toISOString().slice(0, 10),
         skillsRequired: ["React", "Express"],
         milestones: [
-          { title: "Frontend Implementation", amount: "10000", dueDate: "2026-07-30" },
-          { title: "Backend Hardening", amount: "10000", dueDate: "2026-08-30" }
+          { title: "Frontend Implementation", amount: "10000", dueDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10) },
+          { title: "Backend Hardening", amount: "10000", dueDate: new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10) }
         ],
       },
       { headers: { Authorization: `Bearer ${clientToken}` } }

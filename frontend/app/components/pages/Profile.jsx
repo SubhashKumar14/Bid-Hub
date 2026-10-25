@@ -212,7 +212,7 @@ export function Profile({ token, currentUser, onUserUpdate }) {
                 <Button variant="default" onClick={handleSaveProfile} className="rounded-[5px] text-xs h-9 px-4 font-medium">
                   Save Changes
                 </Button>
-                <Button variant="outline" onClick={() => setIsEditing(false)} className="rounded-[5px] text-xs h-9 px-4 font-medium">
+                <Button variant="outline" onClick={() => { setBio(profile.bio || ""); setCollege(profile.college || ""); setSkills(profile.skills || []); setNewSkill(""); setError(""); setIsEditing(false); }} className="rounded-[5px] text-xs h-9 px-4 font-medium">
                   Cancel
                 </Button>
               </div>

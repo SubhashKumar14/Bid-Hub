@@ -31,7 +31,9 @@ export function checkout(bidId, token, currentUser, proposalVersion) {
       const modal = new window.Razorpay({ key: order.keyId, amount: order.amount, currency: order.currency, order_id: order.orderId, name: "Bid-Hub test checkout", prefill: { name: currentUser?.name, email: currentUser?.email },
         handler: response => post("/api/payments/verify", response, token).then(resolve, reject),
         modal: { ondismiss: () => reject(new Error("Checkout dismissed. The saved order remains recoverable; no payment was assumed cancelled.")) },
-      }); modal.open();
+      });
+      modal.on("payment.failed", () => { modal.close(); reject(new Error("Razorpay test payment failed. The agreed order is retained; refresh its status before retrying.")); });
+      modal.open();
     });
   })().finally(() => running.delete(key));
   running.set(key, promise); return promise;

@@ -1,6 +1,7 @@
 import { checkout } from "../../../api/checkout";
 import { allocateOffer } from "../../../../backend/lib/offer.js";
 import { ProjectRecovery } from "../ProjectRecovery";
+import { CandidateProfile } from "../CandidateProfile";
 import { SubmissionHistory } from "../SubmissionHistory";
 import { downloadAttachment } from "../../../api/fileApi";
 import { ShieldCheck, ArrowLeft, MapPin, Clock, Paperclip, Star } from "lucide-react";
@@ -32,6 +33,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
   const live = useRef(true);
   useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
   const [error, setError] = useState("");
+  const [candidateId,setCandidateId]=useState(null);
   const [project, setProject] = useState(null);
   const [contract, setContract] = useState(null);
   const [milestones, setMilestones] = useState([]);
@@ -381,6 +383,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
       </button>
 
       {error && <p role="alert" className="text-sm text-destructive py-3">{error} <Button variant="outline" onClick={fetchProjectData}>Retry</Button></p>}
+      {project.sampleData && <p role="status" className="text-sm text-muted-foreground">Sample data: illustrative work only. No gateway transaction or genuine reputation is represented.</p>}
       {contract && <section className="border border-border rounded p-4 mb-5 text-sm space-y-2"><h2 className="font-medium">Agreed contract: {formatCurrency(contract.totalPaise / 100)}</h2><p>Proposal version {contract.proposalVersion} · {contract.timeline} · Advertised estimate: {formatCurrency(project.budget)}</p><p>{contract.evidencePolicy}</p><details><summary>Agreed brief and proposal</summary><p className="whitespace-pre-wrap">{contract.brief}</p><p className="whitespace-pre-wrap">{contract.proposal}</p></details></section>}
       {isOwner && project.status === "OPEN" && <Button variant="outline" className="mb-5" onClick={async () => {
         if (!window.confirm("Cancel this open brief? Proposals and history will be retained. No funding or refund is involved.")) return;
@@ -454,9 +457,9 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
 
       <div className="grid lg:grid-cols-12 gap-8">
         {/* Main Column */}
-        <article className="lg:col-span-8 space-y-6">
+        <article className="min-w-0 lg:col-span-8 space-y-6">
           <header className="space-y-3">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
               <span className="text-xs uppercase tracking-wider font-mono text-muted-foreground">
                 {project.category} · #{project._id.substring(18)}
               </span>
@@ -472,7 +475,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
               <span className="inline-flex items-center gap-1.5"><MapPin className="size-3.5" /> {project.location || (project.remote === true ? "Remote" : project.remote === false ? "On-site" : "Location not specified")}</span>
               {project.level && <span>Experience: {project.level}</span>}
               {project.duration && <span>Estimated duration: {project.duration}</span>}
-              <span className="inline-flex items-center gap-1.5 text-foreground"><ShieldCheck className="size-3.5 text-brand-accent" /> Demo funding · no legal escrow</span>
+              <span className="inline-flex items-center gap-1.5 text-foreground"><ShieldCheck className="size-3.5 text-brand-accent" /> Test funding · no legal escrow</span>
             </div>
           </header>
 
@@ -710,7 +713,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
                             <p className="text-sm font-medium text-foreground truncate">{b.studentId?.name || "Student"}</p>
                             <p className="text-xs text-muted-foreground truncate">{b.studentId?.college || "College"}</p>
                             <p className="text-[11px] text-muted-foreground mt-0.5">
-                              {b.studentId?.completedProjects || 0} completed projects
+                              <Button variant="outline" onClick={()=>setCandidateId(b.studentId?._id || b.studentId)}>View candidate work record</Button>
                             </p>
                           </div>
                         </div>
@@ -734,13 +737,13 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
                         </div>
 
                         {project.status === "OPEN" && b.status === "PENDING" && (
-                          <Button
+                          <div className="flex gap-2"><Button variant="outline" onClick={async()=>{try{const response=await fetch(`/api/bids/${b._id}/reject`,{method:"PATCH",headers:{Authorization:`Bearer ${token}`}});const data=await response.json();if(!response.ok)throw new Error(data.message);await fetchProjectData();}catch(e){if(live.current)setError(e.message);}}}>Reject proposal</Button><Button
                             size="sm"
                             className="rounded-[5px] bg-primary text-primary-foreground hover:bg-primary/90 text-xs px-4"
                             onClick={() => handleAcceptBid(b._id)}
                           >
                             Accept Proposal
-                          </Button>
+                          </Button></div>
                         )}
 
                         {project.status === "PENDING_FUNDING" && b.status === "PENDING" && pendingPayment && (b.studentId?._id || b.studentId) === pendingPayment.studentId && (
@@ -772,7 +775,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
         </article>
 
         {/* Right Sticky Column */}
-        <aside className="lg:col-span-4">
+        <aside className="min-w-0 lg:col-span-4">
           <div className="sticky top-20 space-y-4">
             {/* Student Proposal Submission Box */}
             {isStudent && project.status === "OPEN" && (
@@ -885,13 +888,13 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
               </div>
 
               <div className="grid grid-cols-2 gap-3 pt-2 text-center border-t border-border">
-                <div className="p-2 rounded-[4px] bg-secondary/30">
+                <div className="p-2 min-w-0 rounded-[4px] bg-secondary/30">
                   <p className="text-base font-mono tabular-nums font-semibold text-foreground">{project.clientId?.completedProjects || 0}</p>
                   <p className="text-[11px] text-muted-foreground">Completed</p>
                 </div>
-                <div className="p-2 rounded-[4px] bg-secondary/30">
-                  <p className="text-base font-mono tabular-nums font-semibold text-foreground">
-                    {typeof project.clientId?.rating === "number" && project.clientId.rating > 0 ? project.clientId.rating.toFixed(1) : "—"}
+                <div className="p-2 min-w-0 rounded-[4px] bg-secondary/30">
+                  <p className="text-sm font-mono tabular-nums font-semibold text-foreground break-words">
+                    {typeof project.clientId?.rating === "number" && project.clientId.rating > 0 ? project.clientId.rating.toFixed(1) : "No reviews yet"}
                   </p>
                   <p className="text-[11px] text-muted-foreground">Rating</p>
                 </div>
@@ -907,6 +910,7 @@ export function ProjectDetail({ setPage, role, token, currentUser }) {
         onConfirm={confirmCheckout}
         onCancel={() => setDisclaimerOpen(false)}
       />
+      {candidateId && <CandidateProfile userId={candidateId} onClose={()=>setCandidateId(null)} />}
       <PaymentSuccessModal
         open={successOpen}
         onClose={() => {

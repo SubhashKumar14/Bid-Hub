@@ -19,9 +19,9 @@ services:
       - key: JWT_EXPIRE
         value: 1d
       - key: PAYMENT_PROVIDER
-        value: mock
+        value: razorpay
       - key: PRODUCT_MODE
-        value: demo
+        value: test
       - key: PRIVATE_STORAGE
         value: mongodb
       - key: RAZORPAY_KEY_ID

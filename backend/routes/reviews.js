@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { verifiedReviews } from "../services/reputation.js";
 import { httpErrorStatus } from "../lib/validation.js";
 import express from "express";
 import { createRouter } from "../lib/router.js";
@@ -85,12 +86,13 @@ router.post("/", protect, async (req, res) => {
       revieweeId,
       rating: numRating,
       comment: comment.trim(),
+      sampleData: project.sampleData === true,
     }], { session });
 
     // Recalculate average rating of reviewee
-    const allReviews = await Review.find({ revieweeId }).session(session);
+    const allReviews = await verifiedReviews({ revieweeId: new mongoose.Types.ObjectId(revieweeId) },session);
     const totalRating = allReviews.reduce((sum, r) => sum + r.rating, 0);
-    const avgRating = totalRating / allReviews.length;
+    const avgRating = allReviews.length ? totalRating / allReviews.length : 0;
 
     // Serialize rating recomputation with concurrent reviews of the same user.
     await User.findByIdAndUpdate(revieweeId, {
@@ -127,12 +129,7 @@ router.post("/", protect, async (req, res) => {
 // @access  Public
 router.get("/public", async (req, res) => {
   try {
-    const reviews = await Review.find()
-      .populate("reviewerId", "name avatarUrl college role")
-      .populate("projectId", "title")
-      .sort({ createdAt: -1 })
-      .limit(3)
-      .lean();
+    const reviews = await verifiedReviews({},null,3);
     res.json(reviews);
   } catch (error) {
     console.error("Get public reviews error:", error);
@@ -145,10 +142,7 @@ router.get("/public", async (req, res) => {
 // @access  Public
 router.get("/users/:id/reviews", async (req, res) => {
   try {
-    const reviews = await Review.find({ revieweeId: req.params.id })
-      .populate("reviewerId", "name avatarUrl college role")
-      .populate("projectId", "title")
-      .sort({ createdAt: -1 });
+    const reviews = await verifiedReviews({revieweeId:new mongoose.Types.ObjectId(req.params.id)});
     res.json(reviews);
   } catch (error) {
     console.error("Get reviews error:", error);

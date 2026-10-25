@@ -1,12 +1,22 @@
 # Workflow verification results
 
-## Final independent review, 25 October 2026
+## Current follow-up, 25 October 2026
 
-The current independent evidence is in [final-independent-review.md](final-independent-review.md), including the complete original-requirement matrix, prioritized defects/reproductions, actual source references, test boundaries and external blockers.
+This evidence supersedes earlier counts below. Current branch: `codex/workflow-repair`; this follow-up has **uncommitted local changes**. Nothing was pushed, merged, deployed, or run against production data.
 
-Final executed gates: **44 security checks**, **16 real replica-set checks**, **3 isolated React checks**, and **8 browser/integration groups**, with no successful gate relying on skipped integration tests. Production build passed. Targeted follow-ups verify participant review negatives, histories beyond 100 records, account-wide totals across dashboard pages, genuine session expiry and actual API-process restart. Browser fixtures use explicit demo funding; live payment/payout capability remains disabled.
+| Gate | Result |
+|---|---|
+| `npm run build` | Passed; Vite main JS 543.77 kB (157.00 kB gzip), with the existing >500 kB chunk warning |
+| `npm run test:frontend` | 3 passed |
+| `npm run test:security --prefix backend` | 44 passed, 0 failed, 0 skipped |
+| `npm run test:transactions --prefix backend` | 19 passed, 0 failed, 0 skipped against a disposable MongoDB replica set |
+| `npm run test:e2e -- --reporter=line` | 10 passed, 0 skipped, including real browser/API/replica-set journeys and existing payment, security/chat, and runtime integration programs |
+| `npm ls body-parser` and backend equivalent | Both resolve to 1.20.9 |
+| `git diff --check` | Passed |
 
-The resumed baseline was `2e33a66`, with previously committed user changes preserved on `codex/workflow-repair`. This review did not push, merge, deploy or use production data. The earlier record below is retained as historical evidence, not the final verification count.
+The standard browser suite uses the mock provider only with its explicit isolated test flag. It covers client-dashboard and project-detail checkout entry points, exact agreement terms, two milestones, revisions, approvals, completion, reviews, retries, reloads, authorization negatives, and malformed compressed HTTP requests against the actual isolated backend. A separate attempt with real Razorpay test credentials loaded the hosted test checkout but did not reach an authorization/capture result; no funded assignment was asserted. Genuine gateway capture and remote webhook delivery remain BLOCKED. Local Vercel rewrite JSON and compiled SPA/API/assets were checked; no Vercel or Render deployment was tested.
+
+See [final-independent-review.md](final-independent-review.md) for the detailed requirement matrix and [WORKFLOW-STATE-TRANSITIONS.md](WORKFLOW-STATE-TRANSITIONS.md) for state rules, migration, and seed instructions. The earlier record below is retained as historical evidence, not the current count.
 
 ## Earlier 23 October implementation record
 

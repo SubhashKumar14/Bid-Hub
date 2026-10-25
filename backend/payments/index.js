@@ -15,10 +15,10 @@ let activeProviderName = "";
 export function getPaymentProvider() {
   if (activeProvider) return activeProvider;
 
-  const providerEnv = capabilities().simulatedFunding ? "mock" : (process.env.PAYMENT_PROVIDER || "razorpay").toLowerCase().trim();
+  const providerEnv = (process.env.PAYMENT_PROVIDER || "razorpay").toLowerCase().trim();
 
   if (providerEnv === "mock") {
-    if (process.env.NODE_ENV === "production" && !capabilities().simulatedFunding) throw new Error("Mock payments are disabled in production unless PRODUCT_MODE=demo.");
+    if (!capabilities().isolatedTest) throw new Error("Mock payments are allowed only in explicitly isolated automated tests.");
     activeProvider = new MockProvider();
     activeProviderName = "mock";
     console.warn(`Mock payment provider enabled in explicit ${capabilities().mode} mode. No real money will move.`);
@@ -36,7 +36,7 @@ export function getPaymentProvider() {
   }
   if (keyId === "rzp_test_placeholder" || keySecret === "placeholdersecret") throw new Error("Placeholder Razorpay credentials are not accepted.");
   if (keyId.startsWith("rzp_live_")) throw new Error("Live payments are disabled until payout and reconciliation operations are implemented and verified.");
-  if (process.env.NODE_ENV === "production" && !keyId.startsWith("rzp_test_") && !keyId.startsWith("rzp_live_")) throw new Error("Invalid Razorpay key ID configuration.");
+  if (!keyId.startsWith("rzp_test_")) throw new Error("A genuine Razorpay test key (rzp_test_) is required.");
 
   activeProvider = new RazorpayProvider(keyId, keySecret, webhookSecret);
   activeProviderName = "razorpay";

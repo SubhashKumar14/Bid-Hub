@@ -1,3 +1,4 @@
+import { CATEGORIES } from "../../../../shared/categories.js";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
@@ -8,15 +9,7 @@ import { useState, useEffect, useRef } from "react";
 import { useCapabilities } from "../../../api/capabilities";
 import { toast } from "sonner";
 
-const categories = [
-  { label: "Product Design", value: "Product Design" },
-  { label: "Web Development", value: "Web Development" },
-  { label: "Backend & APIs", value: "Backend & APIs" },
-  { label: "Writing & Content", value: "Writing & Content" },
-  { label: "Video & Motion", value: "Video & Motion" },
-  { label: "Graphic Design", value: "Graphic Design" },
-  { label: "Data & Research", value: "Data & Research" },
-];
+const categories = CATEGORIES.map(value => ({label:value,value}));
 
 const SUGGESTED_SKILLS = {
   "Product Design": ["Figma", "UX/UI", "Wireframing", "Prototyping", "Design Systems"],
@@ -68,6 +61,7 @@ export function PostProject({ token, currentUser, onDone }) {
   const publishLock = useRef(false);
   const [publishing, setPublishing] = useState(false);
   const publishId = useRef(crypto.randomUUID());
+  const publishContent = useRef(null);
   // Restore draft if available
   useEffect(() => {
     try {
@@ -75,6 +69,7 @@ export function PostProject({ token, currentUser, onDone }) {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.clientRequestId) publishId.current = parsed.clientRequestId;
+        publishContent.current = parsed.lastAttempt || null;
         if (parsed.milestones) setMilestones(parsed.milestones);
         if (parsed.attachments) setAttachments(parsed.attachments);
         if (parsed.location) setLocation(parsed.location);
@@ -96,7 +91,7 @@ export function PostProject({ token, currentUser, onDone }) {
   // Auto-save draft
   useEffect(() => {
       localStorage.setItem(draftKey, JSON.stringify({
-        title, description, category, budget, deadline, skills, milestones, attachments, location, level, duration, fileManifest, importSource, importRevision, clientRequestId: publishId.current,
+        title, description, category, budget, deadline, skills, milestones, attachments, location, level, duration, fileManifest, importSource, importRevision, clientRequestId: publishId.current, lastAttempt: publishContent.current,
       }));
   }, [title, description, category, budget, deadline, skills, milestones, attachments, location, level, duration, fileManifest, importSource, importRevision]);
 
@@ -239,6 +234,7 @@ export function PostProject({ token, currentUser, onDone }) {
     setError("");
     const validMilestones = milestones;
     if (milestones.some(m => !m.title.trim() || !m.amount)) { setError("Complete every milestone row or remove it before publishing."); return; }
+    if (!skills.length) { setError("Add at least one skill required for this scope."); return; }
     if (validMilestones.length === 0) {
       toast.error("Please configure at least one milestone with title and amount");
       return;
@@ -247,13 +243,7 @@ export function PostProject({ token, currentUser, onDone }) {
     try {
       publishLock.current = true;
       setPublishing(true);
-      const res = await fetch("/api/projects", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+      const publishBody = {
           clientRequestId: publishId.current,
           title: title.trim(),
           description: description.trim(),
@@ -270,7 +260,19 @@ export function PostProject({ token, currentUser, onDone }) {
           location,
           level,
           duration,
-        }),
+        };
+      const content = JSON.stringify({...publishBody,clientRequestId:undefined});
+      if (publishContent.current && publishContent.current !== content) publishId.current=crypto.randomUUID();
+      publishContent.current=content; publishBody.clientRequestId=publishId.current;
+      const saved=JSON.parse(localStorage.getItem(draftKey) || "{}");
+      localStorage.setItem(draftKey,JSON.stringify({...saved,lastAttempt:content,clientRequestId:publishId.current}));
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(publishBody),
       });
       const data = await res.json();
       if (active.current !== token || localStorage.getItem("token") !== token) return;
@@ -611,7 +613,7 @@ export function PostProject({ token, currentUser, onDone }) {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Describe the required work in each checkpoint. Funding is simulated; approving work does not initiate a real payout.
+            Describe the required work in each checkpoint. Funding uses Razorpay test mode; live payments and payouts are disabled.
           </p>
 
           <div className="space-y-3 pt-1">
