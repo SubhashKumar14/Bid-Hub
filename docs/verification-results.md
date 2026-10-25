@@ -1,5 +1,15 @@
 # Workflow verification results
 
+## Final independent review, 25 October 2026
+
+The current independent evidence is in [final-independent-review.md](final-independent-review.md), including the complete original-requirement matrix, prioritized defects/reproductions, actual source references, test boundaries and external blockers.
+
+Final executed gates: **44 security checks**, **16 real replica-set checks**, **3 isolated React checks**, and **8 browser/integration groups**, with no successful gate relying on skipped integration tests. Production build passed. Targeted follow-ups verify participant review negatives, histories beyond 100 records, account-wide totals across dashboard pages, genuine session expiry and actual API-process restart. Browser fixtures use explicit demo funding; live payment/payout capability remains disabled.
+
+The resumed baseline was `2e33a66`, with previously committed user changes preserved on `codex/workflow-repair`. This review did not push, merge, deploy or use production data. The earlier record below is retained as historical evidence, not the final verification count.
+
+## Earlier 23 October implementation record
+
 Date: 23 October 2026. Baseline `5c7f3075a0302ffc5d36718f325edaf016566fd4`; repair branch `codex/workflow-repair`. No push, merge, deployment or real-money transaction performed.
 
 ## Environment and isolation

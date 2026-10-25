@@ -1,0 +1,118 @@
+# BidHub final independent workflow review
+
+Reviewed locally on 23 and 25 October 2026. Review branch: `codex/workflow-repair`. The initial inspected implementation was `e6c9bb9`; the resumed clean checkout was `2e33a66`, which already contained the earlier review fixes in `10161dc` and subsequent user authentication/Render configuration commits. Those commits were preserved. This review did not push, merge or deploy anything, and used no production database or real money.
+
+The final runtime and regression-test changes are saved locally in commit `7b60b22`, authored as SubhashKumar14. This report accompanies those changes; `main` was not moved by this review.
+
+## Verdict
+
+**The supported local demonstration journeys work.** Writing, design and software work reached assignment, delivery, approval, completion, participant reviews and retained evidence in a real Chromium browser backed by an isolated MongoDB replica set. Writing includes a change request and a revised submission. Prices differ from advertised budgets, and work approval is independent of financial release.
+
+This is a local demo verdict, not approval for live commerce or deployment. The original scope is **PARTIAL overall** because external gateway/hosting/storage operations and broader compatibility/capacity gates remain unverified. The explicit product limits below remain material. No claim of 100% completion, legal escrow, payout readiness or exhaustive bug exclusion is made.
+
+## Evidence and test boundaries
+
+Environment: Windows/PowerShell, Node 26.1.0, npm 11.16.0, MongoDB 8.3, Mongoose 8.24.5, Playwright 1.64.1 and downloaded Chromium. The API runs with `NODE_ENV=production`, `PRODUCT_MODE=demo`, private GridFS, synthetic users and synthetic secrets. Replica sets use temporary directories and ports 27128/27129. Application/production database variables are not silently substituted for `TEST_MONGODB_URI`.
+
+| Exact command | Executed result | Meaning and limits |
+|---|---|---|
+| `npm run test:security --prefix backend` | **44 passed, 0 failed, 0 skipped** | Actual crypto/config checks and HTTP route regressions; older route regressions use persistence doubles. Includes strict rate-limit overrides and preserved Render demo defaults. |
+| `npm run test:transactions --prefix backend` | **16 passed, 0 failed, 0 skipped** | Real Mongoose writes and transactions against a replica set. Failure injections deliberately make writes/notifications fail; they do not replace the successful multi-document allocation operation. |
+| `npm run test:frontend` | **3 passed** | Existing isolated React state/effect harness. Child UI/API stubs mean these are not full-browser journey evidence. |
+| `npm run test:e2e` | **8 groups passed, 0 skipped** | Real browser/API/DB workflows plus the three existing integration scripts. Includes actual API-process restart, compiled-build serving and growing-history/dashboard fixtures. |
+| `npm run build` | **Passed** | Actual Vite production build: main JS 537.58 kB, gzip 155.14 kB. Existing >500 kB chunk warning and Node module-registration deprecation remain. |
+| `git diff --check` | Passed before finalization | Formatting/diff check only. |
+
+Targeted browser commands were also executed for `final independent review`, `retained history pages`, `dashboard pages`, and `expired browser session`, each passing. The writing journey was extended with explicit unrelated/self/duplicate-review and confidential-history negatives and rerun separately. These are additional checks, not additional independent vulnerabilities or a replacement for the full suite.
+
+Browser groups in `e2e/workflow.spec.mjs`:
+
+1. **Writing:** publish through the form; propose ₹25,000 against a ₹50,000 estimate; accept from the client dashboard; allocate two ₹12,500 checkpoints; submit; request revisions; resubmit version 2; reject approval of version 1; approve both; complete; review from both accounts; reopen both versions and original evidence links. Self/unrelated reviews and private-history access are denied; a repeated valid review recovers the one stored review.
+2. **Design/detail:** real private PDF bytes in GridFS; published brief visibility; ownership/association negatives; metadata round-trip; clarification; revised proposal; stale-version rejection; detail checkout; ₹800 agreed total; ₹80 approved contributes 10%; ledger totals independent of page size; recovery pauses work; persistent read/save errors retain input.
+3. **Software/recovery:** concurrent checkout/order reuse; dismissal; late duplicate demo confirmation; one allocation set; discovery notes without fabricated deployment URLs; delayed A-to-B modal response; keyboard focus; cross-tab account change; scoped draft recovery; light/dark and 360/390/768/1024/1440 widths; login return intent.
+4. **Existing scripts:** `payment_flow.test.js`, `security_chat.test.js`, `runtime_verification.js`, each against the isolated database. The last script's copied frontend simulations are not counted as independent browser proof. The security/chat script checks the actual 10-attempt auth threshold.
+5. **Independent scenario:** stop and restart the actual API after checkout dismissal; recover the same order; settle once; finish design and software contracts with two checkpoints and human reviews; revise a software offer from ₹900 to ₹600 before exact-version acceptance; retain completed chat after a real committed send whose browser response is dropped; notifications; ZIP manifest and limit rejection; open-brief cancellation; compiled SPA navigation/refresh and JS/CSS/API content types.
+6. **History volume:** retrieve all 102 submission versions and 102 clarifications through real cursor APIs and UI controls; malformed cursors and unauthenticated/private-history access fail. Historical records are seeded volume fixtures, not a claim that 102 human revision rounds were performed.
+7. **Dashboard volume:** 52 project/proposal fixtures and 26 funded legacy workspaces; independent list pages; full-account counts; ₹260 totals while listing one transaction; oldest workspace reachable in both dashboards. These fixtures test actual queries/rendering, not 52 publication/payment journeys or production capacity.
+8. **Expiration:** a genuinely expired signed JWT returns 401; real browser sign-in returns to the intended project.
+
+The gateway transport in the verify/webhook DB tests is deterministic fixture transport. HMAC verification, payment/event identity, captured-state checks, transaction behavior and DB writes run normally. **Real Razorpay test order creation, Checkout SDK behavior and network webhook delivery were not exercised.** Browser failure interception tests UI recovery; the operations being tested for successful persistence use the real API and MongoDB.
+
+## Prioritized confirmed defects and repairs
+
+These findings were verified against actual code, not accepted from the previous completion summary. Locations refer to the repaired source; reproduction describes the pre-fix behavior.
+
+| Priority / finding | Source | Reproduction and consequence | Final evidence |
+|---|---|---|---|
+| P1: nested contract schedule was mutable | `backend/models/Contract.js:14` | Load a saved contract, change `schedule[0].amountPaise`, save. The earlier regression checked only `totalPaise`; checkpoint money could change through the model. | Child fields are immutable. Real DB tests cover document saves and dotted updates, preserve the original title/amount and reject changed settlement allocations. No public contract-edit endpoint was introduced. |
+| P1: committed delivery/review retries looked unsuccessful | `backend/routes/milestones.js:66`, `:106` | Lose a successful submission/approval response and repeat it. The prior handler returned 409 even though the requested version/decision had committed. | Identical current submissions and same-version decisions recover the committed result; concurrent delivery creates one version; stale/different decisions remain rejected; notification/completion effects occur once. |
+| P1: retained evidence had no completed-work UI path | `frontend/app/components/pages/ProjectDetail.jsx:573`, `frontend/app/components/SubmissionHistory.jsx:4` | Complete a checkpoint and attempt to reopen evidence. Review/submit controls disappear; historical links were also omitted. | Participant history remains visible after approval/completion, with notes, feedback, file downloads and previous links. Writing browser journey opens versions 1 and 2 from both accounts. |
+| P1: chat retry identity crossed project boundaries | `backend/routes/messages.js:58`, `frontend/app/components/ChatDrawer.jsx:151` | Reuse one sender/request ID for another project; prior code returned the first project's message. UI retry identity also survived target changes. | Backend checks project and content; UI clears retry identity on target changes. Real DB conflict test and a committed-send/dropped-response browser retry pass. |
+| P2: agreed students lost brief materials/history | `backend/routes/uploads.js:41`, `backend/routes/projects.js:20`, `frontend/app/components/ProjectRecovery.jsx:6` | Freeze an agreement before capture: brief file access no longer qualifies as OPEN and no accepted bid exists. After agreement, clarification access also vanished. A file reused in another project could be denied because only the first association was examined. | Contract participants retain access; all intentional associations are checked; clarifications are read-only after agreement; unrelated access remains denied. Actual GridFS bytes and visibility negatives pass. |
+| P2: old history was silently truncated | `backend/routes/milestones.js:167`, `backend/routes/projects.js:26` | Create more than 100 retained records; earlier records exist in storage but cannot be reached through the API/UI. | Validated 25-row cursor pages, explicit load-earlier controls and retry states. Browser retrieves all 102 records. |
+| P2: dashboard lists grew without bounds | `backend/routes/projects.js:132`, `:217`, `frontend/app/components/WorkspacePagination.jsx:3` | Grow project/proposal history; entire account records were returned in one response. Simply applying a limit would hide old work or corrupt displayed counts. | Independent project/contract and proposal pages; whole-account counts/financial totals; explicit page scope. 52-record browser/API fixtures reach oldest work and preserve totals. |
+| P2: open briefs/cancellation were a dead end | `frontend/app/components/pages/ClientDashboard.jsx`, `frontend/app/components/pages/ProjectDetail.jsx:384`, `backend/routes/projects.js:505` | A client with an open brief and no proposal could not find it in its dashboard or invoke the existing pre-agreement cancellation policy. | Open and cancelled history lists, owned cancellation control, repeat cancellation recovery. Accepted/funded terms still require operator recovery. Browser verifies the tombstone and retained workspace. |
+| P2: metrics and labels contradicted stored state | `backend/routes/projects.js`, `backend/routes/payments.js:340`, `backend/routes/milestones.js:131`, dashboard/landing/auth/profile files | Completed student contracts still reported active; APPROVED work said Released; client completions stayed zero; some landing counters named a different entity; financial sums used floating rupees. | Correct completed/approved/simulated labels and client count; integer-paise ledger totals; migration recomputes actual completed participation; browser amount progress and real DB ₹0.10+₹0.20 test pass. |
+| P2: configuration could misstate/disable protections | `backend/lib/validation.js:16`, `backend/routes/auth.js:1`, `backend/routes/imports.js:1` | `parseInt` accepts malformed rate-limit strings; import size config previously allowed values exceeding the archive validator's 50 MiB ceiling. | Strict bounded configuration, conservative defaults preserved, declared expanded-size range 1..50 MiB, invalid overrides rejected. Security regression and ZIP limit checks pass. |
+
+The earlier review repairs are present in committed `10161dc`; pagination/configuration verification and the final report were completed after resuming. Existing subsequent user commits were not reset or rewritten.
+
+## Original requirement to evidence matrix
+
+PASS means the stated supported local behavior is demonstrated; PARTIAL means only the stated subset is established; BLOCKED names an external gate. The statuses do not imply security certification.
+
+| Original requirement | Actual evidence | Status |
+|---|---|---|
+| WF01: same valid checkout from dashboard/detail | Shared `frontend/api/checkout.js`; both visible entry points exercised with exact version and real endpoint | PASS |
+| WF02: atomic two-plus milestone allocations | `settle.js:39` ordered creation; real two-checkpoint/concurrent/rollback tests | PASS |
+| WF03: production demo completes without real payout | Production-mode browser journeys; independent test-mode approval DB case leaves financial allocation LOCKED with no transfer/release timestamp | PASS |
+| WF04: clean URLs, direct links, API/assets, effective hosting root | Both configs use `/` fallback after API rewrite; root build emits `dist`; compiled local refresh/JS/CSS/API checks | PARTIAL: deployed Vercel engine/settings unverified |
+| WF05: estimate, offer and agreed contract are distinct; changed terms need agreement | ₹50,000/₹25,000 journey; ₹900→₹600 version 2; immutable exact paise schedule; stale version fails | PASS for supported proportional schedule |
+| WF06: remote/location/level/duration persisted and usable | Real metadata round-trip, saved-data filters/details; legacy unknown defaults | PASS |
+| WF07: software/design/writing evidence fits the work | All three complete; design/writing use notes/links/files without invented software URLs; discovery needs no deployed app | PASS for notes plus optional relevant evidence policy |
+| WF08: published brief vs confidential-file permissions | Actual GridFS bytes; pending-agreement, shared associations, unrelated/anonymous/foreign-file negatives; authenticated frontend downloads | PASS |
+| WF09: usable replaceable private storage | Real GridFS and local-disk adapter checks; missing storage fails safely; capability-aware UI | PASS locally; remote durability is BLOCKED |
+| WF10: one funding decision, late captures, retries, replay | Unique Contract/FundingAttempt; shared UI in-flight map; real races/duplicate settlement; actual process restart/order reuse; durable unresolved events | PASS locally; gateway network recovery is unverified |
+| WF11: secondary notifications cannot misreport committed effects | Transaction fault injection rolls bid/message/review back; retry recovers; successful duplicate chat/review returns original | PASS |
+| WF12: agreed value is authoritative | Contract snapshot and dashboard values; original estimate unchanged after lower offer | PASS |
+| WF13: open/funding/active/completed states and history agree | Independent dashboard lists/counts; completed excludes active; open/cancelled history; page-independent counts | PASS |
+| WF14: financial progress uses money, separate work status | ₹80/₹800 gives 10%; integer-paise ledger aggregation; test-mode approval has no payout | PASS |
+| WF15: complete drafts, incomplete rows and duplicate publish | Account key and checkpoint restore; publish identity recovers original; form blocks incomplete rows and outstanding uploads/imports | PASS for existing local draft policy |
+| WF16: proposal correction/withdrawal, cancellation/recovery | REVISE/WITHDRAW before contract; accepted terms locked; owned open cancellation; operator case pauses active work without fabricated refund | PASS for supported pause/cancellation; commercial termination is PARTIAL |
+| WF17: minimal clarification/negotiation | Authorized board; student revises scope/offer; client accepts exact new version; prior discussion retained read-only | PASS; no separate structured client-counteroffer editor |
+| WF18: stale async target/account results | A-to-B delayed response, guarded modal continuations, account-keyed components, cross-tab browser test | PASS for exercised paths |
+| WF19: account/profile/navigation consistency | Self-view regression; central profile updates; login return and genuine expiry; role/JWT validation; explicit auth outage UI | PASS for exercised paths; reset/college verification unsupported |
+| WF20: truthful imports and configured limits | Actual ZIP manifest/over-limit request; bounded size config; stored import revision; source inspection of default-branch/SHA logic | PARTIAL: external GitHub round-trip not executed |
+| WF21: financial/review/verification copy is truthful | Decision banner/dialogs and completed labels; no transfer IDs; new rating zero; explicit human reviews | PASS for supported demo; no trust certification claimed |
+| WF22: errors, pagination and retained history | Persistent failed finance/directory/profile/submission/chat states; bounded directory/ledger/dashboard/history pages; >100-history and 52-project checks | PASS locally; production scale not established |
+| Actor, state, endpoint and retry specification | `workflow-spec.md` maps published actions, permissions, inputs, effects and recovery; implementation traced through routes/models/shared adapters | PASS for supported capability inventory |
+| Invalid actions, stale approvals and unauthorized reviews | Security/DB regressions; real browser/API self/unrelated/private-history negatives; duplicate review retained once | PASS |
+| Immutable agreements, exact paise accounting | Nested and top-level immutability checks, allocation equality, captured status/INR/amount binding | PASS |
+| Late/unknown/cancelled/conflicting payment handling | Durable PaymentEvent outcomes and operator queue; verify/webhook converge; unknown or legacy-cancelled capture does not force assignment | PASS locally; automatic refunds intentionally absent |
+| Restart and failure injection before/after financial writes | Real transactional rollback/reconnect tests and actual browser API-process restart | PASS; abrupt power-loss testing not performed |
+| Both participant reviews and completed discussion/evidence | Writing/design/software UI reviews; old versions/links; completed chat retry | PASS |
+| CI uses real DB/browser gate without skip-success | Workflow config provisions replica set and Chromium and builds before E2E | PARTIAL: configured, not remotely executed by this review |
+| Migrations, rollback and operational instructions | Additive migration dry-run/apply/apply with unchanged primary counts/ledger paise totals; runbook and operator scripts inspected | PASS on synthetic data; historical production review BLOCKED |
+| Preserve stack, brand, themes, assets and working controls | No changes to public assets, theme/font styles or brand components; strict payment/ownership protections retained | PASS |
+| Keyboard/mobile and failure states | Chromium focus/keyboard checks; 360/390/768/1024/1440 in both appearances; long titles/large amounts; explicit recovery UI | PARTIAL: sampled usability, not a full accessibility/device audit |
+| No push/merge/deploy or production data mutation by this review | Local branch edits and isolated fixture servers only | PASS |
+
+The detailed per-visible-action mapping remains in `workflow-spec.md`: publishing/drafts/imports/files, proposal revision/withdrawal, exact-version checkout/recovery, submission/history/review, completed feedback, discussion, recovery requests, profile/photo capability, notifications, routing and theme controls. Cosmetic/local navigation controls do not imply remote capabilities. Unsupported financial and account-recovery actions are not implemented by pretending success.
+
+## Remaining limits and specific blockers
+
+1. **BLOCKED: external provider test checkout.** Genuine Razorpay test credentials, provider availability and signed webhook delivery are required. Local deterministic transport proves handler/transaction behavior, not the remote SDK or provider. Live keys, payouts and automatic refunds remain disabled.
+2. **BLOCKED: deployment verification.** No Vercel/Render dashboard or deployment was touched. Confirm the intended revision, repository-root build, `dist`, environment and actual clean-URL/API/asset responses on the target host. Vite preview is not the Vercel routing engine.
+3. **BLOCKED: remote file operations.** Local GridFS authorization and bytes work. Remote quotas, database permissions/durability, historical-byte migration, retention, malware scanning and backup restoration require operator verification. Cloudinary avatar delivery requires actual credentials; it was not exercised against Cloudinary.
+4. **PARTIAL: operational dispute lifecycle.** An operator-visible case and pause work; evidence is retained. Automated dispute decisions, compensation, refunds and reviewed resumption/termination tooling are not implemented. An uncertain remotely-created order must not be deleted merely to enable another checkout.
+5. **PARTIAL: richer negotiation.** The supported offer scales the posted checkpoints proportionally and freezes a reviewed student version. Custom checkpoint reallocation and a separate structured client-counteroffer editor are absent. Substantial scope changes require clarification plus a revised student offer or a new brief.
+6. **PARTIAL: compatibility and capacity.** No complete WCAG/screen-reader audit, Safari/Firefox/real-device run, peak-load test, remote CI execution or disaster-recovery exercise. Profile review collections and account-wide membership/count queries still require high-volume capacity analysis; bounded dashboard response pages are not proof of unlimited scale.
+7. **BLOCKED: historical certainty.** Synthetic migration checks cannot establish original consent or integrity of real legacy agreements. Back up and review actual historical records before enabling writes. No historical contract is invented from guesses.
+
+Password reset delivery and college-email verification remain explicitly unsupported. They are not blockers for the demonstrated synthetic-account demo, and are not represented as working features.
+
+## Failed runs and honest verification accounting
+
+During this review, new tests first reproduced lost-response retry defects, cross-project message identity reuse and nested contract mutability; they failed before repairs and passed afterward. An intermediate browser run caught a real mobile overflow in the newly visible open-brief list; it was fixed. Earlier expanded runs hit the production auth threshold; the later existing user commit supplies an explicit isolated-server override while the security script retains the threshold-10 check. One targeted run was mistakenly started before another fixed-port suite exited and failed with an already-initialized replica set; it is not counted as verification. The harness now refuses occupied fixture ports and awaits child exits. Sandbox loopback restrictions/approval interruptions were infrastructure failures, not passing tests.
+
+The final verdict uses executed successful gates, the specifically named external blockers, and the demonstrated business journeys, not the old summary's counts.

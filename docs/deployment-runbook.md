@@ -1,6 +1,6 @@
 # Workflow configuration, migration and recovery
 
-This branch is for review. Nothing was pushed, merged or deployed as part of this repair. Keep live money disabled.
+This branch is for review. The final independent review performed no push, merge or deployment. Keep live money disabled.
 
 ## Supported modes
 
@@ -11,9 +11,11 @@ This branch is for review. Nothing was pushed, merged or deployed as part of thi
 | `PRODUCT_MODE=test`, `PAYMENT_PROVIDER=mock` | Local/test processes only; production Node rejects this combination. Use deliberate `PRODUCT_MODE=demo` for a hosted demonstration. |
 | Any live payment key / live product mode | Unsupported. Live product mode and live gateway keys in the provider path are rejected. No payout or refund implementation is enabled. |
 
-Production startup requires explicit `PRODUCT_MODE`, stable `JWT_SECRET` (32+ characters), `MONGODB_URI`, and a working replica set. Changing `JWT_SECRET` invalidates all existing sessions. Preserve it across restarts.
+Production startup requires stable `JWT_SECRET` (32+ characters), `MONGODB_URI`, and a working replica set. Set `PRODUCT_MODE` explicitly. The existing Render-specific configuration defaults missing mode to `demo`, private storage to `mongodb`, and provider to `mock`; this review preserves that behavior and verifies that it cannot activate configured live keys. Other production environments reject a missing mode. Changing `JWT_SECRET` invalidates all existing sessions. Preserve it across restarts.
 
 `render.yaml` now describes an explicit demo with `PRIVATE_STORAGE=mongodb`. It does not provision or verify a MongoDB account. The existing service's actual environment must be reviewed separately; editing this file does not update a deployed service.
+
+Authentication and import limits remain 10 and 5 requests per 15 minutes per IP by default. Optional `AUTH_RATE_LIMIT` and `IMPORT_RATE_LIMIT` overrides must be decimal integers from 1 to 10000; malformed values fail startup. Browser fixtures explicitly set `AUTH_RATE_LIMIT=1000` only for their isolated server. The existing security/chat integration command explicitly verifies the real threshold of 10. No production environment was changed by these tests.
 
 ## Private files and public avatars
 
@@ -83,3 +85,5 @@ For DB tests provide `TEST_MONGODB_URI` pointing to an **isolated replica-set te
 CI includes a separate MongoDB 8 replica-set/Chromium job and executes the DB and E2E gates. Legacy payment/chat/runtime smoke commands run within E2E against that isolated DB. Invoking those legacy scripts directly now requires explicit `TEST_MONGODB_URI` so they cannot silently use the app database. Legacy copied frontend simulations are not counted as browser proof.
 
 External release blockers: deployed routing/environment inspection; genuine Razorpay test credentials/webhook delivery if provider mode is needed; Cloudinary credentials for photos; remote MongoDB quota, durability and restore validation; deployed browser compatibility and production load. Live payments, payouts, automatic refunds, college-email verification and password-reset delivery are unsupported.
+
+The final independent review, executed commands and requirement matrix are in `final-independent-review.md`. Dashboard projects/contracts and proposals are independently paginated in groups of 25; their summary counts and financial totals remain account-wide. Submission and clarification histories use 25-record cursor pages and expose older records without dropping them from storage. These are API/UI changes only, requiring no destructive migration.

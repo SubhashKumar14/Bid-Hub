@@ -30,3 +30,11 @@ Baseline inspected: `5c7f3075a0302ffc5d36718f325edaf016566fd4` on `main`. Work i
 Additional race repairs: agreeing an offer writes its bid so revision/withdrawal conflicts retry against the accepted version; all approvals write their parent project so concurrent final approvals derive COMPLETED once; scope edits are disallowed after proposals; uncertain legacy orders cannot spawn a second checkout.
 
 External gates are listed in `deployment-runbook.md` and `verification-results.md`. Passing local tests is not proof of the live deployment or commercial payment readiness.
+
+## Independent review follow-up
+
+See `final-independent-review.md` for priorities, current source locations, reproductions, exact executed evidence and remaining blockers. The earlier findings were independently retraced; passing counts were not accepted as proof.
+
+Confirmed and repaired after the initial implementation: nested contract schedule mutability; delivery/approval lost-response retries; cross-project message request identities; missing completed-work evidence links; lost pre-agreement clarification/file access; open-brief/cancellation navigation; incorrect completed/release labels and counts; floating-point ledger totals; archive limit mismatch; silently capped history; unbounded dashboard lists; and permissive rate-limit override parsing.
+
+New cursor history pages preserve all records, and independent dashboard pages preserve whole-account counts and money. Real Chromium/MongoDB volume checks reach 102 historical records and the oldest of 52 project/proposal fixtures. A separate real DB check proves that test-mode work completion leaves financial allocations locked and creates no transfer/release timestamp. Migrations remain additive and do not rewrite financial evidence.
